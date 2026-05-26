@@ -196,6 +196,39 @@ const DISTRICT_COORDS = {
   'Pemba South':{lat:-5.3167,lon:39.75},
 };
 
+// ─── GPS LOCATION DETECTION ───────────────────────────────────────
+function findNearestDistrict(lat, lon) {
+  let nearest = 'Dar es Salaam';
+  let minDist = Infinity;
+  for (const [name, coords] of Object.entries(DISTRICT_COORDS)) {
+    const dist = Math.sqrt(
+      Math.pow(lat - coords.lat, 2) + Math.pow(lon - coords.lon, 2)
+    );
+    if (dist < minDist) {
+      minDist = dist;
+      nearest = name;
+    }
+  }
+  return nearest;
+}
+
+function useGPSLocation(onFound, onError) {
+  if (!navigator.geolocation) {
+    onError('GPS not supported');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const district = findNearestDistrict(pos.coords.latitude, pos.coords.longitude);
+      onFound(district, pos.coords.latitude, pos.coords.longitude);
+    },
+    (err) => onError(err.message),
+    { timeout: 8000, maximumAge: 300000 }
+  );
+}
+
+
+
 const CLINICS_DATA = {
   'Iringa':[
     {name:'Iringa Regional Referral Hospital',type:'hospital',phone:'+255 262 702 285',address:'Iringa Town Centre',hours:'24/7'},
@@ -601,11 +634,28 @@ export default function App(){
   );
 }
 
-// ─── HOME (with live weather + alerts) ───────────────────────────
+// ─── HOME (with live weather + alerts + GPS) ─────────────────────
 function Home({setPage,t,lang}){
   const [homeDistrict,setHomeDistrict]=useState('Iringa');
   const [weatherData,setWeatherData]=useState(null);
   const [loadingHome,setLoadingHome]=useState(true);
+  const [gpsStatus,setGpsStatus]=useState('detecting'); // detecting, found, denied, error
+  const [gpsCoords,setGpsCoords]=useState(null);
+
+  // Try GPS on first load
+  useEffect(()=>{
+    setGpsStatus('detecting');
+    useGPSLocation(
+      (district, lat, lon)=>{
+        setHomeDistrict(district);
+        setGpsCoords({lat,lon});
+        setGpsStatus('found');
+      },
+      ()=>{
+        setGpsStatus('denied');
+      }
+    );
+  },[]);
 
   useEffect(()=>{
     async function load(){
@@ -635,14 +685,65 @@ function Home({setPage,t,lang}){
         <div style={{fontSize:13,color:'#6b7280',marginTop:2}}>{t.welcomeSub}</div>
       </div>
 
-      {/* District selector on home */}
-      <div style={{display:'flex',gap:8,marginBottom:12,alignItems:'center'}}>
-        <span style={{fontSize:13,color:'#374151',fontWeight:500,whiteSpace:'nowrap'}}>📍</span>
-        <select value={homeDistrict} onChange={e=>setHomeDistrict(e.target.value)}
-          style={{flex:1,padding:'8px 12px',borderRadius:10,
-            border:'1px solid #e5e7eb',fontSize:14,background:'#fff'}}>
-          {DISTRICTS.map(d=><option key={d}>{d}</option>)}
-        </select>
+      {/* GPS status + District selector */}
+      <div style={{marginBottom:12}}>
+        {gpsStatus==='detecting'&&(
+          <div style={{display:'flex',alignItems:'center',gap:8,
+            background:'#eff6ff',border:'1px solid #bfdbfe',
+            borderRadius:10,padding:'8px 12px',marginBottom:8}}>
+            <div style={{width:14,height:14,border:'2px solid #bfdbfe',
+              borderTopColor:'#2563eb',borderRadius:'50%',
+              animation:'spin 0.7s linear infinite',flexShrink:0}}/>
+            <span style={{fontSize:12,color:'#2563eb'}}>
+              {lang==='en'?'Detecting your location...':'Inatafuta mahali ulipo...'}
+            </span>
+            <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+          </div>
+        )}
+        {gpsStatus==='found'&&(
+          <div style={{display:'flex',alignItems:'center',gap:8,
+            background:'#f0fdf4',border:'1px solid #bbf7d0',
+            borderRadius:10,padding:'8px 12px',marginBottom:8}}>
+            <span style={{fontSize:14}}>📍</span>
+            <span style={{fontSize:12,color:'#166534',flex:1}}>
+              {lang==='en'
+                ?`Location detected: ${homeDistrict}`
+                :`Mahali kumegunduliwa: ${homeDistrict}`}
+            </span>
+            <span style={{fontSize:11,color:'#166534',opacity:0.7}}>GPS ✓</span>
+          </div>
+        )}
+        {gpsStatus==='denied'&&(
+          <div style={{display:'flex',alignItems:'center',gap:8,
+            background:'#fffbeb',border:'1px solid #fde68a',
+            borderRadius:10,padding:'8px 12px',marginBottom:8}}>
+            <span style={{fontSize:14}}>⚠️</span>
+            <span style={{fontSize:12,color:'#92400e'}}>
+              {lang==='en'
+                ?'Location access denied. Please select your district below.'
+                :'Ruhusa ya mahali imekataliwa. Tafadhali chagua wilaya yako hapa chini.'}
+            </span>
+          </div>
+        )}
+        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          <select value={homeDistrict} onChange={e=>{setHomeDistrict(e.target.value);setGpsStatus('manual');}}
+            style={{flex:1,padding:'8px 12px',borderRadius:10,
+              border:'1px solid #e5e7eb',fontSize:14,background:'#fff'}}>
+            {DISTRICTS.map(d=><option key={d}>{d}</option>)}
+          </select>
+          <button onClick={()=>{
+            setGpsStatus('detecting');
+            useGPSLocation(
+              (district,lat,lon)=>{setHomeDistrict(district);setGpsCoords({lat,lon});setGpsStatus('found');},
+              ()=>setGpsStatus('denied')
+            );
+          }}
+            style={{padding:'8px 12px',background:'#2563eb',color:'#fff',
+              border:'none',borderRadius:10,cursor:'pointer',fontSize:13,
+              whiteSpace:'nowrap'}}>
+            📍 {lang==='en'?'Use GPS':'Tumia GPS'}
+          </button>
+        </div>
       </div>
 
       {/* Live weather summary card */}
@@ -785,6 +886,16 @@ function Weather({t,lang}){
             border:'1px solid #e5e7eb',fontSize:14,background:'#fff'}}>
           {DISTRICTS.map(d=><option key={d}>{d}</option>)}
         </select>
+        <button onClick={()=>{
+          useGPSLocation(
+            (d)=>{ setDistrict(d); setTimeout(load,100); },
+            ()=>{}
+          );
+        }}
+          style={{padding:'10px 12px',background:'#f3f4f6',color:'#374151',
+            border:'1px solid #e5e7eb',borderRadius:10,cursor:'pointer',fontSize:13}}>
+          📍
+        </button>
         <button onClick={load} disabled={loading}
           style={{padding:'10px 16px',background:'#2563eb',color:'#fff',
             border:'none',borderRadius:10,cursor:'pointer',fontSize:14,fontWeight:500,minWidth:72}}>
