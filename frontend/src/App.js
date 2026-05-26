@@ -574,7 +574,28 @@ function buildAdvice(daily,lang){
 export default function App(){
   const [page,setPage]=useState('home');
   const [lang,setLang]=useState('en');
+  const [installPrompt,setInstallPrompt]=useState(null);
+  const [showInstall,setShowInstall]=useState(false);
   const t=LANG[lang];
+
+  // PWA install prompt
+  useEffect(()=>{
+    const handler=(e)=>{
+      e.preventDefault();
+      setInstallPrompt(e);
+      setShowInstall(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return ()=>window.removeEventListener('beforeinstallprompt', handler);
+  },[]);
+
+  async function installApp(){
+    if(!installPrompt) return;
+    installPrompt.prompt();
+    const result=await installPrompt.userChoice;
+    if(result.outcome==='accepted') setShowInstall(false);
+    setInstallPrompt(null);
+  }
 
   const tabs=[
     {id:'home',icon:'🏠',key:'home'},
