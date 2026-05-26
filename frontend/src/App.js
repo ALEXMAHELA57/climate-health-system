@@ -1006,7 +1006,7 @@ function Symptoms({t,lang}){
     setSelectedTags([]);
     setLoading(true);
     try{
-      const res=await fetch('http://localhost:8000/api/symptoms/chat',{
+      const res=await fetch('https://climate-health-system-backend.onrender.com/api/symptoms/chat',{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({messages:next})
       });
@@ -1465,7 +1465,7 @@ function SMSAlerts({t}){
     if(!phone.trim()) return;
     setLoading(true);
     try{
-      const res=await fetch('http://localhost:8000/api/sms/subscribe',{
+      const res=await fetch('https://climate-health-system-backend.onrender.com/api/sms/subscribe',{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({phone,district})
       });
