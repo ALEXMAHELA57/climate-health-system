@@ -1572,13 +1572,43 @@ function SMSAlerts({t}){
   const [subscribed,setSubscribed]=useState(false);
   const [loading,setLoading]=useState(false);
 
+  const [phoneError,setPhoneError]=useState('');
+
+  function validatePhone(value){
+    // Accept +255XXXXXXXXX (12 digits) or 0XXXXXXXXX (10 digits)
+    const cleaned=value.replace(/\s/g,'');
+    const intl=/^\+255[67]\d{8}$/.test(cleaned);
+    const local=/^0[67]\d{8}$/.test(cleaned);
+    return intl||local;
+  }
+
+  function handlePhoneChange(e){
+    const value=e.target.value;
+    // Only allow +, digits, spaces
+    if(!/^[+\d\s]*$/.test(value)) return;
+    setPhone(value);
+    if(value.length>3){
+      if(!validatePhone(value)){
+        setPhoneError('Enter a valid Tanzania number: +255XXXXXXXXX or 0XXXXXXXXX');
+      } else {
+        setPhoneError('');
+      }
+    } else {
+      setPhoneError('');
+    }
+  }
+
   async function subscribe(){
     if(!phone.trim()) return;
+    if(!validatePhone(phone)){
+      setPhoneError('Enter a valid Tanzania number: +255XXXXXXXXX or 0XXXXXXXXX');
+      return;
+    }
     setLoading(true);
     try{
       const res=await fetch('https://climate-health-system-backend.onrender.com/api/sms/subscribe',{
         method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({phone,district})
+        body:JSON.stringify({phone:phone.replace(/\s/g,''),district})
       });
       const json=await res.json();
       if(json.status==='subscribed') setSubscribed(true);
@@ -1612,10 +1642,22 @@ function SMSAlerts({t}){
           <div style={{background:'#fff',border:'1px solid #e5e7eb',
             borderRadius:12,padding:14,marginBottom:14}}>
             <div style={{fontSize:12,color:'#9ca3af',marginBottom:6}}>{t.yourPhone}</div>
-            <input value={phone} onChange={e=>setPhone(e.target.value)}
-              placeholder="+255712345678"
+            <input value={phone} onChange={handlePhoneChange}
+              placeholder="+255712345678 or 0712345678"
+              maxLength={13}
               style={{width:'100%',padding:'10px 12px',borderRadius:8,
-                border:'1px solid #e5e7eb',fontSize:14,marginBottom:12,boxSizing:'border-box'}}/>
+                border:`1px solid ${phoneError?'#ef4444':'#e5e7eb'}`,
+                fontSize:14,marginBottom:4,boxSizing:'border-box'}}/>
+            {phoneError&&(
+              <div style={{fontSize:11,color:'#ef4444',marginBottom:8}}>
+                ⚠️ {phoneError}
+              </div>
+            )}
+            {!phoneError&&phone.length>3&&(
+              <div style={{fontSize:11,color:'#22c55e',marginBottom:8}}>
+                ✓ Valid Tanzania number
+              </div>
+            )}
             <div style={{fontSize:12,color:'#9ca3af',marginBottom:6}}>{t.yourDistrict}</div>
             <select value={district} onChange={e=>setDistrict(e.target.value)}
               style={{width:'100%',padding:'10px 12px',borderRadius:8,
@@ -1623,10 +1665,11 @@ function SMSAlerts({t}){
                 background:'#fff',boxSizing:'border-box'}}>
               {DISTRICTS.map(d=><option key={d}>{d}</option>)}
             </select>
-            <button onClick={subscribe} disabled={loading||!phone.trim()}
+            <button onClick={subscribe} 
+              disabled={loading||!phone.trim()||!!phoneError||!validatePhone(phone)}
               style={{width:'100%',padding:'12px',background:'#2563eb',color:'#fff',
                 border:'none',borderRadius:10,fontSize:15,fontWeight:600,cursor:'pointer',
-                opacity:phone.trim()?1:0.5}}>
+                opacity:(phone.trim()&&!phoneError&&validatePhone(phone))?1:0.5}}>
               {loading?'...':t.subscribe}
             </button>
           </div>
