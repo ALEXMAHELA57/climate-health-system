@@ -1171,7 +1171,13 @@ function Symptoms({t,lang}){
               fontSize:14,lineHeight:1.55,
               borderBottomRightRadius:m.role==='user'?4:16,
               borderBottomLeftRadius:m.role==='assistant'?4:16}}>
-              {m.content}
+              {m.content
+                .replace(/\*\*(.*?)\*\*/g, '$1')
+                .replace(/\*(.*?)\*/g, '$1')
+                .replace(/\^\^(.*?)\^\^/g, '$1')
+                .replace(/#{1,6}\s/g, '')
+                .trim()
+              }
             </div>
           </div>
         ))}
