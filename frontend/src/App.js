@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import FloodMap from './FloodMap';
 
 // ─── TRANSLATIONS ─────────────────────────────────────────────────
 const LANG = {
@@ -52,6 +53,7 @@ const LANG = {
     alertType3: '🌡️ Extreme heat warnings',
     alertType4: '🏜️ Drought & water scarcity alerts',
     hospital: 'Hospital', clinic: 'Health centre', dispensary: 'Dispensary',
+    flood: 'Flood',
     currentConditions: '📍 Current conditions',
     forecastCalendar: 'forecast — tap a day for details',
     riskTimeline: '📊 Health risk timeline',
@@ -123,6 +125,7 @@ const LANG = {
     alertType3: '🌡️ Onyo la joto kali',
     alertType4: '🏜️ Ukame na upungufu wa maji',
     hospital: 'Hospitali', clinic: 'Kituo cha afya', dispensary: 'Zahanati',
+    flood: 'Mafuriko',
     currentConditions: '📍 Hali ya sasa',
     forecastCalendar: 'utabiri — gusa siku kwa maelezo',
     riskTimeline: '📊 Mstari wa hatari za afya',
@@ -603,6 +606,7 @@ export default function App(){
     {id:'symptoms',icon:'🤒',key:'symptoms'},
     {id:'clinics',icon:'🏥',key:'clinics'},
     {id:'map',icon:'🗺️',key:'map'},
+    {id:'flood',icon:'🌊',key:'flood'},
     {id:'sms',icon:'📲',key:'sms'},
   ];
 
@@ -634,6 +638,7 @@ export default function App(){
         {page==='symptoms' && <Symptoms t={t} lang={lang}/>}
         {page==='clinics'  && <Clinics t={t} lang={lang}/>}
         {page==='map'      && <RiskMap t={t} lang={lang}/>}
+        {page==='flood'    && <FloodMap t={t} lang={lang}/>}
         {page==='sms'      && <SMSAlerts t={t}/>}
       </div>
 
