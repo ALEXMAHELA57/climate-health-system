@@ -216,11 +216,8 @@ export default function UserProfile({ lang = 'en', onLangChange, onDistrictChang
         )}
       </div>
 
-      {/* Admin & About */}
+      {/* About */}
       <div style={card}>
-        <button onClick={onAdminClick} style={{ ...primaryBtn, background: '#7c3aed', marginBottom: 10 }}>
-          🔐 {t.adminLogin}
-        </button>
         <div style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', lineHeight: 1.5 }}>
           {t.about}<br />{t.version}
         </div>

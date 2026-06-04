@@ -238,13 +238,19 @@ export default function App() {
   const [page, setPage] = useState('home');
   const [lang, setLang] = useState(() => localStorage.getItem('afya_lang') || 'en');
   const [district, setDistrict] = useState(() => localStorage.getItem('afya_district') || 'Dar es Salaam');
-  const [showAdmin, setShowAdmin] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(() => window.location.hash === '#admin');
   const t = T[lang];
+
+  useEffect(() => {
+    function onHashChange() { setShowAdmin(window.location.hash === '#admin'); }
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
 
   function handleLangChange(l) { setLang(l); localStorage.setItem('afya_lang', l); }
   function handleDistrictChange(d) { setDistrict(d); localStorage.setItem('afya_district', d); }
 
-  if (showAdmin) return <AdminDashboard lang={lang} onClose={() => setShowAdmin(false)} />;
+  if (showAdmin) return <AdminDashboard lang={lang} onClose={() => { window.location.hash = ''; setShowAdmin(false); }} />;
 
   return (
     <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#f3f4f6' }}>
@@ -270,7 +276,7 @@ export default function App() {
         {page === 'symptoms' && <Symptoms t={t} lang={lang} district={district} />}
         {page === 'clinics'  && <Clinics t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} />}
         {page === 'map'      && <RiskMap t={t} lang={lang} />}
-        {page === 'profile'  && <UserProfile lang={lang} onLangChange={handleLangChange} onDistrictChange={handleDistrictChange} onAdminClick={() => setShowAdmin(true)} />}
+        {page === 'profile'  && <UserProfile lang={lang} onLangChange={handleLangChange} onDistrictChange={handleDistrictChange} />}
         {page === 'report'   && <CommunityReport lang={lang} />}
       </div>
 
