@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-import anthropic
-import os
+import anthropic, os, re
 from dotenv import load_dotenv
+from app.routers.outbreak import report_symptoms, SymptomReport
 
 load_dotenv()
 router = APIRouter()
@@ -20,7 +20,7 @@ YOUR ONLY PURPOSE is to help with:
 - Nutrition and hygiene advice
 
 STRICT RULES:
-1. NEVER use markdown formatting. No **, no ^^, no ##, no bullet points with -, no numbered lists with bold.
+1. NEVER use markdown formatting. No **, no ^^, no ##, no bullet points with -.
    Write in plain simple sentences only.
 
 2. If someone asks about ANYTHING outside health topics respond with:
@@ -48,12 +48,31 @@ STRICT RULES:
 11. Never start sentences with symbols or special characters.
 """
 
+COMMON_SYMPTOMS = [
+    "fever", "headache", "chills", "fatigue", "nausea", "vomiting",
+    "diarrhoea", "cough", "difficulty breathing", "muscle pain", "rash",
+    "abdominal pain", "dizziness", "chest pain", "sweating", "joint pain",
+    "homa", "maumivu ya kichwa", "baridi", "uchovu", "kichefuchefu",
+    "kutapika", "kuharisha", "kikohozi", "ugumu kupumua", "upele",
+    "maumivu ya tumbo", "kizunguzungu", "maumivu ya viungo",
+]
+
+def extract_symptoms(text):
+    text_lower = text.lower()
+    found = []
+    for symptom in COMMON_SYMPTOMS:
+        if symptom in text_lower:
+            found.append(symptom)
+    return found
+
 class Message(BaseModel):
     role: str
     content: str
 
 class ChatRequest(BaseModel):
     messages: list[Message]
+    district: str = "Unknown"
+    lang: str = "en"
 
 @router.post("/chat")
 async def chat(request: ChatRequest):
@@ -64,4 +83,19 @@ async def chat(request: ChatRequest):
         system=SYSTEM_PROMPT,
         messages=[{"role": m.role, "content": m.content} for m in request.messages]
     )
-    return {"reply": response.content[0].text}
+    reply = response.content[0].text
+
+    # Extract and save symptoms anonymously for outbreak tracking
+    all_text = " ".join([m.content for m in request.messages])
+    symptoms_found = extract_symptoms(all_text)
+    if symptoms_found and request.district != "Unknown":
+        try:
+            await report_symptoms(SymptomReport(
+                district=request.district,
+                symptoms=symptoms_found,
+                lang=request.lang,
+            ))
+        except:
+            pass
+
+    return {"reply": reply}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import FloodMap from './FloodMap';
+import OutbreakTracker from './OutbreakTracker';
 
 // ─── TRANSLATIONS ─────────────────────────────────────────────────
 const LANG = {
@@ -54,6 +55,7 @@ const LANG = {
     alertType4: '🏜️ Drought & water scarcity alerts',
     hospital: 'Hospital', clinic: 'Health centre', dispensary: 'Dispensary',
     flood: 'Flood',
+    outbreak: 'Outbreak',
     currentConditions: '📍 Current conditions',
     forecastCalendar: 'forecast — tap a day for details',
     riskTimeline: '📊 Health risk timeline',
@@ -126,6 +128,7 @@ const LANG = {
     alertType4: '🏜️ Ukame na upungufu wa maji',
     hospital: 'Hospitali', clinic: 'Kituo cha afya', dispensary: 'Zahanati',
     flood: 'Mafuriko',
+    outbreak: 'Mlipuko',
     currentConditions: '📍 Hali ya sasa',
     forecastCalendar: 'utabiri — gusa siku kwa maelezo',
     riskTimeline: '📊 Mstari wa hatari za afya',
@@ -577,6 +580,7 @@ function buildAdvice(daily,lang){
 export default function App(){
   const [page,setPage]=useState('home');
   const [lang,setLang]=useState('en');
+  const [userDistrict,setUserDistrict]=useState('Iringa');
   const [installPrompt,setInstallPrompt]=useState(null);
   const [showInstall,setShowInstall]=useState(false);
   const t=LANG[lang];
@@ -607,6 +611,7 @@ export default function App(){
     {id:'clinics',icon:'🏥',key:'clinics'},
     {id:'map',icon:'🗺️',key:'map'},
     {id:'flood',icon:'🌊',key:'flood'},
+    {id:'outbreak',icon:'🦠',key:'outbreak'},
     {id:'sms',icon:'📲',key:'sms'},
   ];
 
@@ -633,12 +638,13 @@ export default function App(){
       </div>
 
       <div style={{flex:1,overflowY:'auto',paddingBottom:72}}>
-        {page==='home'     && <Home setPage={setPage} t={t} lang={lang}/>}
+        {page==='home'     && <Home setPage={setPage} t={t} lang={lang} setUserDistrict={setUserDistrict}/>}
         {page==='weather'  && <Weather t={t} lang={lang}/>}
-        {page==='symptoms' && <Symptoms t={t} lang={lang}/>}
+        {page==='symptoms' && <Symptoms t={t} lang={lang} userDistrict={userDistrict}/>}
         {page==='clinics'  && <Clinics t={t} lang={lang}/>}
         {page==='map'      && <RiskMap t={t} lang={lang}/>}
         {page==='flood'    && <FloodMap t={t} lang={lang}/>}
+        {page==='outbreak' && <OutbreakTracker t={t} lang={lang}/>}
         {page==='sms'      && <SMSAlerts t={t}/>}
       </div>
 
@@ -661,7 +667,7 @@ export default function App(){
 }
 
 // ─── HOME (with live weather + alerts + GPS) ─────────────────────
-function Home({setPage,t,lang}){
+function Home({setPage,t,lang,setUserDistrict}){
   const [homeDistrict,setHomeDistrict]=useState('Iringa');
   const [weatherData,setWeatherData]=useState(null);
   const [loadingHome,setLoadingHome]=useState(true);
@@ -752,7 +758,7 @@ function Home({setPage,t,lang}){
           </div>
         )}
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
-          <select value={homeDistrict} onChange={e=>{setHomeDistrict(e.target.value);setGpsStatus('manual');}}
+          <select value={homeDistrict} onChange={e=>{setHomeDistrict(e.target.value);setGpsStatus('manual');if(setUserDistrict)setUserDistrict(e.target.value);}}
             style={{flex:1,padding:'8px 12px',borderRadius:10,
               border:'1px solid #e5e7eb',fontSize:14,background:'#fff'}}>
             {DISTRICTS.map(d=><option key={d}>{d}</option>)}
@@ -1097,7 +1103,7 @@ function Weather({t,lang}){
 }
 
 // ─── SYMPTOMS (with quick tags) ───────────────────────────────────
-function Symptoms({t,lang}){
+function Symptoms({t,lang,userDistrict='Iringa'}){
   const [messages,setMessages]=useState([
     {role:'assistant',content:t.afyaGreeting}
   ]);
@@ -1145,7 +1151,7 @@ function Symptoms({t,lang}){
     try{
       const res=await fetch('https://climate-health-system-backend.onrender.com/api/symptoms/chat',{
         method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({messages:next})
+        body:JSON.stringify({messages:next, district:userDistrict, lang})
       });
       const json=await res.json();
       setMessages([...next,{role:'assistant',content:json.reply}]);
