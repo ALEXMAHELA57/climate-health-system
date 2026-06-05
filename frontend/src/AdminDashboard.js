@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 const API = 'https://climate-health-system-backend.onrender.com';
+
 const ADMIN_PASSWORD = 'AfyaHewa2024!';
 
 export default function AdminDashboard({ lang = 'en', onClose }) {
@@ -192,21 +193,7 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
 
       {/* COMMUNITY REPORTS */}
       {tab === 'reports' && (
-        <div>
-          {reports.map((r, i) => (
-            <div key={i} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 12, marginBottom: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{r.type?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</div>
-                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 99, background: r.severity === 'high' ? '#fef2f2' : r.severity === 'medium' ? '#fffbeb' : '#f0fdf4', color: r.severity === 'high' ? '#ef4444' : r.severity === 'medium' ? '#f59e0b' : '#22c55e' }}>
-                  {r.severity}
-                </span>
-              </div>
-              <div style={{ fontSize: 11, color: '#6b7280' }}>{r.district} · {new Date(r.timestamp).toLocaleString()}</div>
-              {r.details && <div style={{ fontSize: 12, color: '#374151', marginTop: 4, fontStyle: 'italic' }}>{r.details}</div>}
-            </div>
-          ))}
-          {reports.length === 0 && <div style={{ textAlign: 'center', color: '#9ca3af', padding: 20, fontSize: 13 }}>{sw ? 'Hakuna ripoti bado' : 'No community reports yet'}</div>}
-        </div>
+        <ReportsPanel reports={reports} sw={sw} API={API} onRefresh={loadData} />
       )}
 
       {/* OUTBREAKS */}
@@ -279,3 +266,130 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
 
 const labelSt = { display: 'block', fontSize: 11, color: '#6b7280', marginBottom: 4 };
 const inputSt = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14, boxSizing: 'border-box', background: '#fff', marginBottom: 0 };
+
+// ── Reports Panel with Accept/Decline ────────────────────────────────────────
+function ReportsPanel({ reports, sw, API, onRefresh }) {
+  const [expanded, setExpanded] = useState(null);
+  const [note, setNote] = useState({});
+  const [updating, setUpdating] = useState({});
+  const [localStatus, setLocalStatus] = useState({});
+
+  async function updateStatus(reportId, status, adminNote) {
+    setUpdating(p => ({ ...p, [reportId]: true }));
+    try {
+      await fetch(`${API}/api/community/update-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ report_id: reportId, status, admin_note: adminNote || '' })
+      });
+      setLocalStatus(p => ({ ...p, [reportId]: { status, admin_note: adminNote || '' } }));
+      setExpanded(null);
+    } catch { alert('Failed to update. Check connection.'); }
+    setUpdating(p => ({ ...p, [reportId]: false }));
+  }
+
+  const statusColors = {
+    under_review: { color: '#d97706', bg: '#fffbeb', border: '#fde68a', label: 'Under Review' },
+    accepted:     { color: '#166534', bg: '#f0fdf4', border: '#bbf7d0', label: 'Accepted' },
+    declined:     { color: '#991b1b', bg: '#fef2f2', border: '#fecaca', label: 'Declined' },
+  };
+
+  if (reports.length === 0) return (
+    <div style={{ textAlign: 'center', color: '#9ca3af', padding: 20, fontSize: 13 }}>
+      {sw ? 'Hakuna ripoti bado' : 'No community reports yet'}
+    </div>
+  );
+
+  return (
+    <div>
+      {reports.map((r, i) => {
+        const current = localStatus[r.id] || { status: r.status || 'under_review', admin_note: r.admin_note || '' };
+        const sc = statusColors[current.status] || statusColors.under_review;
+        const isExpanded = expanded === i;
+
+        return (
+          <div key={i} style={{ background: '#fff', border: `1px solid ${sc.border}`, borderRadius: 10, padding: 12, marginBottom: 10, borderLeft: `4px solid ${sc.color}` }}>
+            {/* Header row */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>
+                  {r.type?.replace(/_/g, ' ').replace(/\w/g, c => c.toUpperCase())}
+                </div>
+                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>
+                  {r.district} · {new Date(r.timestamp).toLocaleString()}
+                </div>
+                {r.id && <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 1 }}>ID: {r.id}</div>}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 99, background: r.severity === 'high' ? '#fef2f2' : r.severity === 'medium' ? '#fffbeb' : '#f0fdf4', color: r.severity === 'high' ? '#ef4444' : r.severity === 'medium' ? '#f59e0b' : '#22c55e', fontWeight: 600 }}>
+                  {r.severity}
+                </span>
+                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 99, background: sc.bg, color: sc.color, border: `1px solid ${sc.border}`, fontWeight: 600 }}>
+                  {sc.label}
+                </span>
+              </div>
+            </div>
+
+            {/* Details */}
+            {r.details && (
+              <div style={{ fontSize: 12, color: '#374151', fontStyle: 'italic', marginBottom: 6 }}>"{r.details}"</div>
+            )}
+
+            {/* Admin note already set */}
+            {current.admin_note && (
+              <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 6, padding: '6px 10px', marginBottom: 6, fontSize: 11, color: '#6b7280' }}>
+                📝 {current.admin_note}
+              </div>
+            )}
+
+            {/* Action buttons — only show if report has an ID and not yet actioned */}
+            {r.id && current.status === 'under_review' && (
+              <button onClick={() => setExpanded(isExpanded ? null : i)}
+                style={{ fontSize: 11, color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '5px 12px', cursor: 'pointer', width: '100%', marginTop: 4 }}>
+                {isExpanded ? '▲ Close' : '▼ Review this report'}
+              </button>
+            )}
+
+            {/* Expanded review panel */}
+            {isExpanded && (
+              <div style={{ marginTop: 10, background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12 }}>
+                <div style={{ fontSize: 12, color: '#374151', marginBottom: 8, fontWeight: 500 }}>
+                  {sw ? 'Ongeza ujumbe (hiari):' : 'Add a note to the reporter (optional):'}
+                </div>
+                <textarea
+                  value={note[r.id] || ''}
+                  onChange={e => setNote(p => ({ ...p, [r.id]: e.target.value }))}
+                  placeholder={sw ? 'Mfano: Tumepokea ripoti yako na tunachunguza...' : 'e.g. We have received your report and dispatched a team...'}
+                  rows={2}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #e5e7eb', fontSize: 12, resize: 'none', boxSizing: 'border-box', marginBottom: 10 }}
+                />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => updateStatus(r.id, 'accepted', note[r.id])}
+                    disabled={updating[r.id]}
+                    style={{ flex: 1, padding: '9px', background: '#166534', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                    {updating[r.id] ? '...' : '✅ Accept'}
+                  </button>
+                  <button
+                    onClick={() => updateStatus(r.id, 'declined', note[r.id])}
+                    disabled={updating[r.id]}
+                    style={{ flex: 1, padding: '9px', background: '#991b1b', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                    {updating[r.id] ? '...' : '❌ Decline'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Already actioned — allow re-review */}
+            {r.id && current.status !== 'under_review' && (
+              <button onClick={() => updateStatus(r.id, 'under_review', '')}
+                style={{ fontSize: 11, color: '#6b7280', background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', marginTop: 6 }}>
+                ↩ {sw ? 'Rudisha kwa mapitio' : 'Move back to review'}
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
