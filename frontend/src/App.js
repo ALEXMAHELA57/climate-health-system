@@ -497,12 +497,36 @@ function Weather({ t, lang, district, onDistrictChange }) {
             <div style={{ background: riskColor(risk), color: '#fff', padding: '3px 12px', borderRadius: 99, fontSize: 12, fontWeight: 600 }}>{risk.toUpperCase()}</div>
           </div>
 
+          {/* Today's rain forecast banner */}
+          {(() => {
+            const todayRain = daily?.precipitation_sum?.[0] || 0;
+            const todayCode = daily?.weather_code?.[0] || 0;
+            const isRainy = todayRain > 0.5 || todayCode >= 51;
+            const rainLabel = todayRain === 0 ? (lang === 'sw' ? 'Hakuna mvua inayotarajiwa leo' : 'No rain expected today') :
+              todayRain < 5 ? (lang === 'sw' ? `Mvua kidogo inatarajiwa leo (${todayRain.toFixed(1)}mm)` : `Light rain expected today (${todayRain.toFixed(1)}mm)`) :
+              todayRain < 20 ? (lang === 'sw' ? `Mvua ya wastani inatarajiwa leo (${todayRain.toFixed(1)}mm)` : `Moderate rain expected today (${todayRain.toFixed(1)}mm)`) :
+              (lang === 'sw' ? `Mvua nzito inatarajiwa leo (${todayRain.toFixed(1)}mm)` : `Heavy rain expected today (${todayRain.toFixed(1)}mm)`);
+            const rainBg = todayRain === 0 ? '#f0fdf4' : todayRain < 5 ? '#eff6ff' : todayRain < 20 ? '#fffbeb' : '#fef2f2';
+            const rainColor = todayRain === 0 ? '#166534' : todayRain < 5 ? '#1d4ed8' : todayRain < 20 ? '#d97706' : '#ef4444';
+            const rainIcon = todayRain === 0 ? '☀️' : todayRain < 5 ? '🌦️' : todayRain < 20 ? '🌧️' : '⛈️';
+            return (
+              <div style={{ background: rainBg, border: `1px solid ${rainColor}30`, borderRadius: 10, padding: '10px 14px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 24 }}>{rainIcon}</span>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: rainColor }}>{lang === 'sw' ? 'Leo' : 'Today'}</div>
+                  <div style={{ fontSize: 12, color: rainColor, opacity: 0.85 }}>{rainLabel}</div>
+                  {todayCode >= 95 && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 2, fontWeight: 600 }}>{lang === 'sw' ? '⚡ Dhoruba inatarajiwa' : '⚡ Thunderstorm expected'}</div>}
+                </div>
+              </div>
+            );
+          })()}
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
             {[
               { label: t.temperature, value: `${Math.round(curr.temperature_2m)}°C`, sub: `Feels ${Math.round(curr.apparent_temperature)}°C` },
-              { label: t.humidity, value: `${curr.relative_humidity_2m}%`, sub: `Rain: ${curr.precipitation}mm` },
+              { label: t.humidity, value: `${curr.relative_humidity_2m}%`, sub: `Rain now: ${curr.precipitation}mm` },
               { label: t.wind, value: `${Math.round(curr.wind_speed_10m)} km/h`, sub: 'Current' },
-              { label: t.rain7, value: `${rain7.toFixed(0)}mm`, sub: 'Total forecast' },
+              { label: t.rain7, value: `${rain7.toFixed(0)}mm`, sub: lang === 'sw' ? 'Jumla ya utabiri' : 'Total forecast' },
             ].map((m, i) => (
               <div key={i} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 12 }}>
                 <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 2 }}>{m.label}</div>
@@ -747,26 +771,37 @@ function RiskMap({ t, lang }) {
 
   async function loadRiskData() {
     setLoading(true);
-    // Load a sample of districts for performance
-    const sample = ['Dar es Salaam', 'Iringa', 'Mwanza', 'Arusha', 'Dodoma', 'Mbeya', 'Tanga', 'Morogoro', 'Kilimanjaro', 'Tabora', 'Kigoma', 'Lindi', 'Zanzibar West'];
+    const allDistricts = Object.keys(DISTRICT_COORDS);
     const results = {};
-    await Promise.all(sample.map(async d => {
-      try {
-        const c = DISTRICT_COORDS[d];
-        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lon}&daily=temperature_2m_max,precipitation_sum,weather_code&timezone=Africa/Dar_es_Salaam&forecast_days=7`);
-        const data = await res.json();
-        const rain7 = (data.daily?.precipitation_sum || []).reduce((a, b) => a + b, 0);
-        const maxTemp = Math.max(...(data.daily?.temperature_2m_max || [0]));
-        const maxDaily = Math.max(...(data.daily?.precipitation_sum || [0]));
-        const hasStorm = (data.daily?.weather_code || []).some(c => c >= 95);
-        let risk = getRisk(rain7, maxTemp, hasStorm, maxDaily);
-        if (layer === 'malaria') risk = rain7 > 60 ? 'emergency' : rain7 > 30 ? 'high' : rain7 > 10 ? 'medium' : 'low';
-        if (layer === 'flood') risk = (hasStorm && maxDaily > 50) ? 'emergency' : maxDaily > 25 ? 'high' : maxDaily > 10 ? 'medium' : 'low';
-        if (layer === 'drought') risk = rain7 < 2 ? 'high' : rain7 < 10 ? 'medium' : 'low';
-        results[d] = { risk, rain7, maxTemp, hasStorm, maxDaily };
-      } catch { results[d] = { risk: 'low' }; }
-    }));
-    setDistrictRisks(results);
+
+    // Load in batches of 6 to avoid rate limiting
+    const batchSize = 6;
+    for (let i = 0; i < allDistricts.length; i += batchSize) {
+      const batch = allDistricts.slice(i, i + batchSize);
+      await Promise.all(batch.map(async d => {
+        try {
+          const c = DISTRICT_COORDS[d];
+          const res = await fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lon}` +
+            `&daily=temperature_2m_max,precipitation_sum,weather_code` +
+            `&timezone=Africa/Dar_es_Salaam&forecast_days=7`
+          );
+          const data = await res.json();
+          const rain7 = (data.daily?.precipitation_sum || []).reduce((a, b) => a + b, 0);
+          const maxTemp = Math.max(...(data.daily?.temperature_2m_max || [0]));
+          const maxDaily = Math.max(...(data.daily?.precipitation_sum || [0]));
+          const todayRain = data.daily?.precipitation_sum?.[0] || 0;
+          const hasStorm = (data.daily?.weather_code || []).some(c => c >= 95);
+          let risk = getRisk(rain7, maxTemp, hasStorm, maxDaily);
+          if (layer === 'malaria') risk = rain7 > 60 ? 'emergency' : rain7 > 30 ? 'high' : rain7 > 10 ? 'medium' : 'low';
+          if (layer === 'flood')   risk = (hasStorm && maxDaily > 50) ? 'emergency' : maxDaily > 25 ? 'high' : maxDaily > 10 ? 'medium' : 'low';
+          if (layer === 'drought') risk = rain7 < 2 ? 'high' : rain7 < 10 ? 'medium' : 'low';
+          results[d] = { risk, rain7, maxTemp, hasStorm, maxDaily, todayRain };
+        } catch { results[d] = { risk: 'unknown' }; }
+      }));
+      // Update UI progressively after each batch
+      setDistrictRisks(prev => ({ ...prev, ...results }));
+    }
     setLoading(false);
   }
 
@@ -806,9 +841,15 @@ function RiskMap({ t, lang }) {
         {districtList.map(d => {
           const info = districtRisks[d];
           if (!info) return (
-            <div key={d} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div key={d} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: 0.5 }}>
               <div style={{ fontSize: 13, color: '#374151' }}>{d}</div>
-              <div style={{ fontSize: 11, color: '#9ca3af' }}>—</div>
+              <div style={{ fontSize: 11, color: '#9ca3af' }}>⟳ loading</div>
+            </div>
+          );
+          if (info.risk === 'unknown') return (
+            <div key={d} style={{ background: '#fff', border: '1px solid #fde68a', borderRadius: 10, padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 13, color: '#374151' }}>{d}</div>
+              <span style={{ fontSize: 11, color: '#d97706', background: '#fffbeb', padding: '2px 8px', borderRadius: 99 }}>⚠ no data</span>
             </div>
           );
           return (

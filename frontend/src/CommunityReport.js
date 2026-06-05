@@ -89,6 +89,31 @@ export default function CommunityReport({ lang = 'en' }) {
     setMyReports(updated);
   }
 
+  function clearAllReports() {
+    if (window.confirm('Are you sure you want to clear all your report history? This cannot be undone.')) {
+      localStorage.removeItem('afya_my_reports');
+      setMyReports([]);
+    }
+  }
+
+  async function retractReport(index) {
+    const report = myReports[index];
+    if (!report) return;
+    // If it has an ID and is still under_review, tell backend
+    if (report.id && report.status === 'under_review') {
+      try {
+        await fetch(`${API}/api/community/update-status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ report_id: report.id, status: 'retracted', admin_note: 'Retracted by user' })
+        });
+      } catch {}
+    }
+    const updated = myReports.filter((_, i) => i !== index);
+    localStorage.setItem('afya_my_reports', JSON.stringify(updated));
+    setMyReports(updated);
+  }
+
   async function checkSingleStatus(reportId, index) {
     setCheckingStatus(p => ({ ...p, [index]: true }));
     try {
@@ -242,8 +267,14 @@ export default function CommunityReport({ lang = 'en' }) {
             </div>
           ) : (
             <>
-              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>
-                {sw ? 'Bonyeza "Angalia" kuona hali ya sasa ya ripoti yako.' : 'Tap "Check" to see the latest status of your report.'}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div style={{ fontSize: 12, color: '#6b7280', flex: 1 }}>
+                  {sw ? 'Bonyeza "Angalia" kuona hali ya sasa ya ripoti yako.' : 'Tap "Check" to see the latest status of your report.'}
+                </div>
+                <button onClick={clearAllReports}
+                  style={{ fontSize: 11, color: '#ef4444', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', whiteSpace: 'nowrap', marginLeft: 8 }}>
+                  🗑 {sw ? 'Futa Zote' : 'Clear All'}
+                </button>
               </div>
               {[...myReports].reverse().map((r, i) => {
                 const realIndex = myReports.length - 1 - i;
@@ -291,17 +322,35 @@ export default function CommunityReport({ lang = 'en' }) {
                       <div style={{ fontSize: 11, color: '#6b7280', fontStyle: 'italic', marginBottom: 8 }}>"{r.details}"</div>
                     )}
 
-                    {/* Check status + report ID */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
-                      <div style={{ fontSize: 10, color: '#9ca3af' }}>
-                        {r.id ? `ID: ${r.id}` : (sw ? 'Hakuna ID (nje ya mtandao)' : 'No ID (submitted offline)')}
+                    {/* Actions row */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, gap: 6 }}>
+                      <div style={{ fontSize: 10, color: '#9ca3af', flex: 1 }}>
+                        {r.id ? `ID: ${r.id}` : (sw ? 'Hakuna ID' : 'No ID (offline)')}
                       </div>
-                      {r.id && (
-                        <button onClick={() => checkSingleStatus(r.id, realIndex)} disabled={checkingStatus[realIndex]}
-                          style={{ fontSize: 11, color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>
-                          {checkingStatus[realIndex] ? '...' : (sw ? '🔄 Angalia' : '🔄 Check')}
-                        </button>
-                      )}
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {r.id && (
+                          <button onClick={() => checkSingleStatus(r.id, realIndex)} disabled={checkingStatus[realIndex]}
+                            style={{ fontSize: 11, color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>
+                            {checkingStatus[realIndex] ? '...' : (sw ? '🔄 Angalia' : '🔄 Check')}
+                          </button>
+                        )}
+                        {(r.status === 'under_review' || !r.id) && (
+                          <button onClick={() => {
+                            if (window.confirm(sw ? 'Una uhakika unataka kufuta ripoti hii?' : 'Are you sure you want to remove this report?')) {
+                              retractReport(realIndex);
+                            }
+                          }}
+                            style={{ fontSize: 11, color: '#ef4444', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>
+                            {sw ? '✕ Futa' : '✕ Remove'}
+                          </button>
+                        )}
+                        {(r.status === 'accepted' || r.status === 'declined') && (
+                          <button onClick={() => retractReport(realIndex)}
+                            style={{ fontSize: 11, color: '#6b7280', background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>
+                            {sw ? '🗑 Futa' : '🗑 Delete'}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );

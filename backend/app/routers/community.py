@@ -31,7 +31,7 @@ class ReportIn(BaseModel):
 
 class StatusUpdate(BaseModel):
     report_id: str
-    status: str  # under_review | accepted | declined
+    status: str  # under_review | accepted | declined | retracted
     admin_note: Optional[str] = ""
 
 @router.post("/report")
