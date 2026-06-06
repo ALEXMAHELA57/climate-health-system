@@ -316,7 +316,7 @@ function ReportsPanel({ reports, sw, API, onRefresh }) {
                   {r.type?.replace(/_/g, ' ').replace(/\w/g, c => c.toUpperCase())}
                 </div>
                 <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>
-                  {r.district} · {new Date(r.timestamp).toLocaleString()}
+                  📍 {[r.region, r.district, r.street].filter(Boolean).join(' › ')} · {new Date(r.timestamp).toLocaleString()}
                 </div>
                 {r.id && <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 1 }}>ID: {r.id}</div>}
               </div>

@@ -161,8 +161,8 @@ const DISTRICT_COORDS = {
 const T = {
   en: {
     home: 'Home', weather: 'Weather', symptoms: 'Symptoms', clinics: 'Clinics', map: 'Risk Map', profile: 'Profile',
-    welcome: 'Welcome', detect: 'Detecting your location...', locationOk: 'Location detected',
-    locationDenied: 'Location denied. Select district below.', useGps: 'Use GPS',
+    welcome: 'Welcome', detect: 'Detecting your location...', locationOk: 'Region detected',
+    locationDenied: 'Location access denied. Please select your region below.', useGps: 'Use GPS',
     riskThisWeek: 'Health risk this week', weekForecast: '7-day forecast', dayForecast: '15-day forecast',
     currentConditions: 'Current conditions', temperature: 'Temperature', humidity: 'Humidity',
     wind: 'Wind Speed', rain7: '7-day Rain', healthAlerts: 'Health Alerts', whatToDo: 'What to do',
@@ -180,8 +180,8 @@ const T = {
   },
   sw: {
     home: 'Nyumbani', weather: 'Hali ya Hewa', symptoms: 'Dalili', clinics: 'Kliniki', map: 'Ramani ya Hatari', profile: 'Wasifu',
-    welcome: 'Karibu', detect: 'Inagundua mahali pako...', locationOk: 'Eneo limegunduliwa',
-    locationDenied: 'Eneo limekataliwa. Chagua wilaya hapa chini.', useGps: 'Tumia GPS',
+    welcome: 'Karibu', detect: 'Inagundua mahali pako...', locationOk: 'Mkoa umegunduliwa',
+    locationDenied: 'Eneo limekataliwa. Tafadhali chagua mkoa wako hapa chini.', useGps: 'Tumia GPS',
     riskThisWeek: 'Hatari ya afya wiki hii', weekForecast: 'Utabiri wa siku 7', dayForecast: 'Utabiri wa siku 15',
     currentConditions: 'Hali ya sasa', temperature: 'Joto', humidity: 'Unyevu',
     wind: 'Kasi ya Upepo', rain7: 'Mvua siku 7', healthAlerts: 'Taarifa za Afya', whatToDo: 'Nini cha kufanya',
@@ -258,7 +258,7 @@ export default function App() {
       <div style={{ background: '#2563eb', color: '#fff', padding: '13px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
         <div>
           <div style={{ fontSize: 17, fontWeight: 700 }}>🌍 AfyaHewa</div>
-          <div style={{ fontSize: 11, opacity: 0.8 }}>{district}</div>
+          <div style={{ fontSize: 11, opacity: 0.8 }}>📍 {district}</div>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <button onClick={() => handleLangChange(lang === 'en' ? 'sw' : 'en')}
@@ -344,22 +344,32 @@ function Home({ t, lang, district, onDistrictChange, setPage }) {
   const hasStorm = daily?.weather_code?.some(c => c >= 95) || false;
   const risk = curr ? getRisk(rain7, maxTemp, hasStorm, maxDaily) : 'low';
 
+  const sw = lang === 'sw';
+
   return (
     <div style={{ padding: 16 }}>
-      {/* GPS banner */}
-      {gpsStatus === 'detecting' && (
-        <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#1d4ed8', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span> {t.detect}
-        </div>
-      )}
+      {/* Region selector — always visible */}
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '10px 12px', marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+        <span style={{ fontSize: 16 }}>📍</span>
+        <select value={district} onChange={e => { onDistrictChange(e.target.value); setGpsStatus('manual'); }}
+          style={{ flex: 1, border: 'none', fontSize: 14, fontWeight: 600, color: '#111', background: 'transparent', outline: 'none', cursor: 'pointer' }}>
+          {DISTRICTS.map(d => <option key={d}>{d}</option>)}
+        </select>
+        <button onClick={detectLocation} title={sw ? 'Tumia GPS' : 'Use GPS'}
+          style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '5px 10px', fontSize: 12, color: '#1d4ed8', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          {gpsStatus === 'detecting' ? '⟳' : '🛰 GPS'}
+        </button>
+      </div>
+
+      {/* GPS status messages */}
       {gpsStatus === 'ok' && (
-        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#166534' }}>
-          📍 {t.locationOk}: {district}
+        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '6px 12px', marginBottom: 10, fontSize: 12, color: '#166534' }}>
+          ✓ {t.locationOk}: {district}
         </div>
       )}
       {gpsStatus === 'denied' && (
-        <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#92400e' }}>
-          ⚠️ {t.locationDenied}
+        <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '6px 12px', marginBottom: 10, fontSize: 12, color: '#92400e' }}>
+          ⚠️ {sw ? 'GPS haikufanya kazi. Umechagua mkoa kwa mkono.' : 'GPS unavailable. You can select your region above manually.'}
         </div>
       )}
 
@@ -581,7 +591,7 @@ function Weather({ t, lang, district, onDistrictChange }) {
 
       {!curr && !loading && (
         <div style={{ textAlign: 'center', padding: '2rem', color: '#9ca3af', fontSize: 13 }}>
-          {lang === 'sw' ? 'Chagua wilaya na ubonyeze Tafuta' : 'Select a district and tap Search'}
+          {lang === 'sw' ? 'Chagua mkoa na ubonyeze Tafuta' : 'Select a region and tap Search'}
         </div>
       )}
     </div>
@@ -750,7 +760,7 @@ function Clinics({ t, lang, district, onDistrictChange }) {
 
       {!data && (
         <div style={{ textAlign: 'center', padding: '2rem', color: '#9ca3af', fontSize: 13 }}>
-          {sw ? 'Chagua wilaya na ubonyeze Tafuta' : 'Select a district and tap Search'}
+          {sw ? 'Chagua mkoa na ubonyeze Tafuta' : 'Select a region and tap Search'}
         </div>
       )}
     </div>

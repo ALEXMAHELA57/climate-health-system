@@ -5,7 +5,7 @@ const API = 'https://climate-health-system-backend.onrender.com';
 const TRANSLATIONS = {
   en: {
     profile: 'My Profile',
-    district: 'My District',
+    district: 'My Region',
     language: 'Language',
     notifications: 'Notifications',
     alertTypes: 'Alert Types',
@@ -33,7 +33,7 @@ const TRANSLATIONS = {
   },
   sw: {
     profile: 'Wasifu Wangu',
-    district: 'Wilaya Yangu',
+    district: 'Mkoa Wangu',
     language: 'Lugha',
     notifications: 'Arifa',
     alertTypes: 'Aina za Taarifa',

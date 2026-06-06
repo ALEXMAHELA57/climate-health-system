@@ -23,7 +23,9 @@ def save_reports(reports):
 
 class ReportIn(BaseModel):
     type: str
-    district: str
+    region: Optional[str] = ""
+    district: Optional[str] = ""
+    street: Optional[str] = ""
     details: Optional[str] = ""
     severity: Optional[str] = "medium"
     language: Optional[str] = "en"
@@ -41,7 +43,9 @@ async def submit_report(report: ReportIn):
     entry = {
         "id": report_id,
         "type": report.type,
+        "region": report.region,
         "district": report.district,
+        "street": report.street,
         "details": report.details,
         "severity": report.severity,
         "language": report.language,

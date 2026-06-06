@@ -9,6 +9,7 @@ const REPORT_TYPES = [
   { id: 'drought', icon: '🏜️', label: 'Drought/No Water', labelSw: 'Ukame/Kukosa Maji', color: '#92400e', bg: '#fef3c7' },
   { id: 'dead_animals', icon: '🐄', label: 'Dead Animals', labelSw: 'Wanyama Waliokufa', color: '#7c3aed', bg: '#f5f3ff' },
   { id: 'road_blocked', icon: '🚧', label: 'Road Blocked', labelSw: 'Barabara Imezuiwa', color: '#b91c1c', bg: '#fef2f2' },
+  { id: 'other', icon: '✏️', label: 'Other', labelSw: 'Nyingine', color: '#374151', bg: '#f9fafb' },
 ];
 
 const DISTRICTS = [
@@ -56,7 +57,10 @@ export default function CommunityReport({ lang = 'en' }) {
   const sw = lang === 'sw';
   const [view, setView] = useState('form'); // form | status
   const [selected, setSelected] = useState(null);
-  const [district, setDistrict] = useState(() => localStorage.getItem('afya_district') || 'Dar es Salaam');
+  const [region, setRegion] = useState(() => localStorage.getItem('afya_district') || 'Dar es Salaam');
+  const [districtName, setDistrictName] = useState('');
+  const [street, setStreet] = useState('');
+  const [customType, setCustomType] = useState('');
   const [details, setDetails] = useState('');
   const [severity, setSeverity] = useState('medium');
   const [submitting, setSubmitting] = useState(false);
@@ -136,8 +140,10 @@ export default function CommunityReport({ lang = 'en' }) {
     setSubmitting(true);
 
     const newReport = {
-      type: selected,
-      district,
+      type: selected === 'other' ? (customType || 'Other') : selected,
+      region,
+      district: districtName,
+      street,
       details,
       severity,
       date: new Date().toISOString(),
@@ -163,6 +169,9 @@ export default function CommunityReport({ lang = 'en' }) {
     setMyReports(updated);
 
     setSelected(null);
+    setDistrictName('');
+    setStreet('');
+    setCustomType('');
     setDetails('');
     setSeverity('medium');
     setSubmitting(false);
@@ -217,11 +226,31 @@ export default function CommunityReport({ lang = 'en' }) {
             ))}
           </div>
 
-          {/* District */}
-          <label style={lbl}>{sw ? 'Wilaya' : 'District'}</label>
-          <select value={district} onChange={e => setDistrict(e.target.value)} style={inp}>
+          {/* Location — Region, District, Street */}
+          <label style={lbl}>{sw ? 'Mkoa' : 'Region'}</label>
+          <select value={region} onChange={e => setRegion(e.target.value)} style={{ ...inp, marginBottom: 8 }}>
             {DISTRICTS.map(d => <option key={d}>{d}</option>)}
           </select>
+
+          <label style={lbl}>{sw ? 'Wilaya / Kata (hiari)' : 'District / Ward (optional)'}</label>
+          <input value={districtName} onChange={e => setDistrictName(e.target.value)}
+            placeholder={sw ? 'Mfano: Iringa Mjini, Mufindi...' : 'e.g. Iringa Urban, Mufindi...'}
+            style={{ ...inp, marginBottom: 8 }} />
+
+          <label style={lbl}>{sw ? 'Mtaa / Kijiji / Barabara' : 'Street / Village / Area'}</label>
+          <input value={street} onChange={e => setStreet(e.target.value)}
+            placeholder={sw ? 'Mfano: Mtaa wa Gangilonga, karibu na soko...' : 'e.g. Gangilonga Street, near the market...'}
+            style={{ ...inp, marginBottom: 0 }} />
+
+          {/* Custom type if Other selected */}
+          {selected === 'other' && (
+            <div style={{ marginTop: 10 }}>
+              <label style={lbl}>{sw ? 'Elezea aina ya tatizo' : 'Describe the type of problem'}</label>
+              <input value={customType} onChange={e => setCustomType(e.target.value)}
+                placeholder={sw ? 'Mfano: Taka zinazochomwa karibu na nyumba...' : 'e.g. Burning waste near homes, illegal dumping...'}
+                style={inp} />
+            </div>
+          )}
 
           {/* Severity */}
           <label style={{ ...lbl, marginTop: 10 }}>{sw ? 'Ukubwa wa tatizo' : 'Severity'}</label>
@@ -288,7 +317,9 @@ export default function CommunityReport({ lang = 'en' }) {
                         <span style={{ fontSize: 20 }}>{rt.icon}</span>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{sw ? rt.labelSw : rt.label}</div>
-                          <div style={{ fontSize: 11, color: '#6b7280' }}>{r.district} · {new Date(r.date).toLocaleDateString()}</div>
+                          <div style={{ fontSize: 11, color: '#6b7280' }}>
+                            {[r.region, r.district, r.street].filter(Boolean).join(' › ')} · {new Date(r.date).toLocaleDateString()}
+                          </div>
                         </div>
                       </div>
                       <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 99, background: r.severity === 'high' ? '#fef2f2' : r.severity === 'medium' ? '#fffbeb' : '#f0fdf4', color: r.severity === 'high' ? '#ef4444' : r.severity === 'medium' ? '#f59e0b' : '#22c55e', fontWeight: 600 }}>
