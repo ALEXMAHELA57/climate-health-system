@@ -2,6 +2,14 @@ import React, { useState, useEffect } from 'react';
 
 const API = 'https://climate-health-system-backend.onrender.com';
 
+const ALL_REGIONS = [
+  'Arusha','Dar es Salaam','Dodoma','Geita','Iringa','Kagera','Katavi',
+  'Kigoma','Kilimanjaro','Lindi','Manyara','Mara','Mbeya','Morogoro',
+  'Mtwara','Mwanza','Njombe','Pwani','Rukwa','Ruvuma','Shinyanga',
+  'Simiyu','Singida','Songea','Tabora','Tanga',
+  'Zanzibar North','Zanzibar South','Zanzibar West','Pemba North','Pemba South'
+];
+
 const ADMIN_PASSWORD = 'AfyaHewa2024!';
 
 export default function AdminDashboard({ lang = 'en', onClose }) {
@@ -224,10 +232,10 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
             ⚠️ {sw ? 'SMS zitatumwa kwa waandikishaji wa wilaya uliyochagua. Hii itaathiri bajeti yako.' : 'SMS will be sent to subscribers in the selected district. This will use your SMS budget.'}
           </div>
 
-          <label style={labelSt}>{sw ? 'Wilaya' : 'District'}</label>
+          <label style={labelSt}>{sw ? 'Mkoa' : 'Region'}</label>
           <select value={broadcastDistrict} onChange={e => setBroadcastDistrict(e.target.value)} style={inputSt}>
-            <option value="ALL">{sw ? 'Wilaya Zote' : 'All Districts'}</option>
-            {['Arusha','Dar es Salaam','Dodoma','Iringa','Mwanza','Arusha','Mbeya','Tanga','Zanzibar West'].map(d => <option key={d}>{d}</option>)}
+            <option value="ALL">{sw ? 'Mikoa Yote' : 'All Regions'}</option>
+            {ALL_REGIONS.map(d => <option key={d}>{d}</option>)}
           </select>
 
           <label style={{ ...labelSt, marginTop: 10 }}>{sw ? 'Lugha' : 'Language'}</label>
