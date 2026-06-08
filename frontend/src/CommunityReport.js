@@ -135,7 +135,27 @@ export default function CommunityReport({ lang = 'en' }) {
   }
 
   async function submit() {
-    if (!selected) { setError(sw ? 'Chagua aina ya ripoti' : 'Please select a report type'); return; }
+    // Validate all required fields
+    if (!selected) {
+      setError(sw ? 'Chagua aina ya ripoti' : 'Please select a report type');
+      return;
+    }
+    if (selected === 'other' && !customType.trim()) {
+      setError(sw ? 'Tafadhali elezea aina ya tatizo' : 'Please describe the type of problem');
+      return;
+    }
+    if (!region.trim()) {
+      setError(sw ? 'Mkoa unahitajika' : 'Region is required');
+      return;
+    }
+    if (!districtName.trim()) {
+      setError(sw ? 'Wilaya / Kata inahitajika' : 'District / Ward is required');
+      return;
+    }
+    if (!street.trim()) {
+      setError(sw ? 'Mtaa / Kijiji / Barabara inahitajika' : 'Street / Village / Area is required');
+      return;
+    }
     setError('');
     setSubmitting(true);
 
@@ -226,18 +246,23 @@ export default function CommunityReport({ lang = 'en' }) {
             ))}
           </div>
 
+          {/* Required fields note */}
+          <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 10 }}>
+            <span style={{ color: '#ef4444' }}>*</span> {sw ? 'Sehemu zinazohitajika' : 'Required fields'}
+          </div>
+
           {/* Location — Region, District, Street */}
-          <label style={lbl}>{sw ? 'Mkoa' : 'Region'}</label>
+          <label style={lbl}>{sw ? 'Mkoa' : 'Region'} <span style={{color:'#ef4444'}}>*</span></label>
           <select value={region} onChange={e => setRegion(e.target.value)} style={{ ...inp, marginBottom: 8 }}>
             {DISTRICTS.map(d => <option key={d}>{d}</option>)}
           </select>
 
-          <label style={lbl}>{sw ? 'Wilaya / Kata (hiari)' : 'District / Ward (optional)'}</label>
+          <label style={lbl}>{sw ? 'Wilaya / Kata' : 'District / Ward'} <span style={{color:'#ef4444'}}>*</span></label>
           <input value={districtName} onChange={e => setDistrictName(e.target.value)}
             placeholder={sw ? 'Mfano: Iringa Mjini, Mufindi...' : 'e.g. Iringa Urban, Mufindi...'}
             style={{ ...inp, marginBottom: 8 }} />
 
-          <label style={lbl}>{sw ? 'Mtaa / Kijiji / Barabara' : 'Street / Village / Area'}</label>
+          <label style={lbl}>{sw ? 'Mtaa / Kijiji / Barabara' : 'Street / Village / Area'} <span style={{color:'#ef4444'}}>*</span></label>
           <input value={street} onChange={e => setStreet(e.target.value)}
             placeholder={sw ? 'Mfano: Mtaa wa Gangilonga, karibu na soko...' : 'e.g. Gangilonga Street, near the market...'}
             style={{ ...inp, marginBottom: 0 }} />
