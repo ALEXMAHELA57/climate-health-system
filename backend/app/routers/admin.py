@@ -1,50 +1,49 @@
-from fastapi import APIRouter
-import json, os
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+from database import get_db, Subscriber, CommunityReport, SymptomReport
 from datetime import datetime, timedelta
 from collections import Counter
 
 router = APIRouter()
 
-def load_json(path, default):
-    if os.path.exists(path):
-        try:
-            with open(path) as f:
-                return json.load(f)
-        except:
-            return default
-    return default
-
 @router.get("/stats")
-async def get_stats():
-    subscribers = load_json("subscribers.json", [])
-    reports = load_json("community_reports.json", [])
-    symptoms = load_json("symptom_reports.json", [])
-
+async def get_stats(db: Session = Depends(get_db)):
     now = datetime.utcnow()
-    today = now.date().isoformat()
-    week_ago = (now - timedelta(days=7)).isoformat()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_ago = now - timedelta(days=7)
 
-    reports_today = [r for r in reports if r.get("timestamp", "")[:10] == today]
-    symptoms_week = [s for s in symptoms if s.get("timestamp", "") >= week_ago]
+    total_subscribers = db.query(Subscriber).filter(Subscriber.active == True).count()
+    reports_today = db.query(CommunityReport).filter(CommunityReport.timestamp >= today_start).count()
+    symptom_checks_week = db.query(SymptomReport).filter(SymptomReport.timestamp >= week_ago).count()
+    active_outbreaks = 0
 
-    district_counts = Counter(r.get("district") for r in reports if r.get("timestamp", "") >= week_ago)
-    top_districts = [{"district": d, "reports": c} for d, c in district_counts.most_common(5)]
+    # Top regions by report count this week
+    week_reports = db.query(CommunityReport).filter(CommunityReport.timestamp >= week_ago).all()
+    region_counts = Counter(r.region for r in week_reports if r.region)
+    top_regions = [{"district": region, "reports": count} for region, count in region_counts.most_common(5)]
 
-    # Simple outbreak detection
-    symptom_by_district = {}
-    for s in symptoms_week:
-        d = s.get("district", "Unknown")
-        if d not in symptom_by_district:
-            symptom_by_district[d] = []
-        symptom_by_district[d].extend(s.get("symptoms", []))
+    # Outbreak detection — regions with 5+ symptom reports this week
+    week_symptoms = db.query(SymptomReport).filter(SymptomReport.timestamp >= week_ago).all()
+    symptom_by_region = Counter(s.region for s in week_symptoms if s.region)
+    active_outbreaks = sum(1 for count in symptom_by_region.values() if count >= 5)
 
-    active_outbreaks = sum(1 for v in symptom_by_district.values() if len(v) >= 5)
+    # Recent subscribers
+    subscribers = db.query(Subscriber).filter(Subscriber.active == True)\
+        .order_by(Subscriber.subscribed_at.desc()).limit(50).all()
 
     return {
-        "total_subscribers": len(subscribers),
-        "reports_today": len(reports_today),
-        "symptom_checks_week": len(symptoms_week),
+        "total_subscribers": total_subscribers,
+        "reports_today": reports_today,
+        "symptom_checks_week": symptom_checks_week,
         "active_outbreaks": active_outbreaks,
-        "top_districts": top_districts,
-        "subscribers": subscribers[-50:]  # last 50 for display
+        "top_districts": top_regions,
+        "subscribers": [
+            {
+                "phone": s.phone,
+                "region": s.region,
+                "language": s.language,
+                "subscribed_at": s.subscribed_at.isoformat()
+            } for s in subscribers
+        ]
     }
