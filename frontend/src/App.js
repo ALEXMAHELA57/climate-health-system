@@ -790,8 +790,16 @@ function Clinics({ t, lang, district, onDistrictChange }) {
     const clinics = CLINICS_DATA[selectedDistrict] || [];
     setData(clinics);
     setRouteInfo({});
-    // Auto-get location after search
-    if (clinics.length > 0) getUserLocation(clinics);
+    getUserLocation(clinics);
+  }
+
+  // Straight-line distance fallback (instant, no API needed)
+  function haversineDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371000;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   }
 
   function getUserLocation(clinics) {
@@ -802,26 +810,67 @@ function Clinics({ t, lang, district, onDistrictChange }) {
         const { latitude, longitude } = pos.coords;
         setUserLocation({ lat: latitude, lon: longitude });
         setGettingLocation(false);
-        // Calculate routes to all clinics
-        setLoadingRoutes(true);
-        const routes = {};
-        await Promise.all((clinics || data || []).map(async (c, i) => {
+
+        // Step 1: Show instant straight-line estimates immediately
+        const instantRoutes = {};
+        (clinics || []).forEach((c, i) => {
           if (c.lat && c.lon) {
-            routes[i] = await getRouteInfo(latitude, longitude, c.lat, c.lon);
+            const dist = haversineDistance(latitude, longitude, c.lat, c.lon);
+            instantRoutes[i] = {
+              meters: Math.round(dist),
+              driveKm: (dist/1000).toFixed(1),
+              driveMin: Math.max(1, Math.ceil(dist/1000/40*60)),
+              walkKm: (dist/1000).toFixed(1),
+              walkMin: Math.max(1, Math.ceil(dist/1000/4.5*60)),
+              isEstimate: true,
+            };
           }
-        }));
-        setRouteInfo(routes);
+        });
+        setRouteInfo(instantRoutes);
+
+        // Step 2: Try OSRM for accurate road distances (may fail silently)
+        setLoadingRoutes(true);
+        try {
+          const betterRoutes = { ...instantRoutes };
+          await Promise.all((clinics || []).map(async (c, i) => {
+            if (c.lat && c.lon) {
+              try {
+                const driveUrl = `https://router.project-osrm.org/route/v1/driving/${longitude},${latitude};${c.lon},${c.lat}?overview=false`;
+                const walkUrl  = `https://router.project-osrm.org/route/v1/foot/${longitude},${latitude};${c.lon},${c.lat}?overview=false`;
+                const [driveRes, walkRes] = await Promise.all([
+                  fetch(driveUrl, { signal: AbortSignal.timeout(5000) }),
+                  fetch(walkUrl,  { signal: AbortSignal.timeout(5000) }),
+                ]);
+                const [driveData, walkData] = await Promise.all([driveRes.json(), walkRes.json()]);
+                const driveDist = driveData.routes?.[0]?.distance;
+                const driveTime = driveData.routes?.[0]?.duration;
+                const walkDist  = walkData.routes?.[0]?.distance;
+                const walkTime  = walkData.routes?.[0]?.duration;
+                if (driveDist) {
+                  betterRoutes[i] = {
+                    meters:   Math.round(driveDist),
+                    driveKm:  (driveDist/1000).toFixed(1),
+                    driveMin: Math.max(1, Math.ceil(driveTime/60)),
+                    walkKm:   walkDist ? (walkDist/1000).toFixed(1) : (driveDist/1000).toFixed(1),
+                    walkMin:  walkTime ? Math.max(1, Math.ceil(walkTime/60)) : Math.max(1, Math.ceil(driveDist/1000/4.5*60)),
+                    isEstimate: false,
+                  };
+                }
+              } catch {}
+            }
+          }));
+          setRouteInfo({ ...betterRoutes });
+        } catch {}
         setLoadingRoutes(false);
       },
-      () => setGettingLocation(false),
+      () => { setGettingLocation(false); },
       { timeout: 10000, enableHighAccuracy: true }
     );
   }
 
   function formatDistance(info) {
     if (!info) return null;
-    const meters = info.meters;
-    if (meters < 1000) return `${meters}m`;
+    if (info.meters < 1000) return `${info.meters}m`;
     return `${info.driveKm}km`;
   }
 
@@ -930,26 +979,24 @@ function Clinics({ t, lang, district, onDistrictChange }) {
             {/* Distance & time info */}
             {route && (
               <div style={{ background: isNear ? '#f0fdf4' : '#f9fafb', border: `1px solid ${isNear ? '#bbf7d0' : '#e5e7eb'}`, borderRadius: 8, padding: '8px 12px', marginBottom: 8 }}>
-                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ fontSize: 14 }}>🚶</span>
+                    <span style={{ fontSize: 16 }}>🚶</span>
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>{formatDistance(route)} · {route.walkMin} min</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>{formatDistance(route)} · {route.walkMin} {sw ? 'dak' : 'min'}</div>
                       <div style={{ fontSize: 10, color: '#9ca3af' }}>{sw ? 'Kutembea' : 'Walking'}</div>
                     </div>
                   </div>
+                  <div style={{ width: 1, height: 28, background: '#e5e7eb' }} />
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ fontSize: 14 }}>🚗</span>
+                    <span style={{ fontSize: 16 }}>🚗</span>
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>{route.driveKm} km · {route.driveMin} min</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>{route.driveKm} km · {route.driveMin} {sw ? 'dak' : 'min'}</div>
                       <div style={{ fontSize: 10, color: '#9ca3af' }}>{sw ? 'Gari' : 'Driving'}</div>
                     </div>
                   </div>
-                  {isNear && (
-                    <div style={{ fontSize: 11, color: '#166534', fontWeight: 600, display: 'flex', alignItems: 'center' }}>
-                      ✓ {sw ? 'Karibu nawe' : 'Nearby'}
-                    </div>
-                  )}
+                  {isNear && <span style={{ fontSize: 11, color: '#166534', fontWeight: 600, background: '#dcfce7', padding: '2px 8px', borderRadius: 99 }}>✓ {sw ? 'Karibu' : 'Nearby'}</span>}
+                  {route.isEstimate && <span style={{ fontSize: 10, color: '#9ca3af', marginLeft: 'auto' }}>~{sw ? 'Kadirio' : 'estimate'}</span>}
                 </div>
               </div>
             )}
