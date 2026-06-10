@@ -233,6 +233,26 @@ function findNearestDistrict(lat, lon) {
   return best;
 }
 
+// Reverse geocoding — converts GPS coordinates to region/district/street
+async function reverseGeocode(lat, lon) {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`,
+      { headers: { 'Accept-Language': 'en', 'User-Agent': 'AfyaHewa/1.0' } }
+    );
+    const data = await res.json();
+    const addr = data.address || {};
+    return {
+      region:   addr.state || addr.region || addr.county || '',
+      district: addr.county || addr.city_district || addr.suburb || addr.town || addr.city || '',
+      street:   addr.road || addr.neighbourhood || addr.village || addr.hamlet || '',
+      display:  data.display_name || ''
+    };
+  } catch {
+    return { region: '', district: '', street: '', display: '' };
+  }
+}
+
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [page, setPage] = useState('home');
@@ -314,13 +334,29 @@ function Home({ t, lang, district, onDistrictChange, setPage }) {
     if (!navigator.geolocation) return;
     setGpsStatus('detecting');
     navigator.geolocation.getCurrentPosition(
-      pos => {
-        const d = findNearestDistrict(pos.coords.latitude, pos.coords.longitude);
+      async pos => {
+        const { latitude, longitude } = pos.coords;
+        // Find nearest district from our list
+        const d = findNearestDistrict(latitude, longitude);
         onDistrictChange(d);
+        // Also get detailed address via reverse geocoding
+        const geo = await reverseGeocode(latitude, longitude);
+        if (geo.region) {
+          // Try to match reverse geocoded region to our district list
+          const match = DISTRICTS.find(dist =>
+            dist.toLowerCase().includes(geo.region.toLowerCase()) ||
+            geo.region.toLowerCase().includes(dist.toLowerCase())
+          );
+          if (match) onDistrictChange(match);
+        }
+        // Store detailed location for use in community reports
+        localStorage.setItem('afya_geo_district', geo.district || '');
+        localStorage.setItem('afya_geo_street', geo.street || '');
+        localStorage.setItem('afya_geo_display', geo.display || '');
         setGpsStatus('ok');
       },
       () => setGpsStatus('denied'),
-      { timeout: 8000 }
+      { timeout: 10000, enableHighAccuracy: true }
     );
   }
 
@@ -448,12 +484,20 @@ function Weather({ t, lang, district, onDistrictChange }) {
 
   function locateGps() {
     if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(pos => {
-      const d = findNearestDistrict(pos.coords.latitude, pos.coords.longitude);
-      setSelectedDistrict(d);
-      onDistrictChange(d);
-      fetchWeather(d);
-    });
+    navigator.geolocation.getCurrentPosition(async pos => {
+      const { latitude, longitude } = pos.coords;
+      const d = findNearestDistrict(latitude, longitude);
+      // Try reverse geocoding for better accuracy
+      const geo = await reverseGeocode(latitude, longitude);
+      const match = geo.region ? DISTRICTS.find(dist =>
+        dist.toLowerCase().includes(geo.region.toLowerCase()) ||
+        geo.region.toLowerCase().includes(dist.toLowerCase())
+      ) : null;
+      const best = match || d;
+      setSelectedDistrict(best);
+      onDistrictChange(best);
+      fetchWeather(best);
+    }, () => {}, { enableHighAccuracy: true });
   }
 
   const curr = data?.current;

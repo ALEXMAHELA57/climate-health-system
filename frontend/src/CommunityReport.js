@@ -20,6 +20,25 @@ const DISTRICTS = [
   'Zanzibar North','Zanzibar South','Zanzibar West','Pemba North','Pemba South'
 ];
 
+// Reverse geocoding utility
+async function reverseGeocode(lat, lon) {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`,
+      { headers: { 'Accept-Language': 'en', 'User-Agent': 'AfyaHewa/1.0' } }
+    );
+    const data = await res.json();
+    const addr = data.address || {};
+    return {
+      region:   addr.state || addr.region || addr.county || '',
+      district: addr.county || addr.city_district || addr.suburb || addr.town || addr.city || '',
+      street:   addr.road || addr.neighbourhood || addr.village || addr.hamlet || '',
+    };
+  } catch {
+    return { region: '', district: '', street: '' };
+  }
+}
+
 const STATUS_CONFIG = {
   under_review: {
     icon: '🔍',
@@ -58,11 +77,13 @@ export default function CommunityReport({ lang = 'en' }) {
   const [view, setView] = useState('form'); // form | status
   const [selected, setSelected] = useState(null);
   const [region, setRegion] = useState(() => localStorage.getItem('afya_district') || 'Dar es Salaam');
-  const [districtName, setDistrictName] = useState('');
-  const [street, setStreet] = useState('');
+  const [districtName, setDistrictName] = useState(() => localStorage.getItem('afya_geo_district') || '');
+  const [street, setStreet] = useState(() => localStorage.getItem('afya_geo_street') || '');
   const [customType, setCustomType] = useState('');
   const [details, setDetails] = useState('');
   const [severity, setSeverity] = useState('medium');
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsStatus, setGpsStatus] = useState('idle'); // idle | ok | denied | loading
   const [submitting, setSubmitting] = useState(false);
   const [myReports, setMyReports] = useState(() => {
     try { return JSON.parse(localStorage.getItem('afya_my_reports') || '[]'); }
@@ -132,6 +153,41 @@ export default function CommunityReport({ lang = 'en' }) {
       }
     } catch {}
     setCheckingStatus(p => ({ ...p, [index]: false }));
+  }
+
+  async function detectLocation() {
+    if (!navigator.geolocation) {
+      setGpsStatus('denied');
+      return;
+    }
+    setGpsLoading(true);
+    setGpsStatus('loading');
+    navigator.geolocation.getCurrentPosition(
+      async pos => {
+        const { latitude, longitude } = pos.coords;
+        const geo = await reverseGeocode(latitude, longitude);
+        // Match region to our list
+        if (geo.region) {
+          const match = DISTRICTS.find(d =>
+            d.toLowerCase().includes(geo.region.toLowerCase()) ||
+            geo.region.toLowerCase().includes(d.toLowerCase())
+          );
+          if (match) setRegion(match);
+        }
+        if (geo.district) setDistrictName(geo.district);
+        if (geo.street) setStreet(geo.street);
+        // Cache for next time
+        if (geo.district) localStorage.setItem('afya_geo_district', geo.district);
+        if (geo.street) localStorage.setItem('afya_geo_street', geo.street);
+        setGpsStatus('ok');
+        setGpsLoading(false);
+      },
+      () => {
+        setGpsStatus('denied');
+        setGpsLoading(false);
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
   }
 
   async function submit() {
@@ -249,6 +305,29 @@ export default function CommunityReport({ lang = 'en' }) {
           {/* Required fields note */}
           <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 10 }}>
             <span style={{ color: '#ef4444' }}>*</span> {sw ? 'Sehemu zinazohitajika' : 'Required fields'}
+          </div>
+
+          {/* Location — GPS auto-fill + manual fields */}
+          <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 10, padding: '10px 12px', marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>
+                📍 {sw ? 'Mahali' : 'Location'}
+              </div>
+              <button onClick={detectLocation} disabled={gpsLoading}
+                style={{ fontSize: 11, padding: '5px 12px', borderRadius: 8, border: '1px solid #bfdbfe', background: gpsLoading ? '#f3f4f6' : '#eff6ff', color: gpsLoading ? '#9ca3af' : '#1d4ed8', cursor: gpsLoading ? 'default' : 'pointer', fontWeight: 500 }}>
+                {gpsLoading ? '⟳ Detecting...' : (sw ? '🛰 Gundua Eneo' : '🛰 Auto-detect')}
+              </button>
+            </div>
+            {gpsStatus === 'ok' && (
+              <div style={{ fontSize: 11, color: '#166534', background: '#f0fdf4', borderRadius: 6, padding: '4px 8px', marginBottom: 6 }}>
+                ✓ {sw ? 'Eneo limegunduliwa kiotomatiki — unaweza kuhariri' : 'Location auto-detected — you can edit if needed'}
+              </div>
+            )}
+            {gpsStatus === 'denied' && (
+              <div style={{ fontSize: 11, color: '#92400e', background: '#fffbeb', borderRadius: 6, padding: '4px 8px', marginBottom: 6 }}>
+                ⚠ {sw ? 'GPS haikufanya kazi. Jaza manually.' : 'GPS unavailable. Please fill in manually.'}
+              </div>
+            )}
           </div>
 
           {/* Location — Region, District, Street */}
