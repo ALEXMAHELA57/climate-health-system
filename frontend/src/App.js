@@ -811,17 +811,20 @@ function Clinics({ t, lang, district, onDistrictChange }) {
         setUserLocation({ lat: latitude, lon: longitude });
         setGettingLocation(false);
 
-        // Step 1: Show instant straight-line estimates immediately
+        // Step 1: Show instant estimates immediately
+        // Road factor 1.3 = roads are ~30% longer than straight line
+        // Walking speed: 5 km/h, Driving speed: 35 km/h (Tanzania urban)
         const instantRoutes = {};
         (clinics || []).forEach((c, i) => {
           if (c.lat && c.lon) {
-            const dist = haversineDistance(latitude, longitude, c.lat, c.lon);
+            const straightLine = haversineDistance(latitude, longitude, c.lat, c.lon);
+            const roadDist = straightLine * 1.3; // apply road factor
             instantRoutes[i] = {
-              meters: Math.round(dist),
-              driveKm: (dist/1000).toFixed(1),
-              driveMin: Math.max(1, Math.ceil(dist/1000/40*60)),
-              walkKm: (dist/1000).toFixed(1),
-              walkMin: Math.max(1, Math.ceil(dist/1000/4.5*60)),
+              meters:    Math.round(roadDist),
+              driveKm:   (roadDist/1000).toFixed(1),
+              driveMin:  Math.max(1, Math.ceil(roadDist/1000/35*60)),  // 35 km/h driving
+              walkKm:    (roadDist/1000).toFixed(1),
+              walkMin:   Math.max(1, Math.ceil(roadDist/1000/5*60)),   // 5 km/h walking
               isEstimate: true,
             };
           }
@@ -868,10 +871,20 @@ function Clinics({ t, lang, district, onDistrictChange }) {
     );
   }
 
-  function formatDistance(info) {
+  function formatDistance(info, useWalk = false) {
     if (!info) return null;
-    if (info.meters < 1000) return `${info.meters}m`;
-    return `${info.driveKm}km`;
+    const km = useWalk ? parseFloat(info.walkKm) : parseFloat(info.driveKm);
+    const meters = info.meters;
+    if (meters < 1000) return `${meters}m`;
+    return `${km.toFixed(1)}km`;
+  }
+
+  function formatTime(minutes) {
+    if (minutes < 60) return `${minutes} min`;
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    if (m === 0) return `${h}h`;
+    return `${h}h ${m}min`;
   }
 
   function openDirections(clinic) {
@@ -983,7 +996,7 @@ function Clinics({ t, lang, district, onDistrictChange }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                     <span style={{ fontSize: 16 }}>🚶</span>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>{formatDistance(route)} · {route.walkMin} {sw ? 'dak' : 'min'}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>{formatDistance(route, true)} · {formatTime(route.walkMin)}</div>
                       <div style={{ fontSize: 10, color: '#9ca3af' }}>{sw ? 'Kutembea' : 'Walking'}</div>
                     </div>
                   </div>
@@ -991,7 +1004,7 @@ function Clinics({ t, lang, district, onDistrictChange }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                     <span style={{ fontSize: 16 }}>🚗</span>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>{route.driveKm} km · {route.driveMin} {sw ? 'dak' : 'min'}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>{formatDistance(route, false)} · {formatTime(route.driveMin)}</div>
                       <div style={{ fontSize: 10, color: '#9ca3af' }}>{sw ? 'Gari' : 'Driving'}</div>
                     </div>
                   </div>
