@@ -812,19 +812,23 @@ function Clinics({ t, lang, district, onDistrictChange }) {
         setGettingLocation(false);
 
         // Step 1: Show instant estimates immediately
-        // Road factor 1.3 = roads are ~30% longer than straight line
-        // Walking speed: 5 km/h, Driving speed: 35 km/h (Tanzania urban)
+        // Road factor 1.3 = roads ~30% longer than straight line
+        // Walking speed: 5 km/h | Driving speed: 35 km/h (Tanzania urban)
         const instantRoutes = {};
         (clinics || []).forEach((c, i) => {
           if (c.lat && c.lon) {
             const straightLine = haversineDistance(latitude, longitude, c.lat, c.lon);
-            const roadDist = straightLine * 1.3; // apply road factor
+            const roadDist  = straightLine * 1.3;
+            const driveKm   = roadDist / 1000;
+            const walkKm    = roadDist / 1000;
+            const driveMin  = Math.max(1, Math.ceil(driveKm / 35 * 60));  // 35 km/h
+            const walkMin   = Math.max(1, Math.ceil(walkKm  /  5 * 60));  // 5 km/h
             instantRoutes[i] = {
               meters:    Math.round(roadDist),
-              driveKm:   (roadDist/1000).toFixed(1),
-              driveMin:  Math.max(1, Math.ceil(roadDist/1000/35*60)),  // 35 km/h driving
-              walkKm:    (roadDist/1000).toFixed(1),
-              walkMin:   Math.max(1, Math.ceil(roadDist/1000/5*60)),   // 5 km/h walking
+              driveKm:   driveKm.toFixed(1),
+              driveMin,
+              walkKm:    walkKm.toFixed(1),
+              walkMin,
               isEstimate: true,
             };
           }
@@ -927,27 +931,58 @@ function Clinics({ t, lang, district, onDistrictChange }) {
       {data && (
         <div style={{ marginBottom: 12 }}>
           {gettingLocation && (
-            <div style={{ fontSize: 12, color: '#1d4ed8', background: '#eff6ff', borderRadius: 8, padding: '6px 12px' }}>
+            <div style={{ fontSize: 12, color: '#1d4ed8', background: '#eff6ff', borderRadius: 8, padding: '8px 12px' }}>
               ⟳ {sw ? 'Inapata eneo lako...' : 'Getting your location...'}
             </div>
           )}
-          {loadingRoutes && (
-            <div style={{ fontSize: 12, color: '#1d4ed8', background: '#eff6ff', borderRadius: 8, padding: '6px 12px' }}>
-              ⟳ {sw ? 'Inakokotoa umbali...' : 'Calculating distances...'}
+          {loadingRoutes && !gettingLocation && (
+            <div style={{ fontSize: 12, color: '#1d4ed8', background: '#eff6ff', borderRadius: 8, padding: '8px 12px' }}>
+              ⟳ {sw ? 'Inakokotoa umbali halisi...' : 'Calculating road distances...'}
             </div>
           )}
-          {userLocation && !loadingRoutes && Object.keys(routeInfo).length > 0 && (
-            <div style={{ fontSize: 12, color: '#166534', background: '#f0fdf4', borderRadius: 8, padding: '6px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>📍 {sw ? 'Umbali umekokotolewa kutoka kwako' : 'Distances calculated from your location'}</span>
-              <button onClick={() => getUserLocation(data)}
-                style={{ fontSize: 11, background: 'none', border: 'none', color: '#166534', cursor: 'pointer', textDecoration: 'underline' }}>
-                {sw ? 'Sasisha' : 'Refresh'}
-              </button>
-            </div>
-          )}
+          {userLocation && Object.keys(routeInfo).length > 0 && (() => {
+            // Check if user is far from selected region (first clinic distance)
+            const firstRoute = routeInfo[0];
+            const isFar = firstRoute && firstRoute.meters > 50000; // more than 50km
+            return isFar ? (
+              <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 12px', marginBottom: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#92400e', marginBottom: 2 }}>
+                  ⚠️ {sw ? 'Uko mbali na mkoa huu' : 'You are far from this region'}
+                </div>
+                <div style={{ fontSize: 11, color: '#92400e' }}>
+                  {sw
+                    ? `Umbali wa km ${firstRoute.driveKm} kutoka kwako. Je, unatafuta kliniki karibu nawe?`
+                    : `You are ${firstRoute.driveKm}km away. Are you looking for clinics near your current location?`}
+                </div>
+                <button onClick={() => {
+                  // Auto-switch to nearest region
+                  if (userLocation) {
+                    const nearest = findNearestDistrict(userLocation.lat, userLocation.lon);
+                    setSelectedDistrict(nearest);
+                    onDistrictChange(nearest);
+                    const nearClinics = CLINICS_DATA[nearest] || [];
+                    setData(nearClinics);
+                    setRouteInfo({});
+                    getUserLocation(nearClinics);
+                  }
+                }}
+                  style={{ marginTop: 8, fontSize: 11, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '4px 12px', cursor: 'pointer' }}>
+                  📍 {sw ? 'Nionyeshe kliniki karibu nami' : 'Show clinics near me'}
+                </button>
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: '#166534', background: '#f0fdf4', borderRadius: 8, padding: '6px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>📍 {sw ? 'Umbali kutoka kwako' : 'Distances from your location'}</span>
+                <button onClick={() => getUserLocation(data)}
+                  style={{ fontSize: 11, background: 'none', border: 'none', color: '#166534', cursor: 'pointer', textDecoration: 'underline' }}>
+                  {sw ? 'Sasisha' : 'Refresh'}
+                </button>
+              </div>
+            );
+          })()}
           {!userLocation && !gettingLocation && (
             <button onClick={() => getUserLocation(data)}
-              style={{ width: '100%', padding: '8px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12, color: '#374151', cursor: 'pointer' }}>
+              style={{ width: '100%', padding: '9px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12, color: '#374151', cursor: 'pointer', fontWeight: 500 }}>
               📍 {sw ? 'Pata umbali kutoka kwako' : 'Get distance from my location'}
             </button>
           )}
