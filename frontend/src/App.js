@@ -374,13 +374,13 @@ function Home({ t, lang, district, onDistrictChange, setPage }) {
 
   useEffect(() => {
     // Always load weather on mount using current district
-    if (district) fetchWeather(district);
+    if (district) fetchHomeWeather(district);
     // Then try GPS to refine
     detectLocation();
   }, []);
 
   useEffect(() => {
-    if (district) fetchWeather(district);
+    if (district) fetchHomeWeather(district);
   }, [district]);
 
   function detectLocation() {
@@ -413,7 +413,7 @@ function Home({ t, lang, district, onDistrictChange, setPage }) {
     );
   }
 
-  async function fetchWeather(d) {
+  async function fetchHomeWeather(d) {
     const c = DISTRICT_COORDS[d];
     if (!c) return;
     setLoading(true);
