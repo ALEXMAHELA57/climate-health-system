@@ -369,8 +369,16 @@ function Home({ t, lang, district, onDistrictChange, setPage }) {
   const [loading, setLoading] = useState(false);
   const [gpsStatus, setGpsStatus] = useState('idle'); // idle | detecting | ok | denied
 
-  useEffect(() => { detectLocation(); }, []);
-  useEffect(() => { if (district) fetchWeather(district); }, [district]);
+  useEffect(() => {
+    // Always load weather on mount using current district
+    if (district) fetchWeather(district);
+    // Then try GPS to refine
+    detectLocation();
+  }, []);
+
+  useEffect(() => {
+    if (district) fetchWeather(district);
+  }, [district]);
 
   function detectLocation() {
     if (!navigator.geolocation) return;
@@ -407,7 +415,13 @@ function Home({ t, lang, district, onDistrictChange, setPage }) {
     if (!c) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API}/api/weather/${d}`);
+      const url =
+        `https://api.open-meteo.com/v1/forecast` +
+        `?latitude=${c.lat}&longitude=${c.lon}` +
+        `&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,precipitation` +
+        `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code` +
+        `&timezone=Africa/Dar_es_Salaam&forecast_days=7`;
+      const res  = await fetch(url);
       const data = await res.json();
       setWeather(data);
     } catch { setWeather(null); }
