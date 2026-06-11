@@ -306,6 +306,8 @@ export default function App() {
   useEffect(() => {
     function onHashChange() { setShowAdmin(window.location.hash === '#admin'); }
     window.addEventListener('hashchange', onHashChange);
+    // Wake up Render backend immediately on app load (free tier sleeps after 15min)
+    fetch(`${API}/`).catch(() => {});
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
@@ -316,6 +318,7 @@ export default function App() {
 
   return (
     <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#f3f4f6' }}>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       {/* Header */}
       <div style={{ background: '#2563eb', color: '#fff', padding: '13px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
         <div>
@@ -469,19 +472,71 @@ function Home({ t, lang, district, onDistrictChange, setPage }) {
       <div style={{ background: 'linear-gradient(135deg,#1d4ed8,#0ea5e9)', borderRadius: 16, padding: '18px 16px', color: '#fff', marginBottom: 14 }}>
         <div style={{ fontSize: 20, marginBottom: 4 }}>👋 {t.welcome}</div>
         {loading ? (
-          <div style={{ fontSize: 12, opacity: 0.8 }}>{t.detect}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: 0.9 }}>
+            <div style={{ width: 18, height: 18, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+            <span style={{ fontSize: 13 }}>{sw ? 'Inapakia hali ya hewa...' : 'Loading weather...'}</span>
+          </div>
         ) : curr ? (
           <div>
-            <div style={{ fontSize: 32, fontWeight: 700 }}>{Math.round(curr.temperature_2m)}°C</div>
-            <div style={{ fontSize: 12, opacity: 0.9 }}>💧 {curr.relative_humidity_2m}% · 💨 {Math.round(curr.wind_speed_10m)} km/h</div>
-            <div style={{ marginTop: 8, background: 'rgba(255,255,255,0.2)', display: 'inline-block', padding: '3px 12px', borderRadius: 99, fontSize: 12, fontWeight: 600 }}>
-              {risk.toUpperCase()} {lang === 'sw' ? 'HATARI' : 'RISK'}
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, marginBottom: 6 }}>
+              <div style={{ fontSize: 42, fontWeight: 700, lineHeight: 1 }}>{Math.round(curr.temperature_2m)}°C</div>
+              <div style={{ fontSize: 12, opacity: 0.85, paddingBottom: 4 }}>
+                <div>💧 {curr.relative_humidity_2m}% {sw ? 'Unyevu' : 'Humidity'}</div>
+                <div>💨 {Math.round(curr.wind_speed_10m)} km/h {sw ? 'Upepo' : 'Wind'}</div>
+              </div>
+            </div>
+            <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 8 }}>
+              {sw ? 'Hisi kama' : 'Feels like'} {Math.round(curr.apparent_temperature)}°C · 
+              {daily?.precipitation_sum?.[0] > 0.5
+                ? ` 🌧️ ${daily.precipitation_sum[0].toFixed(1)}mm ${sw ? 'mvua leo' : 'rain today'}`
+                : ` ☀️ ${sw ? 'Hakuna mvua leo' : 'No rain today'}`}
+            </div>
+            <div style={{ background: 'rgba(255,255,255,0.2)', display: 'inline-block', padding: '4px 14px', borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
+              {risk.toUpperCase()} {sw ? 'HATARI' : 'RISK'}
             </div>
           </div>
         ) : (
-          <div style={{ fontSize: 12, opacity: 0.8 }}>📍 {district}</div>
+          <div style={{ fontSize: 13, opacity: 0.85 }}>📍 {district} — {sw ? 'Data haipatikani' : 'Could not load weather'}</div>
         )}
       </div>
+
+      {/* Health alerts from weather data */}
+      {curr && (() => {
+        const alerts = [];
+        const todayRain = daily?.precipitation_sum?.[0] || 0;
+        const rain7     = daily?.precipitation_sum?.reduce((a,b) => a+b, 0) || 0;
+        const maxTemp   = daily ? Math.max(...(daily.temperature_2m_max || [0])) : 0;
+        const hasStorm  = daily?.weather_code?.some(c => c >= 95) || false;
+        const heavyDays = (daily?.precipitation_sum || []).filter(r => r > 25).length;
+
+        if (hasStorm)           alerts.push({ icon: '⛈️', color: '#ef4444', bg: '#fef2f2', border: '#fecaca', text: sw ? 'Dhoruba inatarajiwa — kaa ndani ikiwa inawezekana' : 'Storm expected — stay indoors if possible' });
+        if (todayRain > 20)     alerts.push({ icon: '🌧️', color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe', text: sw ? `Mvua nzito leo (${todayRain.toFixed(0)}mm) — tahadhari mafuriko` : `Heavy rain today (${todayRain.toFixed(0)}mm) — flood risk` });
+        if (rain7 > 40 || heavyDays >= 2) alerts.push({ icon: '🦟', color: '#d97706', bg: '#fffbeb', border: '#fde68a', text: sw ? 'Hatari ya malaria imeongezeka wiki hii — lala chini ya neti' : 'Elevated malaria risk this week — sleep under a net' });
+        if (rain7 > 60)         alerts.push({ icon: '💧', color: '#0e7490', bg: '#ecfeff', border: '#a5f3fc', text: sw ? 'Hatari ya kipindupindu — tumia maji safi tu' : 'Cholera risk elevated — use clean water only' });
+        if (maxTemp > 36)       alerts.push({ icon: '🌡️', color: '#dc2626', bg: '#fef2f2', border: '#fecaca', text: sw ? `Joto kali linatarajiwa (${Math.round(maxTemp)}°C) — kunywa maji mengi` : `Extreme heat expected (${Math.round(maxTemp)}°C) — stay hydrated` });
+        if (curr.relative_humidity_2m < 30) alerts.push({ icon: '🏜️', color: '#92400e', bg: '#fef3c7', border: '#fcd34d', text: sw ? 'Hewa kavu — hatari ya matatizo ya kupumua' : 'Dry air — risk of respiratory issues' });
+
+        if (alerts.length === 0) return (
+          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 18 }}>✅</span>
+            <div style={{ fontSize: 12, color: '#166534', fontWeight: 500 }}>{sw ? 'Hakuna taarifa za afya kwa leo' : 'No health alerts for today'}</div>
+          </div>
+        );
+
+        return (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+              🔔 {sw ? 'Taarifa za Afya' : 'Health Alerts'} · {district}
+            </div>
+            {alerts.map((a, i) => (
+              <div key={i} style={{ background: a.bg, border: `1px solid ${a.border}`, borderRadius: 10, padding: '10px 12px', marginBottom: 6, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <span style={{ fontSize: 18, lineHeight: 1.2 }}>{a.icon}</span>
+                <div style={{ fontSize: 12, color: a.color, fontWeight: 500, lineHeight: 1.4 }}>{a.text}</div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Quick actions */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
