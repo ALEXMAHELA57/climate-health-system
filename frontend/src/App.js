@@ -803,77 +803,102 @@ function Clinics({ t, lang, district, onDistrictChange }) {
   }
 
   function getUserLocation(clinics) {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      // No GPS support — show manual button
+      setGettingLocation(false);
+      return;
+    }
     setGettingLocation(true);
-    navigator.geolocation.getCurrentPosition(
+
+    // Helper: calculate routes from known coordinates
+    function calcRoutes(latitude, longitude, clinicList) {
+      const routes = {};
+      (clinicList || []).forEach((c, i) => {
+        if (c.lat && c.lon) {
+          const straightLine = haversineDistance(latitude, longitude, c.lat, c.lon);
+          const roadDist = straightLine * 1.3; // road factor
+          const driveKm  = roadDist / 1000;
+          const walkKm   = roadDist / 1000;
+          routes[i] = {
+            meters:    Math.round(roadDist),
+            driveKm:   driveKm.toFixed(1),
+            driveMin:  Math.max(1, Math.ceil(driveKm / 35 * 60)), // 35 km/h driving
+            walkKm:    walkKm.toFixed(1),
+            walkMin:   Math.max(1, Math.ceil(walkKm / 5 * 60)),   // 5 km/h walking
+            isEstimate: true,
+          };
+        }
+      });
+      return routes;
+    }
+
+    // Use watchPosition for mobile compatibility — gets first fix then stops
+    const watcher = navigator.geolocation.watchPosition(
       async pos => {
+        navigator.geolocation.clearWatch(watcher);
         const { latitude, longitude } = pos.coords;
         setUserLocation({ lat: latitude, lon: longitude });
         setGettingLocation(false);
 
-        // Step 1: Show instant estimates immediately
-        // Road factor 1.3 = roads ~30% longer than straight line
-        // Walking speed: 5 km/h | Driving speed: 35 km/h (Tanzania urban)
-        const instantRoutes = {};
-        (clinics || []).forEach((c, i) => {
-          if (c.lat && c.lon) {
-            const straightLine = haversineDistance(latitude, longitude, c.lat, c.lon);
-            const roadDist  = straightLine * 1.3;
-            const driveKm   = roadDist / 1000;
-            const walkKm    = roadDist / 1000;
-            const driveMin  = Math.max(1, Math.ceil(driveKm / 35 * 60));  // 35 km/h
-            const walkMin   = Math.max(1, Math.ceil(walkKm  /  5 * 60));  // 5 km/h
-            instantRoutes[i] = {
-              meters:    Math.round(roadDist),
-              driveKm:   driveKm.toFixed(1),
-              driveMin,
-              walkKm:    walkKm.toFixed(1),
-              walkMin,
-              isEstimate: true,
-            };
-          }
-        });
-        setRouteInfo(instantRoutes);
+        // Step 1 — instant straight-line estimates (works on ALL devices)
+        const instantRoutes = calcRoutes(latitude, longitude, clinics);
+        setRouteInfo({ ...instantRoutes });
 
-        // Step 2: Try OSRM for accurate road distances (may fail silently)
+        // Step 2 — try OSRM for real road distances (optional upgrade)
         setLoadingRoutes(true);
         try {
           const betterRoutes = { ...instantRoutes };
+          const fetchWithTimeout = (url, ms) => {
+            return new Promise((resolve, reject) => {
+              const timer = setTimeout(() => reject(new Error('timeout')), ms);
+              fetch(url)
+                .then(r => { clearTimeout(timer); resolve(r); })
+                .catch(e => { clearTimeout(timer); reject(e); });
+            });
+          };
+
           await Promise.all((clinics || []).map(async (c, i) => {
-            if (c.lat && c.lon) {
-              try {
-                // Only use driving route (more reliable) - calculate walk from road distance
-                const driveUrl = `https://router.project-osrm.org/route/v1/driving/${longitude},${latitude};${c.lon},${c.lat}?overview=false`;
-                const driveRes = await fetch(driveUrl, { signal: AbortSignal.timeout(6000) });
-                const driveData = await driveRes.json();
-                const driveDist = driveData.routes?.[0]?.distance;
-                const driveTime = driveData.routes?.[0]?.duration;
-                // Walk distance = drive distance (same road), time calculated at 5 km/h
-                const walkDist = driveDist;
-                const walkTime = driveDist ? (driveDist / 1000 / 5 * 3600) : null;
-                if (driveDist) {
-                  const walkKmVal = walkDist ? walkDist/1000 : driveDist/1000;
-                  betterRoutes[i] = {
-                    meters:    Math.round(driveDist),
-                    driveKm:   (driveDist/1000).toFixed(1),
-                    driveMin:  Math.max(1, Math.ceil(driveTime/60)),
-                    walkKm:    walkKmVal.toFixed(1),
-                    walkMin:   walkTime
-                                 ? Math.max(1, Math.ceil(walkTime/60))
-                                 : Math.max(1, Math.ceil(walkKmVal/5*60)), // 5 km/h walking
-                    isEstimate: false,
-                  };
-                }
-              } catch {}
-            }
+            if (!c.lat || !c.lon) return;
+            try {
+              const url = `https://router.project-osrm.org/route/v1/driving/${longitude},${latitude};${c.lon},${c.lat}?overview=false`;
+              const res  = await fetchWithTimeout(url, 7000);
+              const data = await res.json();
+              const dist = data.routes?.[0]?.distance;
+              const time = data.routes?.[0]?.duration;
+              if (dist && time) {
+                const driveKm = dist / 1000;
+                betterRoutes[i] = {
+                  meters:    Math.round(dist),
+                  driveKm:   driveKm.toFixed(1),
+                  driveMin:  Math.max(1, Math.ceil(time / 60)),
+                  walkKm:    driveKm.toFixed(1),
+                  walkMin:   Math.max(1, Math.ceil(driveKm / 5 * 60)),
+                  isEstimate: false,
+                };
+              }
+            } catch { /* keep estimate */ }
           }));
           setRouteInfo({ ...betterRoutes });
-        } catch {}
+        } catch { /* keep estimates */ }
         setLoadingRoutes(false);
       },
-      () => { setGettingLocation(false); },
-      { timeout: 10000, enableHighAccuracy: true }
+      (err) => {
+        // GPS denied or failed on mobile
+        setGettingLocation(false);
+        console.warn('GPS error:', err.code, err.message);
+      },
+      {
+        enableHighAccuracy: false, // false = faster on mobile, uses network location
+        timeout: 15000,
+        maximumAge: 60000,        // accept cached position up to 1 min old
+      }
     );
+
+    // Safety timeout — if watchPosition never fires after 15s, stop waiting
+    setTimeout(() => {
+      navigator.geolocation.clearWatch(watcher);
+      setGettingLocation(false);
+    }, 16000);
   }
 
   function formatDistance(info, useWalk = false) {
