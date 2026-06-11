@@ -842,24 +842,25 @@ function Clinics({ t, lang, district, onDistrictChange }) {
           await Promise.all((clinics || []).map(async (c, i) => {
             if (c.lat && c.lon) {
               try {
+                // Only use driving route (more reliable) - calculate walk from road distance
                 const driveUrl = `https://router.project-osrm.org/route/v1/driving/${longitude},${latitude};${c.lon},${c.lat}?overview=false`;
-                const walkUrl  = `https://router.project-osrm.org/route/v1/foot/${longitude},${latitude};${c.lon},${c.lat}?overview=false`;
-                const [driveRes, walkRes] = await Promise.all([
-                  fetch(driveUrl, { signal: AbortSignal.timeout(5000) }),
-                  fetch(walkUrl,  { signal: AbortSignal.timeout(5000) }),
-                ]);
-                const [driveData, walkData] = await Promise.all([driveRes.json(), walkRes.json()]);
+                const driveRes = await fetch(driveUrl, { signal: AbortSignal.timeout(6000) });
+                const driveData = await driveRes.json();
                 const driveDist = driveData.routes?.[0]?.distance;
                 const driveTime = driveData.routes?.[0]?.duration;
-                const walkDist  = walkData.routes?.[0]?.distance;
-                const walkTime  = walkData.routes?.[0]?.duration;
+                // Walk distance = drive distance (same road), time calculated at 5 km/h
+                const walkDist = driveDist;
+                const walkTime = driveDist ? (driveDist / 1000 / 5 * 3600) : null;
                 if (driveDist) {
+                  const walkKmVal = walkDist ? walkDist/1000 : driveDist/1000;
                   betterRoutes[i] = {
-                    meters:   Math.round(driveDist),
-                    driveKm:  (driveDist/1000).toFixed(1),
-                    driveMin: Math.max(1, Math.ceil(driveTime/60)),
-                    walkKm:   walkDist ? (walkDist/1000).toFixed(1) : (driveDist/1000).toFixed(1),
-                    walkMin:  walkTime ? Math.max(1, Math.ceil(walkTime/60)) : Math.max(1, Math.ceil(driveDist/1000/4.5*60)),
+                    meters:    Math.round(driveDist),
+                    driveKm:   (driveDist/1000).toFixed(1),
+                    driveMin:  Math.max(1, Math.ceil(driveTime/60)),
+                    walkKm:    walkKmVal.toFixed(1),
+                    walkMin:   walkTime
+                                 ? Math.max(1, Math.ceil(walkTime/60))
+                                 : Math.max(1, Math.ceil(walkKmVal/5*60)), // 5 km/h walking
                     isEstimate: false,
                   };
                 }
