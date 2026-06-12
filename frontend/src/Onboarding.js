@@ -30,12 +30,36 @@ export default function Onboarding({ lang = 'en', onFinish }) {
       color: '#f59e0b',
     },
     {
-      icon: '📢',
-      title: sw ? 'Ripoti na Kliniki' : 'Report & Find Clinics',
+      icon: '🗺️',
+      title: sw ? 'Ramani ya Hatari' : 'Climate Risk Map',
       text: sw
-        ? 'Ripoti matatizo kama mafuriko au magonjwa katika eneo lako, na pata kliniki za karibu pamoja na umbali na muda wa kufika.'
-        : 'Report problems like flooding or illness in your area, and find nearby clinics with real distance and travel time.',
+        ? 'Angalia hatari za malaria, mafuriko, ukame na milipuko ya magonjwa kwa kila mkoa wa Tanzania kwa wakati halisi.'
+        : 'View malaria, flood, drought, and disease outbreak risk levels for every region in Tanzania, updated in real time.',
+      color: '#8b5cf6',
+    },
+    {
+      icon: '🏥',
+      title: sw ? 'Pata Kliniki za Karibu' : 'Find Nearby Clinics',
+      text: sw
+        ? 'Tafuta hospitali na vituo vya afya karibu nawe, ukiwa na nambari za simu, umbali halisi na muda wa kufika kwa miguu au gari.'
+        : 'Find hospitals and health centres near you, with phone numbers, real distance, and travel time on foot or by car.',
       color: '#22c55e',
+    },
+    {
+      icon: '📢',
+      title: sw ? 'Ripoti Matatizo' : 'Report Issues',
+      text: sw
+        ? 'Ripoti matatizo kama mafuriko, magonjwa, au maji machafu katika eneo lako. Timu yetu itapitia na kujibu ripoti yako.'
+        : 'Report problems like flooding, illness, or unsafe water in your area. Our team reviews and responds to your reports.',
+      color: '#ec4899',
+    },
+    {
+      icon: '👤',
+      title: sw ? 'Wasifu Wako' : 'Your Profile',
+      text: sw
+        ? 'Hifadhi mkoa wako, lugha, na mapendeleo ya taarifa. Pia unaweza kujiandikisha kupokea arifa za SMS na kuona historia yako.'
+        : 'Save your region, language, and alert preferences. You can also subscribe to SMS alerts and view your history.',
+      color: '#0891b2',
     },
   ];
 
