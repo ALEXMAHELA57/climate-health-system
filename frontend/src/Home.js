@@ -50,26 +50,64 @@ export default function Home({ t, lang, district, onDistrictChange, setPage }) {
   function detectLocation() {
     if (!navigator.geolocation) return;
     setGpsStatus('detecting');
-    navigator.geolocation.getCurrentPosition(
-      async pos => {
-        const { latitude, longitude } = pos.coords;
-        const d = findNearestDistrict(latitude, longitude);
-        onDistrictChange(d);
-        const geo = await reverseGeocode(latitude, longitude);
-        if (geo.region) {
-          const match = DISTRICTS.find(dist =>
-            dist.toLowerCase().includes(geo.region.toLowerCase()) ||
-            geo.region.toLowerCase().includes(dist.toLowerCase())
-          );
-          if (match) onDistrictChange(match);
+
+    let resolved = false;
+
+    async function applyPosition(pos) {
+      const { latitude, longitude, accuracy } = pos.coords;
+      const d = findNearestDistrict(latitude, longitude);
+      const geo = await reverseGeocode(latitude, longitude);
+      let finalDistrict = d;
+      if (geo.region) {
+        const match = DISTRICTS.find(dist =>
+          dist.toLowerCase().includes(geo.region.toLowerCase()) ||
+          geo.region.toLowerCase().includes(dist.toLowerCase())
+        );
+        if (match) finalDistrict = match;
+      }
+      onDistrictChange(finalDistrict);
+      localStorage.setItem('afya_geo_district', geo.district || '');
+      localStorage.setItem('afya_geo_street',   geo.street   || '');
+      localStorage.setItem('afya_geo_accuracy', String(accuracy || 99999));
+      setGpsStatus('ok');
+    }
+
+    // watchPosition keeps refining the fix; we wait for an accurate
+    // reading (accuracy <= 1000m) OR a max of 12 seconds, then lock it in.
+    const watcher = navigator.geolocation.watchPosition(
+      pos => {
+        const { accuracy } = pos.coords;
+        // Only accept readings accurate to within 1km — skip noisy first fixes
+        if (accuracy && accuracy <= 1000) {
+          if (!resolved) {
+            resolved = true;
+            navigator.geolocation.clearWatch(watcher);
+            applyPosition(pos);
+          }
         }
-        localStorage.setItem('afya_geo_district', geo.district || '');
-        localStorage.setItem('afya_geo_street',   geo.street   || '');
-        setGpsStatus('ok');
       },
-      () => setGpsStatus('denied'),
-      { timeout: 10000, enableHighAccuracy: true }
+      () => {
+        if (!resolved) {
+          resolved = true;
+          navigator.geolocation.clearWatch(watcher);
+          setGpsStatus('denied');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
+
+    // Fallback: if no accurate reading within 12s, use whatever we have
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        navigator.geolocation.clearWatch(watcher);
+        navigator.geolocation.getCurrentPosition(
+          applyPosition,
+          () => setGpsStatus('denied'),
+          { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+        );
+      }
+    }, 12000);
   }
 
   const curr   = weather?.current;
@@ -109,6 +147,12 @@ export default function Home({ t, lang, district, onDistrictChange, setPage }) {
         </button>
       </div>
 
+      {gpsStatus==='detecting' && (
+        <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:8, padding:'6px 12px', marginBottom:10, fontSize:12, color:'#1d4ed8', display:'flex', alignItems:'center', gap:6 }}>
+          <span style={{ display:'inline-block', animation:'spin 1s linear infinite' }}>⟳</span>
+          {sw?'Inatafuta eneo lako kwa usahihi...':'Finding your precise location...'}
+        </div>
+      )}
       {gpsStatus==='denied' && (
         <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:8, padding:'6px 12px', marginBottom:10, fontSize:12, color:'#92400e' }}>
           ⚠️ {sw?'GPS haikufanya kazi. Chagua mkoa hapo juu.':'GPS unavailable. Select your region above.'}
