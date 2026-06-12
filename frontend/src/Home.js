@@ -190,6 +190,19 @@ export default function Home({ t, lang, district, onDistrictChange, setPage }) {
         ))}
       </div>
 
+      {/* Offline-ready emergency info link */}
+      <button onClick={()=>setPage('emergency')}
+        style={{ width:'100%', background:'#fff', border:'1px solid #e5e7eb', borderRadius:12, padding:'10px 12px', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', marginBottom:10 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <span style={{ fontSize:18 }}>🚑</span>
+          <div style={{ textAlign:'left' }}>
+            <div style={{ fontSize:13, fontWeight:600, color:'#111' }}>{sw?'Taarifa za Dharura':'Emergency Info'}</div>
+            <div style={{ fontSize:10, color:'#9ca3af' }}>{sw?'Inafanya kazi bila intaneti':'Works without internet'}</div>
+          </div>
+        </div>
+        <span style={{ fontSize:10, color:'#9ca3af' }}>›</span>
+      </button>
+
       {/* Emergency */}
       <div style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:12, padding:'10px 14px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <div>

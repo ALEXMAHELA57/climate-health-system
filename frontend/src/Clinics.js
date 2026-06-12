@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { DISTRICTS, API, haversineDistance, findNearestDistrict, formatTime } from './constants';
+import { SkeletonCard } from './Skeleton';
 
 export default function Clinics({ t, lang, district, onDistrictChange }) {
   const [selectedDistrict, setSelectedDistrict] = useState(district);
@@ -214,6 +215,14 @@ export default function Clinics({ t, lang, district, onDistrictChange }) {
           </div>
         );
       })}
+
+      {loadingClinics && (
+        <>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </>
+      )}
 
       {!clinics && !loadingClinics && (
         <div style={{ textAlign:'center', padding:'2rem', color:'#9ca3af', fontSize:13 }}>

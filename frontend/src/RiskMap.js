@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DISTRICT_COORDS, getRisk, riskColor, riskBg, findNearestDistrict } from './constants';
+import { SkeletonRow } from './Skeleton';
 
 export default function RiskMap({ t, lang }) {
   const [layer, setLayer]               = useState('overall');
@@ -68,12 +69,7 @@ export default function RiskMap({ t, lang }) {
       <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
         {districtList.map(d=>{
           const info = districtRisks[d];
-          if (!info) return (
-            <div key={d} style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:10, padding:'9px 12px', display:'flex', justifyContent:'space-between', alignItems:'center', opacity:0.5 }}>
-              <div style={{ fontSize:13 }}>{d}</div>
-              <div style={{ fontSize:11, color:'#9ca3af' }}>⟳</div>
-            </div>
-          );
+          if (!info) return <SkeletonRow key={d} />;
           if (info.risk==='unknown') return (
             <div key={d} style={{ background:'#fff', border:'1px solid #fde68a', borderRadius:10, padding:'9px 12px', display:'flex', justifyContent:'space-between' }}>
               <div style={{ fontSize:13 }}>{d}</div>
