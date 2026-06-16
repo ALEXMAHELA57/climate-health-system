@@ -56,6 +56,23 @@ class ChatRequest(BaseModel):
     messages: list[Message]
     region: Optional[str] = ""
 
+class SymptomLog(BaseModel):
+    symptoms: str
+    region: Optional[str] = ""
+    timestamp: Optional[str] = None
+
+@router.post("/log")
+async def log_symptom(data: SymptomLog, db: Session = Depends(get_db)):
+    """Lightweight endpoint — just saves symptom for outbreak tracking, no Claude call"""
+    entry = SymptomReport(
+        region=data.region or "",
+        symptoms=data.symptoms[:500],
+        timestamp=datetime.fromisoformat(data.timestamp) if data.timestamp else datetime.utcnow()
+    )
+    db.add(entry)
+    db.commit()
+    return {"success": True}
+
 @router.post("/chat")
 async def chat(request: ChatRequest, db: Session = Depends(get_db)):
     client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
