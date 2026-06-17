@@ -47,18 +47,26 @@ export default function App() {
   useEffect(()=>{
     function onHash(){ setShowAdmin(window.location.hash==='#admin'); }
     window.addEventListener('hashchange', onHash);
+    // Wake up backend immediately
     fetch(`${API}/`).catch(()=>{});
+    // Keep Render warm — ping every 10 minutes to prevent cold starts
+    // Render free tier sleeps after 15min of inactivity
+    const keepAlive = setInterval(()=>{
+      fetch(`${API}/`).catch(()=>{});
+    }, 10 * 60 * 1000); // every 10 minutes
+    return ()=>{
+      window.removeEventListener('hashchange', onHash);
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+      clearInterval(keepAlive);
+    };
 
     function goOnline(){ setIsOnline(true); }
     function goOffline(){ setIsOnline(false); }
     window.addEventListener('online', goOnline);
     window.addEventListener('offline', goOffline);
 
-    return ()=>{
-      window.removeEventListener('hashchange', onHash);
-      window.removeEventListener('online', goOnline);
-      window.removeEventListener('offline', goOffline);
-    };
+
   },[]);
 
   function handleLangChange(l){ setLang(l); localStorage.setItem('afya_lang',l); }

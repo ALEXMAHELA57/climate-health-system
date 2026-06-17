@@ -42,8 +42,7 @@ export default function Symptoms({ t, lang, district }) {
   const [input, setInput]         = useState('');
   const [loading, setLoading]     = useState(false);
   const [emergency, setEmergency] = useState(false);
-  const [apiKey, setApiKey]       = useState(()=>localStorage.getItem('afya_api_key')||'');
-  const [showKeyInput, setShowKeyInput] = useState(false);
+  const [waitMsg, setWaitMsg]     = useState('');
   const bottomRef = useRef(null);
   const sw = lang === 'sw';
 
@@ -75,51 +74,75 @@ export default function Symptoms({ t, lang, district }) {
 
     saveHistory(symptomText);
 
-    // Try direct Claude API call first (fastest — no Render round trip)
-    const directKey = apiKey || process.env.REACT_APP_ANTHROPIC_API_KEY || '';
     let replied = false;
 
-    if (directKey) {
-      try {
-        const controller = new AbortController();
-        const timer = setTimeout(()=>controller.abort(), 20000); // 20s timeout
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          signal: controller.signal,
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': directKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true',
-          },
-          body: JSON.stringify({
-            model: 'claude-haiku-4-5',
-            max_tokens: 600,
-            system: SYSTEM_PROMPT,
-            messages: newMessages.map(m=>({ role:m.role, content:m.content })),
-          }),
-        });
-        clearTimeout(timer);
-        if (res.ok) {
-          const data = await res.json();
-          const reply = stripMarkdown(data.content?.[0]?.text || '');
-          if (reply) {
-            setMessages([...newMessages, { role:'assistant', content:reply }]);
-            if (/emergency|hospital.*now|immediately|go.*now/i.test(reply)) setEmergency(true);
-            replied = true;
+    // Detect mobile — mobile browsers block direct Claude API calls due to CORS
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
+    // Desktop: call Claude API directly (fast, ~1-2 seconds)
+    // Mobile: go through backend to avoid CORS issues
+    if (!isMobile) {
+      const directKey = process.env.REACT_APP_ANTHROPIC_API_KEY || '';
+      if (directKey) {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(()=>controller.abort(), 20000);
+          const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': directKey,
+              'anthropic-version': '2023-06-01',
+              'anthropic-dangerous-direct-browser-access': 'true',
+            },
+            body: JSON.stringify({
+              model: 'claude-haiku-4-5',
+              max_tokens: 600,
+              system: SYSTEM_PROMPT,
+              messages: newMessages.map(m=>({ role:m.role, content:m.content })),
+            }),
+          });
+          clearTimeout(timer);
+          if (res.ok) {
+            const data = await res.json();
+            const reply = stripMarkdown(data.content?.[0]?.text || '');
+            if (reply) {
+              setMessages([...newMessages, { role:'assistant', content:reply }]);
+              if (/emergency|hospital.*now|immediately|go.*now/i.test(reply)) setEmergency(true);
+              replied = true;
+            }
           }
+        } catch(e) {
+          console.warn('Direct API failed, trying backend:', e.message);
         }
-      } catch(e) {
-        // Timed out or failed — fall through to backend
-        console.warn('Direct API failed, trying backend:', e.message);
       }
     }
 
-    // Fallback — go through backend (slower but works if no direct key)
+    // Mobile always uses backend, desktop falls back here if direct call failed
     if (!replied) {
       try {
+        // Mobile — show progressive wait messages so user doesn't think it's frozen
+        if (isMobile) {
+          fetch(`${API}/`).catch(()=>{});
+          // Natural messages — no mention of servers or backend
+          const msgs = sw ? [
+            'Afya anaangalia dalili zako...',
+            'Afya anafikiria...',
+            'Karibu na jibu...',
+          ] : [
+            'Afya is reviewing your symptoms...',
+            'Afya is thinking...',
+            'Almost ready...',
+          ];
+          setWaitMsg(msgs[0]);
+          await new Promise(r => setTimeout(r, 3000));
+          setWaitMsg(msgs[1]);
+          await new Promise(r => setTimeout(r, 4000));
+          setWaitMsg(msgs[2]);
+        }
         const controller = new AbortController();
-        const timer = setTimeout(()=>controller.abort(), 30000);
+        const timer = setTimeout(()=>controller.abort(), 45000); // 45s for mobile (cold start)
         const res = await fetch(`${API}/api/symptoms/chat`, {
           method:'POST',
           signal: controller.signal,
@@ -137,7 +160,7 @@ export default function Symptoms({ t, lang, district }) {
           }
         }
       } catch(e) {
-        console.warn('Backend also failed:', e.message);
+        console.warn('Backend failed:', e.message);
       }
     }
 
@@ -150,6 +173,7 @@ export default function Symptoms({ t, lang, district }) {
       }]);
     }
 
+    setWaitMsg('');
     setLoading(false);
   }
 
@@ -198,10 +222,16 @@ export default function Symptoms({ t, lang, district }) {
         {loading && (
           <div style={{ display:'flex', alignItems:'center', marginBottom:8, gap:6 }}>
             <div style={{ width:28, height:28, borderRadius:'50%', background:'#eff6ff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, flexShrink:0 }}>🤖</div>
-            <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:16, borderBottomLeftRadius:4, padding:'10px 14px', display:'flex', gap:4, alignItems:'center' }}>
-              <span style={{ width:7, height:7, borderRadius:'50%', background:'#9ca3af', display:'inline-block', animation:'bounce 1.2s ease-in-out infinite' }} />
-              <span style={{ width:7, height:7, borderRadius:'50%', background:'#9ca3af', display:'inline-block', animation:'bounce 1.2s ease-in-out 0.2s infinite' }} />
-              <span style={{ width:7, height:7, borderRadius:'50%', background:'#9ca3af', display:'inline-block', animation:'bounce 1.2s ease-in-out 0.4s infinite' }} />
+            <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:16, borderBottomLeftRadius:4, padding:'10px 14px' }}>
+              {waitMsg ? (
+                <div style={{ fontSize:12, color:'#6b7280' }}>{waitMsg}</div>
+              ) : (
+                <div style={{ display:'flex', gap:4, alignItems:'center' }}>
+                  <span style={{ width:7, height:7, borderRadius:'50%', background:'#9ca3af', display:'inline-block', animation:'bounce 1.2s ease-in-out infinite' }} />
+                  <span style={{ width:7, height:7, borderRadius:'50%', background:'#9ca3af', display:'inline-block', animation:'bounce 1.2s ease-in-out 0.2s infinite' }} />
+                  <span style={{ width:7, height:7, borderRadius:'50%', background:'#9ca3af', display:'inline-block', animation:'bounce 1.2s ease-in-out 0.4s infinite' }} />
+                </div>
+              )}
             </div>
           </div>
         )}
