@@ -85,6 +85,8 @@ export default function CommunityReport({ lang = 'en' }) {
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsStatus, setGpsStatus] = useState('idle'); // idle | ok | denied | loading
   const [submitting, setSubmitting] = useState(false);
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [editDetails, setEditDetails] = useState('');
   const [myReports, setMyReports] = useState(() => {
     try { return JSON.parse(localStorage.getItem('afya_my_reports') || '[]'); }
     catch { return []; }
@@ -188,6 +190,36 @@ export default function CommunityReport({ lang = 'en' }) {
       },
       { timeout: 10000, enableHighAccuracy: true }
     );
+  }
+
+  // Can edit within 10 minutes of submission and only if under_review
+  function canEdit(report) {
+    if (!report.id) return false;
+    if (report.status !== 'under_review') return false;
+    const ageMs = Date.now() - new Date(report.date).getTime();
+    return ageMs < 10 * 60 * 1000; // 10 minutes
+  }
+
+  function minutesLeft(report) {
+    const ageMs = Date.now() - new Date(report.date).getTime();
+    const remaining = Math.ceil((10 * 60 * 1000 - ageMs) / 60000);
+    return remaining > 0 ? remaining : 0;
+  }
+
+  async function saveEdit(reportId, index) {
+    if (!editDetails.trim()) return;
+    try {
+      await fetch(`${API}/api/community/update-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ report_id: reportId, status: 'under_review', admin_note: '', details: editDetails })
+      });
+    } catch {}
+    const updated = myReports.map((r, i) => i === index ? { ...r, details: editDetails } : r);
+    localStorage.setItem('afya_my_reports', JSON.stringify(updated));
+    setMyReports(updated);
+    setEditingIndex(null);
+    setEditDetails('');
   }
 
   async function submit() {
@@ -455,6 +487,36 @@ export default function CommunityReport({ lang = 'en' }) {
                     {/* Details */}
                     {r.details && (
                       <div style={{ fontSize: 11, color: '#6b7280', fontStyle: 'italic', marginBottom: 8 }}>"{r.details}"</div>
+                    )}
+
+                    {/* Edit within 10 mins */}
+                    {editingIndex === realIndex ? (
+                      <div style={{ marginTop: 8 }}>
+                        <textarea
+                          value={editDetails}
+                          onChange={e => setEditDetails(e.target.value)}
+                          rows={2}
+                          placeholder={sw ? 'Hariri maelezo yako...' : 'Edit your details...'}
+                          style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #2563eb', fontSize: 12, resize: 'none', boxSizing: 'border-box', marginBottom: 6 }}
+                        />
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button onClick={() => saveEdit(r.id, realIndex)}
+                            style={{ flex: 1, padding: '7px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
+                            {sw ? '💾 Hifadhi' : '💾 Save'}
+                          </button>
+                          <button onClick={() => { setEditingIndex(null); setEditDetails(''); }}
+                            style={{ flex: 1, padding: '7px', background: '#f3f4f6', color: '#374151', border: 'none', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}>
+                            {sw ? 'Ghairi' : 'Cancel'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      canEdit(r) && (
+                        <button onClick={() => { setEditingIndex(realIndex); setEditDetails(r.details || ''); }}
+                          style={{ width: '100%', marginTop: 6, padding: '6px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, fontSize: 11, color: '#1d4ed8', cursor: 'pointer' }}>
+                          ✏️ {sw ? `Hariri (dakika ${minutesLeft(r)} zimebaki)` : `Edit (${minutesLeft(r)} min left)`}
+                        </button>
+                      )
                     )}
 
                     {/* Actions row */}

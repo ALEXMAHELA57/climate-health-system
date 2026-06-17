@@ -22,6 +22,7 @@ class StatusUpdate(BaseModel):
     report_id: str
     status: str
     admin_note: Optional[str] = ""
+    details: Optional[str] = None
 
 @router.post("/report")
 async def submit_report(report: ReportIn, db: Session = Depends(get_db)):
@@ -68,6 +69,8 @@ async def update_status(update: StatusUpdate, db: Session = Depends(get_db)):
         return {"success": False, "error": "Report not found"}
     report.status = update.status
     report.admin_note = update.admin_note
+    if update.details is not None:
+        report.details = update.details
     report.updated_at = datetime.utcnow()
     db.commit()
     return {"success": True}

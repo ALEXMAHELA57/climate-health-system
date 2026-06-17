@@ -35,7 +35,11 @@ STRICT RULES:
 
 9. Never use markdown formatting like **bold** or ## headers. Write in plain text only.
 
-10. When user asks for clinic numbers or emergency contacts, say: "Please tap the Clinics tab at the bottom of this app to find the nearest clinic and call buttons. You can also call 112 for any emergency."`;
+10. When a user asks for clinic numbers, hospital contacts, or where to go for treatment:
+    - Always say: "Call 112 for any emergency - ambulance, police or fire."
+    - Direct them to the Clinics tab: "Tap the Clinics tab at the bottom of this app to find the nearest hospital with phone numbers and directions."
+    - You can also mention these major Tanzania hospitals: Muhimbili National Hospital Dar es Salaam +255222150610, Bugando Medical Centre Mwanza +255282500611, KCMC Moshi +255272754377, Mount Meru Hospital Arusha +255272508321, Iringa Regional Hospital +255262702285, Mbeya Zonal Hospital +255252503567.
+    - Always end with: "For your nearest clinic tap the Clinics tab in this app."`;
 
 export default function Symptoms({ t, lang, district }) {
   const [messages, setMessages]   = useState([{ role:'assistant', content:t.afyaGreet }]);
@@ -48,7 +52,22 @@ export default function Symptoms({ t, lang, district }) {
 
   useEffect(()=>{ bottomRef.current?.scrollIntoView({ behavior:'smooth' }); }, [messages, loading]);
 
-  function addTag(tag) { setInput(p => p ? `${p}, ${tag}` : tag); }
+  // Track selected tags separately for visual feedback
+  const [selectedTags, setSelectedTags] = useState([]);
+
+  function toggleTag(tag) {
+    if (selectedTags.includes(tag)) {
+      // Deselect — remove from list
+      const updated = selectedTags.filter(t => t !== tag);
+      setSelectedTags(updated);
+      setInput(updated.join(', '));
+    } else {
+      // Select — add to list
+      const updated = [...selectedTags, tag];
+      setSelectedTags(updated);
+      setInput(updated.join(', '));
+    }
+  }
 
   // Save symptom to local history and also log to backend (non-blocking)
   function saveHistory(symptomText) {
@@ -70,6 +89,7 @@ export default function Symptoms({ t, lang, district }) {
     setMessages(newMessages);
     const symptomText = input;
     setInput('');
+    setSelectedTags([]);
     setLoading(true);
 
     saveHistory(symptomText);
@@ -190,13 +210,32 @@ export default function Symptoms({ t, lang, district }) {
 
       {/* Symptom tags */}
       <div style={{ display:'flex', gap:5, flexWrap:'wrap', marginBottom:8 }}>
-        {t.symptomTags.map((tag,i)=>(
-          <button key={i} onClick={()=>addTag(tag)}
-            style={{ padding:'4px 9px', borderRadius:99, background:'#f3f4f6', border:'1px solid #e5e7eb', fontSize:11, cursor:'pointer', color:'#374151' }}>
-            {tag}
-          </button>
-        ))}
+        {t.symptomTags.map((tag,i)=>{
+          const isSelected = selectedTags.includes(tag);
+          return (
+            <button key={i} onClick={()=>toggleTag(tag)}
+              style={{
+                padding:'4px 9px', borderRadius:99, fontSize:11, cursor:'pointer',
+                background: isSelected ? '#2563eb' : '#f3f4f6',
+                border: isSelected ? '1px solid #2563eb' : '1px solid #e5e7eb',
+                color: isSelected ? '#fff' : '#374151',
+                fontWeight: isSelected ? 600 : 400,
+                transition: 'all 0.15s',
+              }}>
+              {isSelected ? '✓ ' : ''}{tag}
+            </button>
+          );
+        })}
       </div>
+      {selectedTags.length > 0 && (
+        <div style={{ fontSize:11, color:'#6b7280', marginBottom:6, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <span>✓ {selectedTags.length} {sw ? 'dalili zimechaguliwa' : 'symptom(s) selected'}</span>
+          <button onClick={()=>{ setSelectedTags([]); setInput(''); }}
+            style={{ fontSize:11, color:'#ef4444', background:'none', border:'none', cursor:'pointer' }}>
+            {sw ? 'Futa zote' : 'Clear all'}
+          </button>
+        </div>
+      )}
 
       {/* Chat messages */}
       <div style={{ flex:1, overflowY:'auto', marginBottom:10 }}>
