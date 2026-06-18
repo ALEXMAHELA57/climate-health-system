@@ -223,7 +223,7 @@ export default function Home({ t, lang, district, onDistrictChange, setPage }) {
           { icon:'🌤️', title:t.weather, sub:sw?'Utabiri wa siku 7 & 15':'7 & 15 day forecast', page:'weather', color:'#eff6ff', border:'#bfdbfe' },
           { icon:'🤒', title:t.symptoms, sub:sw?'Zungumza na Afya':'Chat with Afya', page:'symptoms', color:'#fffbeb', border:'#fde68a' },
           { icon:'🏥', title:t.clinics, sub:sw?'Vituo vya karibu':'Nearby facilities', page:'clinics', color:'#f0fdf4', border:'#bbf7d0' },
-          { icon:'📢', title:t.report, sub:sw?'Ripoti tatizo':'Report an issue', page:'report', color:'#f5f3ff', border:'#ddd6fe' },
+          { icon:'🗺️', title:lang==='sw'?'Ramani ya Hatari':'Risk Map', sub:sw?'Hatari za mkoa wako':'Climate risk levels', page:'map', color:'#f5f3ff', border:'#ddd6fe' },
         ].map((item,i)=>(
           <button key={i} onClick={()=>setPage(item.page)}
             style={{ background:item.color, border:`1px solid ${item.border}`, borderRadius:12, padding:'12px 10px', textAlign:'left', cursor:'pointer' }}>
