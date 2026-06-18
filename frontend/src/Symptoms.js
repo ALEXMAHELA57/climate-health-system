@@ -77,8 +77,9 @@ function renderMessage(text, setPage) {
 
 // Call Claude API directly — works on both desktop and mobile
 async function callClaudeDirectly(messages, apiKey) {
+  // Short 8s timeout — if CORS blocks it on mobile we fail fast to backend
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 25000);
+  const timer = setTimeout(() => controller.abort(), 8000);
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -99,17 +100,18 @@ async function callClaudeDirectly(messages, apiKey) {
     clearTimeout(timer);
     if (!res.ok) return null;
     const data = await res.json();
-    return stripMarkdown(data.content?.[0]?.text || '');
+    const text = data.content?.[0]?.text || '';
+    return text ? stripMarkdown(text) : null;
   } catch {
     clearTimeout(timer);
-    return null;
+    return null; // fail fast — backend will handle it
   }
 }
 
 // Call via backend — fallback when direct call fails
 async function callViaBackend(messages, district) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30000);
+  const timer = setTimeout(() => controller.abort(), 35000);
   try {
     const res = await fetch(`${API}/api/symptoms/chat`, {
       method: 'POST',
@@ -120,7 +122,8 @@ async function callViaBackend(messages, district) {
     clearTimeout(timer);
     if (!res.ok) return null;
     const json = await res.json();
-    return stripMarkdown(json.reply || '');
+    const text = json.reply || '';
+    return text ? stripMarkdown(text) : null;
   } catch {
     clearTimeout(timer);
     return null;
@@ -175,17 +178,19 @@ export default function Symptoms({ t, lang, district, setPage }) {
 
     let reply = null;
 
-    // Step 1: Try direct Claude API call (fastest — works on desktop + modern mobile)
+    // Pre-warm backend in parallel — so if direct call fails, backend is ready
+    fetch(`${API}/`).catch(() => {});
+
+    setWaitMsg(sw ? 'Afya anaangalia dalili zako...' : 'Afya is reviewing your symptoms...');
+
+    // Step 1: Try direct Claude API (fast ~2s, works on most devices)
     if (apiKey) {
-      setWaitMsg(sw ? 'Afya anaangalia dalili zako...' : 'Afya is reviewing your symptoms...');
       reply = await callClaudeDirectly(newMessages, apiKey);
     }
 
-    // Step 2: If direct call failed, try backend (mobile CORS fallback)
+    // Step 2: Backend fallback (if direct blocked by CORS or network)
     if (!reply) {
       setWaitMsg(sw ? 'Afya anafikiria...' : 'Afya is thinking...');
-      // Wake up Render silently before the real call
-      fetch(`${API}/`).catch(() => {});
       reply = await callViaBackend(newMessages, district);
     }
 

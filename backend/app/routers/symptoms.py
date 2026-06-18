@@ -73,6 +73,10 @@ async def log_symptom(data: SymptomLog, db: Session = Depends(get_db)):
     db.commit()
     return {"success": True}
 
+@router.get("/ping")
+async def ping():
+    return {"status": "ok"}
+
 @router.post("/chat")
 async def chat(request: ChatRequest, db: Session = Depends(get_db)):
     client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
