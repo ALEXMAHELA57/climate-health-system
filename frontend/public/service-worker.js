@@ -1,6 +1,6 @@
 // AfyaHewa Service Worker — offline support for core emergency content
-const CACHE_NAME = 'afyahewa-v2';
-const RUNTIME_CACHE = 'afyahewa-runtime-v2';
+const CACHE_NAME = 'afyahewa-v3';
+const RUNTIME_CACHE = 'afyahewa-runtime-v3';
 
 // App shell — always cached on install
 const PRECACHE_URLS = [
@@ -29,8 +29,21 @@ self.addEventListener('activate', (event) => {
           }
         })
       )
-    ).then(() => self.clients.claim())
+    ).then(() => {
+      // Take control of all open clients immediately
+      return self.clients.claim();
+    }).then(() => {
+      // Notify all open tabs that a new version is available
+      return self.clients.matchAll({ type: 'window' }).then(clients => {
+        clients.forEach(client => client.postMessage({ type: 'SW_UPDATED' }));
+      });
+    })
   );
+});
+
+// Always take over immediately — don't wait for old SW to finish
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
 });
 
 // Fetch strategy:
