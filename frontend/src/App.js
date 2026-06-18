@@ -87,12 +87,12 @@ export default function App() {
   const showOfflineFallback = !isOnline && onlineRequiredPages.includes(page);
 
   const tabs = [
-    { id:'home',      icon:'🏠', label:t.home     },
-    { id:'weather',   icon:'🌤️', label:t.weather  },
-    { id:'symptoms',  icon:'🤒', label:t.symptoms },
-    { id:'map',       icon:'🗺️', label:'Risk Map' },
-    { id:'clinics',   icon:'🏥', label:t.clinics  },
-    { id:'profile',   icon:'👤', label:t.profile  },
+    { id:'home',     icon:'🏠', label:t.home     },
+    { id:'weather',  icon:'🌤️', label:t.weather  },
+    { id:'symptoms', icon:'🤒', label:t.symptoms },
+    { id:'clinics',  icon:'🏥', label:t.clinics  },
+    { id:'report',   icon:'📢', label:lang==='sw'?'Ripoti':'Report' },
+    { id:'profile',  icon:'👤', label:t.profile  },
   ];
 
   return (
@@ -138,7 +138,7 @@ export default function App() {
           <Suspense fallback={<Loader />}>
             {page==='home'      && <Home     t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} setPage={setPage} />}
             {page==='weather'   && <Weather  t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} />}
-            {page==='symptoms'  && <Symptoms t={t} lang={lang} district={district} />}
+            {page==='symptoms'  && <Symptoms t={t} lang={lang} district={district} setPage={setPage} />}
             {page==='clinics'   && <Clinics  t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} />}
             {page==='map'       && <RiskMap  t={t} lang={lang} />}
             {page==='profile'   && <UserProfile lang={lang} onLangChange={handleLangChange} onDistrictChange={handleDistrictChange} />}

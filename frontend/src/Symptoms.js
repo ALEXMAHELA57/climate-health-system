@@ -36,12 +36,46 @@ STRICT RULES:
 9. Never use markdown formatting like **bold** or ## headers. Write in plain text only.
 
 10. When a user asks for clinic numbers, hospital contacts, or where to go for treatment:
-    - Always say: "Call 112 for any emergency - ambulance, police or fire."
-    - Direct them to the Clinics tab: "Tap the Clinics tab at the bottom of this app to find the nearest hospital with phone numbers and directions."
-    - You can also mention these major Tanzania hospitals: Muhimbili National Hospital Dar es Salaam +255222150610, Bugando Medical Centre Mwanza +255282500611, KCMC Moshi +255272754377, Mount Meru Hospital Arusha +255272508321, Iringa Regional Hospital +255262702285, Mbeya Zonal Hospital +255252503567.
-    - Always end with: "For your nearest clinic tap the Clinics tab in this app."`;
+    - NEVER list specific hospital names or phone numbers — you do not know which clinic is nearest to the user.
+    - Always respond with: "To find the nearest clinic to you with phone numbers and directions, tap [OPEN CLINICS TAB] in this app. For any emergency call 112 immediately."
+    - The text [OPEN CLINICS TAB] will be converted into a clickable button by the app — always include it exactly as written.
+    - In Swahili respond with: "Kupata kliniki ya karibu nawe pamoja na nambari za simu, bonyeza [FUNGUA KLINIKI] katika programu hii. Kwa dharura yoyote piga simu 112 mara moja."
+    - The text [FUNGUA KLINIKI] will also be converted into a clickable button — always include it exactly as written in Swahili responses.`;
 
-export default function Symptoms({ t, lang, district }) {
+// Parse Afya messages and convert [OPEN CLINICS TAB] / [FUNGUA KLINIKI] into tap buttons
+function renderMessage(text, setPage) {
+  const patterns = ['[OPEN CLINICS TAB]', '[FUNGUA KLINIKI]'];
+  let parts = [text];
+
+  patterns.forEach(pattern => {
+    parts = parts.flatMap(part => {
+      if (typeof part !== 'string') return [part];
+      const split = part.split(pattern);
+      if (split.length === 1) return [part];
+      return split.reduce((acc, seg, i) => {
+        if (i > 0) acc.push(
+          <button key={`clinic-btn-${i}`}
+            onClick={() => setPage('clinics')}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              background: '#2563eb', color: '#fff',
+              border: 'none', borderRadius: 8,
+              padding: '4px 10px', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', margin: '2px 0',
+            }}>
+            🏥 {pattern === '[FUNGUA KLINIKI]' ? 'Fungua Kliniki' : 'Open Clinics'}
+          </button>
+        );
+        if (seg) acc.push(seg);
+        return acc;
+      }, []);
+    });
+  });
+
+  return <span>{parts}</span>;
+}
+
+export default function Symptoms({ t, lang, district, setPage }) {
   const [messages, setMessages]   = useState([{ role:'assistant', content:t.afyaGreet }]);
   const [input, setInput]         = useState('');
   const [loading, setLoading]     = useState(false);
@@ -253,7 +287,7 @@ export default function Symptoms({ t, lang, district }) {
               fontSize:14, lineHeight:1.55,
               borderBottomRightRadius:m.role==='user'?4:16,
               borderBottomLeftRadius:m.role==='assistant'?4:16 }}>
-              {m.content}
+              {renderMessage(m.content, setPage)}
             </div>
           </div>
         ))}
