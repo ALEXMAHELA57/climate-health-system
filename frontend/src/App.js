@@ -42,7 +42,7 @@ export default function App() {
   const [showAdmin, setShowAdmin] = useState(()=>window.location.hash==='#admin');
   const [showOnboarding, setShowOnboarding] = useState(()=>!localStorage.getItem('afya_onboarded'));
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [updateReady, setUpdateReady] = useState(false);
+
   const t = T[lang] || T.en;
 
   useEffect(()=>{
@@ -67,24 +67,6 @@ export default function App() {
     window.addEventListener('online', goOnline);
     window.addEventListener('offline', goOffline);
 
-    // Listen for service worker update messages
-    function onSwMessage(e) {
-      if (e.data && e.data.type === 'SW_UPDATED') setUpdateReady(true);
-    }
-    navigator.serviceWorker?.addEventListener('message', onSwMessage);
-
-    // Check if a new SW is waiting on load
-    navigator.serviceWorker?.ready.then(reg => {
-      if (reg.waiting) setUpdateReady(true);
-      reg.addEventListener('updatefound', () => {
-        const newWorker = reg.installing;
-        newWorker?.addEventListener('statechange', () => {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            setUpdateReady(true);
-          }
-        });
-      });
-    });
 
 
   },[]);
@@ -141,17 +123,6 @@ export default function App() {
           </div>
         </div>
       </div>
-
-      {/* Update available banner */}
-      {updateReady && (
-        <div style={{ background:'#2563eb', padding:'7px 16px', fontSize:12, color:'#fff', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <span>🆕 {lang==='sw'?'Toleo jipya linapatikana':'New version available'}</span>
-          <button onClick={()=>{ window.location.reload(); }}
-            style={{ background:'#fff', color:'#2563eb', border:'none', borderRadius:6, padding:'3px 10px', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-            {lang==='sw'?'Sasisha':'Update'}
-          </button>
-        </div>
-      )}
 
       {/* Offline banner */}
       {!isOnline && (

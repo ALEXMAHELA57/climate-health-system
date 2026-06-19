@@ -1,66 +1,56 @@
-// AfyaHewa Service Worker — offline support for core emergency content
-const CACHE_NAME = 'afyahewa-v4';
-const RUNTIME_CACHE = 'afyahewa-runtime-v3';
+// AfyaHewa Service Worker
+// Strategy: network-first for app shell (always fetch latest code),
+// cache only used as offline fallback. This guarantees users always
+// get the newest version when online, with zero manual action needed.
 
-// App shell — always cached on install
-const PRECACHE_URLS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-];
+const VERSION = 'v5';
+const CACHE_NAME = `afyahewa-${VERSION}`;
+const RUNTIME_CACHE = `afyahewa-runtime-${VERSION}`;
 
-// Install — precache app shell
+const PRECACHE_URLS = ['/', '/index.html', '/manifest.json'];
+
+// ── Install ──────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => cache.addAll(PRECACHE_URLS))
-      .then(() => self.skipWaiting())
+      .then(() => self.skipWaiting()) // activate immediately, don't wait
   );
 });
 
-// Activate — clean up old caches
+// ── Activate ─────────────────────────────────────────────────────────────────
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
+    caches.keys()
+      .then((keys) => Promise.all(
         keys.map((key) => {
+          // Delete every cache that isn't this exact version
           if (key !== CACHE_NAME && key !== RUNTIME_CACHE) {
             return caches.delete(key);
           }
         })
-      )
-    ).then(() => {
-      // Take control of all open clients immediately
-      return self.clients.claim();
-    }).then(() => {
-      // Notify all open tabs that a new version is available
-      return self.clients.matchAll({ type: 'window' }).then(clients => {
-        clients.forEach(client => client.postMessage({ type: 'SW_UPDATED' }));
-      });
-    })
+      ))
+      .then(() => self.clients.claim()) // take control of all open tabs NOW
+      .then(() => self.clients.matchAll({ type: 'window' }))
+      .then((clients) => {
+        clients.forEach((client) => client.postMessage({ type: 'SW_UPDATED', version: VERSION }));
+      })
   );
 });
 
-// Always take over immediately — don't wait for old SW to finish
-self.addEventListener('install', (event) => {
-  self.skipWaiting();
-});
-
-// Fetch strategy:
-// - App shell (HTML/JS/CSS): cache-first, fallback to network
-// - Open-Meteo weather API: network-first, fallback to cache (for offline weather)
-// - Everything else: network-first, fallback to cache
+// ── Fetch strategy ───────────────────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET requests (POST to Afya chat, reports, etc.) — these need live network
+  // Never intercept non-GET requests (chat, reports, etc.) — always live network
   if (request.method !== 'GET') return;
 
-  // Never cache API calls to our own backend (dynamic data)
+  // Never cache calls to our backend or serverless function — always fresh
   if (url.hostname.includes('onrender.com')) return;
+  if (url.pathname.startsWith('/api/')) return;
 
-  // Open-Meteo and Nominatim — network-first with cache fallback (stale weather better than none)
+  // Weather/geocoding — network-first, cache as offline fallback only
   if (url.hostname.includes('open-meteo.com') || url.hostname.includes('nominatim.openstreetmap.org')) {
     event.respondWith(
       fetch(request)
@@ -74,42 +64,45 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // OSRM routing — network only, don't cache (real-time, low value offline)
+  // Routing service — always live, never cached
   if (url.hostname.includes('osrm.org')) return;
 
-  // App shell and static assets — cache-first
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request)
+  // App shell (HTML, JS, CSS, same-origin) — NETWORK FIRST
+  // This is the key fix: always try to fetch the latest file first.
+  // Only fall back to cache if the network request fails (offline).
+  if (url.origin === self.location.origin) {
+    event.respondWith(
+      fetch(request, { cache: 'no-store' })
         .then((response) => {
-          // Cache successful same-origin responses
-          if (response.ok && url.origin === self.location.origin) {
+          if (response.ok) {
             const clone = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
           }
           return response;
         })
         .catch(() => {
-          // Offline fallback for navigation requests — serve cached app shell
-          if (request.mode === 'navigate') {
-            return caches.match('/index.html');
-          }
-        });
-    })
-  );
+          // Offline — serve cached version
+          return caches.match(request).then((cached) => {
+            if (cached) return cached;
+            if (request.mode === 'navigate') return caches.match('/index.html');
+          });
+        })
+    );
+    return;
+  }
+
+  // Everything else — just pass through to network
 });
 
-// Listen for messages from the app (e.g. skip waiting on update)
+// ── Messages from the app ───────────────────────────────────────────────────
 self.addEventListener('message', (event) => {
   if (event.data === 'SKIP_WAITING') self.skipWaiting();
 });
 
-// Push notification handler (for future SMS/push alert activation)
+// ── Push notifications (ready for future activation) ───────────────────────
 self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch {}
-
   const title = data.title || 'AfyaHewa Alert';
   const options = {
     body: data.body || 'New health or weather alert in your area.',
@@ -119,20 +112,16 @@ self.addEventListener('push', (event) => {
     data: { url: data.url || '/' },
     tag: data.tag || 'afyahewa-alert',
   };
-
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
-// Handle notification click — open the app
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const url = event.notification.data?.url || '/';
   event.waitUntil(
     clients.matchAll({ type: 'window' }).then((clientList) => {
       for (const client of clientList) {
-        if (client.url.includes(self.location.origin) && 'focus' in client) {
-          return client.focus();
-        }
+        if (client.url.includes(self.location.origin) && 'focus' in client) return client.focus();
       }
       if (clients.openWindow) return clients.openWindow(url);
     })
