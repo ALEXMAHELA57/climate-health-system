@@ -35,20 +35,40 @@ STRICT RULES:
 
 9. Never use markdown formatting like **bold** or ## headers. Write in plain text only.
 
-10. When a user asks for clinic numbers, hospital contacts, or where to go for treatment:
-    - NEVER list specific hospital names or phone numbers.
-    - Always respond with: "To find the nearest clinic to you with phone numbers and directions, tap [OPEN CLINICS TAB] in this app. For any emergency call 112 immediately."
-    - The text [OPEN CLINICS TAB] will be converted into a clickable button by the app.
-    - In Swahili: "Kupata kliniki ya karibu nawe pamoja na nambari za simu, bonyeza [FUNGUA KLINIKI] katika programu hii. Kwa dharura yoyote piga simu 112 mara moja."`;
+10. CLINIC REQUEST RULE — this overrides all other behavior including symptom gathering:
+    If the user's message contains ANY of these signals (in English or Swahili), you MUST respond
+    immediately with ONLY the clinic redirect below — do NOT ask follow-up questions, do NOT ask
+    about symptoms first, do NOT explain anything else:
+    - "clinic", "hospital", "doctor", "nearest", "number", "phone", "where do I go", "stop asking"
+    - "kliniki", "hospitali", "daktari", "karibu", "namba", "nambari", "wapi nielekee", "acha kuuliza"
 
-function renderMessage(text, setPage) {
+    Your ENTIRE response in this case must be exactly:
+    English: "To find the nearest clinic to you with phone numbers and directions, tap [OPEN CLINICS TAB] below. For any emergency call 112 immediately."
+    Swahili: "Kupata kliniki ya karibu nawe pamoja na nambari za simu, bonyeza [FUNGUA KLINIKI] hapa chini. Kwa dharura yoyote piga simu 112 mara moja."
+
+    Do not add extra sentences, do not ask "what symptoms do you have", do not say "I don't have phone numbers in my system".
+    The user asking for a clinic is itself enough information — give them the button immediately.
+    The text [OPEN CLINICS TAB] or [FUNGUA KLINIKI] will be converted into a clickable button by the app — always include it exactly as written, every time, with no exceptions.`;
+
+// Detect if Claude's reply mentions clinics/hospitals but forgot to include the button tag
+function mentionsClinicWithoutButton(text) {
+  const hasTag = text.includes('[OPEN CLINICS TAB]') || text.includes('[FUNGUA KLINIKI]');
+  if (hasTag) return false;
+  const mentionsClinic = /clinic|hospital|kliniki|hospitali/i.test(text);
+  return mentionsClinic;
+}
+
+function renderMessage(text, setPage, lang) {
   const patterns = ['[OPEN CLINICS TAB]', '[FUNGUA KLINIKI]'];
   let parts = [text];
+  let foundButton = false;
+
   patterns.forEach(pattern => {
     parts = parts.flatMap(part => {
       if (typeof part !== 'string') return [part];
       const split = part.split(pattern);
       if (split.length === 1) return [part];
+      foundButton = true;
       return split.reduce((acc, seg, i) => {
         if (i > 0) acc.push(
           <button key={`${pattern}-${i}`}
@@ -62,6 +82,19 @@ function renderMessage(text, setPage) {
       }, []);
     });
   });
+
+  // Safety net — if Claude mentioned clinic/hospital but forgot the button, add it anyway
+  if (!foundButton && mentionsClinicWithoutButton(text)) {
+    parts.push(
+      <div key="clinic-fallback-btn" style={{ marginTop: 8 }}>
+        <button onClick={() => setPage && setPage('clinics')}
+          style={{ display:'inline-flex', alignItems:'center', gap:4, background:'#2563eb', color:'#fff', border:'none', borderRadius:8, padding:'5px 12px', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+          🏥 {lang === 'sw' ? 'Fungua Kliniki' : 'Open Clinics'}
+        </button>
+      </div>
+    );
+  }
+
   return <span>{parts}</span>;
 }
 
@@ -215,7 +248,7 @@ export default function Symptoms({ t, lang, district, setPage }) {
               fontSize:14, lineHeight:1.55,
               borderBottomRightRadius:m.role==='user'?4:16,
               borderBottomLeftRadius:m.role==='assistant'?4:16 }}>
-              {m.role==='assistant' ? renderMessage(m.content, setPage) : m.content}
+              {m.role==='assistant' ? renderMessage(m.content, setPage, lang) : m.content}
             </div>
           </div>
         ))}
