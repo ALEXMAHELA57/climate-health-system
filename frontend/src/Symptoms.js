@@ -159,8 +159,7 @@ export default function Symptoms({ t, lang, district, setPage }) {
   const [emergency, setEmergency]       = useState(false);
   const [selectedTags, setSelectedTags] = useState([]);
   const [waitMsg, setWaitMsg]           = useState('');
-  const [debugInfo, setDebugInfo]       = useState([]);
-  const [showDebug, setShowDebug]       = useState(false);
+  const [debugInfo, setDebugInfo]       = useState([]); // kept for console logging only
   const bottomRef = useRef(null);
   const sw = lang === 'sw';
 
@@ -220,12 +219,7 @@ export default function Symptoms({ t, lang, district, setPage }) {
 
   return (
     <div style={{ padding:16, display:'flex', flexDirection:'column', height:'calc(100vh - 130px)' }}>
-      <div style={{ fontSize:16, fontWeight:700, marginBottom:8 }}>🤒 {t.symptoms} <span style={{fontSize:10, color:'#9ca3af', fontWeight:400}}>v3-debug</span></div>
-      {debugInfo.length > 0 && (
-        <div style={{ background:'#1e293b', color:'#4ade80', borderRadius:8, padding:'8px 10px', marginBottom:8, fontSize:10, fontFamily:'monospace', whiteSpace:'pre-wrap', wordBreak:'break-word' }}>
-          {debugInfo.map((d, i) => <div key={i}>{d}</div>)}
-        </div>
-      )}
+      <div style={{ fontSize:16, fontWeight:700, marginBottom:8 }}>🤒 {t.symptoms}</div>
 
       {emergency && (
         <div style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:10, padding:'9px 12px', marginBottom:8, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
