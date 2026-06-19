@@ -1,5 +1,5 @@
 // AfyaHewa Service Worker — offline support for core emergency content
-const CACHE_NAME = 'afyahewa-v3';
+const CACHE_NAME = 'afyahewa-v4';
 const RUNTIME_CACHE = 'afyahewa-runtime-v3';
 
 // App shell — always cached on install
