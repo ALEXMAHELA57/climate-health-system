@@ -100,26 +100,36 @@ function renderMessage(text, setPage, lang) {
 
 // Single chat function — tries Vercel proxy first (fastest, no cold start)
 // then falls back to Render backend
-async function askAfya(messages) {
-  // Try Vercel serverless function first (same domain, no CORS, no cold start)
+async function askAfya(messages, onDebug) {
+  // Use absolute URL with current origin — more reliable on mobile than relative path
+  const apiUrl = `${window.location.origin}/api/chat`;
+
+  // Step 1: Try Vercel serverless function
   try {
+    onDebug && onDebug('proxy-start');
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 15000);
-    const res = await fetch('/api/chat', {
+    const t = setTimeout(() => ctrl.abort(), 12000);
+    const res = await fetch(apiUrl, {
       method: 'POST',
       signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages, system: SYSTEM_PROMPT }),
+      cache: 'no-store', // explicitly bypass any caching layer
     });
     clearTimeout(t);
+    onDebug && onDebug(`proxy-status-${res.status}`);
     if (res.ok) {
       const data = await res.json();
       if (data.reply) return stripMarkdown(data.reply);
+      if (data.error) onDebug && onDebug(`proxy-error: ${data.error}`);
     }
-  } catch {}
+  } catch (e) {
+    onDebug && onDebug(`proxy-failed: ${e.message}`);
+  }
 
-  // Fallback: Render backend
+  // Step 2: Fallback to Render backend
   try {
+    onDebug && onDebug('backend-start');
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 35000);
     const res = await fetch(`${API}/api/symptoms/chat`, {
@@ -127,13 +137,17 @@ async function askAfya(messages) {
       signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages, region: '' }),
+      cache: 'no-store',
     });
     clearTimeout(t);
+    onDebug && onDebug(`backend-status-${res.status}`);
     if (res.ok) {
       const data = await res.json();
       if (data.reply) return stripMarkdown(data.reply);
     }
-  } catch {}
+  } catch (e) {
+    onDebug && onDebug(`backend-failed: ${e.message}`);
+  }
 
   return null;
 }
@@ -145,6 +159,8 @@ export default function Symptoms({ t, lang, district, setPage }) {
   const [emergency, setEmergency]       = useState(false);
   const [selectedTags, setSelectedTags] = useState([]);
   const [waitMsg, setWaitMsg]           = useState('');
+  const [debugInfo, setDebugInfo]       = useState([]);
+  const [showDebug, setShowDebug]       = useState(false);
   const bottomRef = useRef(null);
   const sw = lang === 'sw';
 
@@ -181,7 +197,10 @@ export default function Symptoms({ t, lang, district, setPage }) {
     setLoading(true);
     setWaitMsg(sw ? 'Afya anaangalia dalili zako...' : 'Afya is reviewing your symptoms...');
 
-    const reply = await askAfya(newMessages);
+    const reply = await askAfya(newMessages, (step) => {
+      console.log('[Afya debug]', step);
+      setDebugInfo(prev => [...prev.slice(-4), step]);
+    });
 
     setWaitMsg('');
     setLoading(false);
@@ -201,7 +220,12 @@ export default function Symptoms({ t, lang, district, setPage }) {
 
   return (
     <div style={{ padding:16, display:'flex', flexDirection:'column', height:'calc(100vh - 130px)' }}>
-      <div style={{ fontSize:16, fontWeight:700, marginBottom:8 }}>🤒 {t.symptoms}</div>
+      <div onClick={() => setShowDebug(p => !p)} style={{ fontSize:16, fontWeight:700, marginBottom:8 }}>🤒 {t.symptoms}</div>
+      {showDebug && debugInfo.length > 0 && (
+        <div style={{ background:'#1e293b', color:'#e2e8f0', borderRadius:8, padding:'8px 10px', marginBottom:8, fontSize:10, fontFamily:'monospace' }}>
+          {debugInfo.map((d, i) => <div key={i}>{d}</div>)}
+        </div>
+      )}
 
       {emergency && (
         <div style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:10, padding:'9px 12px', marginBottom:8, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
