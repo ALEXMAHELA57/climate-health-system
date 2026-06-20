@@ -21,7 +21,6 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
   const [stats, setStats] = useState(null);
   const [subscribers, setSubscribers] = useState([]);
   const [reports, setReports] = useState([]);
-  const [outbreaks, setOutbreaks] = useState([]);
   const [severeReports, setSevereReports] = useState([]);
   const [broadcastMsg, setBroadcastMsg] = useState('');
   const [broadcastDistrict, setBroadcastDistrict] = useState('ALL');
@@ -45,11 +44,6 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
         const r = await fetch(`${API}/api/community/reports?limit=50`);
         const d = await r.json();
         setReports(d.reports || []);
-      }
-      if (tab === 'outbreaks') {
-        const r = await fetch(`${API}/api/outbreak/summary`);
-        const d = await r.json();
-        setOutbreaks(d.districts || []);
       }
       if (tab === 'urgent') {
         const r = await fetch(`${API}/api/symptoms/severe`);
@@ -261,25 +255,9 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
         <ReportsPanel reports={reports} sw={sw} API={API} onRefresh={loadData} />
       )}
 
-      {/* OUTBREAKS */}
+      {/* OUTBREAKS — approval queue */}
       {tab === 'outbreaks' && (
-        <div>
-          {outbreaks.map((o, i) => (
-            <div key={i} style={{ background: '#fff', border: `1px solid ${o.risk === 'high' ? '#fecaca' : o.risk === 'medium' ? '#fde68a' : '#bbf7d0'}`, borderRadius: 10, padding: 12, marginBottom: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{o.district}</div>
-                <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 99, background: o.risk === 'high' ? '#fef2f2' : o.risk === 'medium' ? '#fffbeb' : '#f0fdf4', color: o.risk === 'high' ? '#ef4444' : o.risk === 'medium' ? '#f59e0b' : '#22c55e' }}>
-                  {o.risk?.toUpperCase()}
-                </span>
-              </div>
-              <div style={{ fontSize: 12, color: '#6b7280' }}>
-                {o.report_count} {sw ? 'ripoti wiki hii' : 'reports this week'} · Top: {o.top_symptoms?.join(', ')}
-              </div>
-              {o.confidence && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>Confidence: {Math.round(o.confidence * 100)}%</div>}
-            </div>
-          ))}
-          {outbreaks.length === 0 && <div style={{ textAlign: 'center', color: '#9ca3af', padding: 20, fontSize: 13 }}>{sw ? 'Hakuna milipuko inayoshukiwa' : 'No active outbreak alerts'}</div>}
-        </div>
+        <OutbreakQueuePanel sw={sw} API={API} />
       )}
 
       {/* BROADCAST */}
@@ -476,6 +454,150 @@ function ReportsPanel({ reports, sw, API, onRefresh }) {
                 </button>
               </div>
             )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Outbreak Queue Panel — auto-publish toggle + approve/reject ──────────────
+function OutbreakQueuePanel({ sw, API }) {
+  const [autoPublish, setAutoPublish] = useState(false);
+  const [pending, setPending] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [savingToggle, setSavingToggle] = useState(false);
+  const [actioning, setActioning] = useState({});
+  const [actioned, setActioned] = useState({});
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const [settingsRes, pendingRes] = await Promise.all([
+        fetch(`${API}/api/outbreak/settings`),
+        fetch(`${API}/api/outbreak/pending`),
+      ]);
+      const settings = await settingsRes.json();
+      const pendingData = await pendingRes.json();
+      setAutoPublish(!!settings.auto_publish_outbreaks);
+      setPending(pendingData.pending || []);
+    } catch {}
+    setLoading(false);
+  }
+
+  async function toggleAutoPublish() {
+    const newValue = !autoPublish;
+    setSavingToggle(true);
+    try {
+      await fetch(`${API}/api/outbreak/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ auto_publish_outbreaks: newValue }),
+      });
+      setAutoPublish(newValue);
+    } catch {}
+    setSavingToggle(false);
+  }
+
+  async function approve(id) {
+    setActioning(p => ({ ...p, [id]: true }));
+    try {
+      await fetch(`${API}/api/outbreak/alert/${id}/approve`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
+      });
+      setActioned(p => ({ ...p, [id]: 'approved' }));
+    } catch {}
+    setActioning(p => ({ ...p, [id]: false }));
+  }
+
+  async function reject(id) {
+    setActioning(p => ({ ...p, [id]: true }));
+    try {
+      await fetch(`${API}/api/outbreak/alert/${id}/reject`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
+      });
+      setActioned(p => ({ ...p, [id]: 'rejected' }));
+    } catch {}
+    setActioning(p => ({ ...p, [id]: false }));
+  }
+
+  const riskColors = {
+    emergency: { color: '#ef4444', bg: '#fef2f2', border: '#fecaca' },
+    high:      { color: '#f59e0b', bg: '#fffbeb', border: '#fde68a' },
+    medium:    { color: '#3b82f6', bg: '#eff6ff', border: '#bfdbfe' },
+    low:       { color: '#22c55e', bg: '#f0fdf4', border: '#bbf7d0' },
+  };
+
+  return (
+    <div>
+      {/* Auto-publish toggle */}
+      <div style={{ background: autoPublish ? '#fffbeb' : '#f0fdf4', border: `1px solid ${autoPublish ? '#fde68a' : '#bbf7d0'}`, borderRadius: 10, padding: 12, marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ flex: 1, marginRight: 10 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>
+            {sw ? 'Chapisha Kiotomatiki' : 'Auto-Publish Outbreaks'}
+          </div>
+          <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+            {autoPublish
+              ? (sw ? 'Milipuko inaonekana kwa watumiaji mara moja, bila idhini' : 'Outbreaks appear to users instantly, no approval needed')
+              : (sw ? 'Milipuko inahitaji idhini yako kabla ya kuonekana' : 'Outbreaks require your approval before appearing publicly')}
+          </div>
+        </div>
+        <button onClick={toggleAutoPublish} disabled={savingToggle}
+          style={{ width: 46, height: 26, borderRadius: 99, border: 'none', cursor: 'pointer', background: autoPublish ? '#f59e0b' : '#d1d5db', position: 'relative', flexShrink: 0 }}>
+          <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: autoPublish ? 23 : 3, transition: 'left 0.15s' }} />
+        </button>
+      </div>
+
+      {/* Pending queue */}
+      <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 8 }}>
+        {sw ? `Inasubiri Idhini (${pending.length})` : `Pending Approval (${pending.length})`}
+      </div>
+
+      {loading && <div style={{ textAlign: 'center', color: '#9ca3af', padding: 20, fontSize: 13 }}>{sw ? 'Inapakia...' : 'Loading...'}</div>}
+
+      {!loading && pending.filter(p => !actioned[p.id]).length === 0 && (
+        <div style={{ textAlign: 'center', color: '#9ca3af', padding: 20, fontSize: 13 }}>
+          {autoPublish
+            ? (sw ? 'Uchapishaji wa kiotomatiki umewashwa — hakuna foleni' : 'Auto-publish is on — no queue needed')
+            : (sw ? 'Hakuna milipuko inayosubiri idhini' : 'No outbreaks waiting for approval')}
+        </div>
+      )}
+
+      {pending.map((p) => {
+        if (actioned[p.id]) {
+          return (
+            <div key={p.id} style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 10, padding: 10, marginBottom: 8, opacity: 0.6 }}>
+              <div style={{ fontSize: 12, color: '#6b7280' }}>
+                {p.region} — {p.disease} {actioned[p.id] === 'approved' ? `✓ ${sw ? 'Imeidhinishwa' : 'Approved'}` : `✗ ${sw ? 'Imekataliwa' : 'Rejected'}`}
+              </div>
+            </div>
+          );
+        }
+        const rc = riskColors[p.risk] || riskColors.low;
+        return (
+          <div key={p.id} style={{ background: '#fff', border: `1px solid ${rc.border}`, borderLeft: `4px solid ${rc.color}`, borderRadius: 10, padding: 12, marginBottom: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>{p.region}</div>
+              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 10px', borderRadius: 99, background: rc.bg, color: rc.color }}>
+                {p.risk?.toUpperCase()}
+              </span>
+            </div>
+            <div style={{ fontSize: 12, color: '#374151', marginBottom: 4 }}>{p.disease}</div>
+            <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 8 }}>
+              {p.reports_3day} {sw ? 'ripoti siku 3' : 'reports (3d)'} · {p.reports_7day} {sw ? 'ripoti siku 7' : 'reports (7d)'} · {Math.round(p.confidence * 100)}% {sw ? 'uwezekano' : 'confidence'}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => approve(p.id)} disabled={actioning[p.id]}
+                style={{ flex: 1, padding: '8px', background: '#166534', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                {actioning[p.id] ? '...' : `✅ ${sw ? 'Idhinisha' : 'Approve'}`}
+              </button>
+              <button onClick={() => reject(p.id)} disabled={actioning[p.id]}
+                style={{ flex: 1, padding: '8px', background: '#991b1b', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                {actioning[p.id] ? '...' : `❌ ${sw ? 'Kataa' : 'Reject'}`}
+              </button>
+            </div>
           </div>
         );
       })}

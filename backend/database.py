@@ -64,6 +64,32 @@ class SMSLog(Base):
     status      = Column(String(20), default="sent")
     sent_at     = Column(DateTime, default=datetime.utcnow)
 
+class OutbreakAlert(Base):
+    """Tracks the approval state of a detected outbreak for a given
+    region + disease combination. The detection logic runs live against
+    SymptomReport data; this table records whether an admin has approved
+    that detection for public display, or whether it's pending/rejected."""
+    __tablename__ = "outbreak_alerts"
+    id          = Column(Integer, primary_key=True, index=True)
+    region      = Column(String(100), index=True)
+    disease     = Column(String(100))
+    risk        = Column(String(20))           # low | medium | high | emergency
+    confidence  = Column(Float, default=0.0)
+    reports_3day = Column(Integer, default=0)
+    reports_7day = Column(Integer, default=0)
+    status      = Column(String(20), default="pending")  # pending | approved | rejected
+    admin_note  = Column(Text, default="")
+    detected_at = Column(DateTime, default=datetime.utcnow)
+    reviewed_at = Column(DateTime, nullable=True)
+
+class SystemSetting(Base):
+    """Simple key-value store for admin-configurable system settings,
+    e.g. whether outbreak alerts auto-publish or require approval."""
+    __tablename__ = "system_settings"
+    key         = Column(String(100), primary_key=True)
+    value       = Column(String(500))
+    updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 # ── Create all tables ─────────────────────────────────────────────────────────
 def init_db():
     Base.metadata.create_all(bind=engine)
