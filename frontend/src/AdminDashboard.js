@@ -525,11 +525,17 @@ function OutbreakQueuePanel({ sw, API }) {
   async function runAction(id, endpoint) {
     setActioning(p => ({ ...p, [id]: true }));
     try {
-      await fetch(`${API}/api/outbreak/alert/${id}/${endpoint}`, {
+      const res = await fetch(`${API}/api/outbreak/alert/${id}/${endpoint}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
       });
+      const data = await res.json();
+      if (!data.success) {
+        alert(data.error || (sw ? 'Hatua imeshindwa' : 'Action failed'));
+      }
       await load(); // refresh all three lists so item moves between sections
-    } catch {}
+    } catch {
+      alert(sw ? 'Tatizo la muunganisho' : 'Connection error');
+    }
     setActioning(p => ({ ...p, [id]: false }));
   }
 
@@ -641,9 +647,10 @@ function OutbreakQueuePanel({ sw, API }) {
             )}
 
             {section === 'rejected' && (
-              <div style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', padding: '4px 0' }}>
-                {sw ? 'Hakuna hatua zinazoweza kuchukuliwa kwa sasa' : 'No actions available'}
-              </div>
+              <button onClick={() => runAction(p.id, 'unreject')} disabled={actioning[p.id]}
+                style={{ width: '100%', padding: '8px', background: '#fffbeb', color: '#92400e', border: '1px solid #fde68a', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                {actioning[p.id] ? '...' : `↩ ${sw ? 'Tengua Kukataliwa' : 'Undo Rejection'}`}
+              </button>
             )}
           </div>
         );

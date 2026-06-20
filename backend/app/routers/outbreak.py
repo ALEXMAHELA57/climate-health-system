@@ -358,6 +358,26 @@ async def reject_alert(alert_id: int, action: ReviewAction, db: Session = Depend
     return {"success": True}
 
 
+@router.post("/alert/{alert_id}/unreject")
+async def unreject_alert(alert_id: int, db: Session = Depends(get_db)):
+    """Admin made a mistake rejecting — revert back to pending.
+    Only allowed within the 3-day visibility window; after that the
+    alert is locked and this will fail."""
+    alert = db.query(OutbreakAlert).filter(OutbreakAlert.id == alert_id).first()
+    if not alert:
+        return {"success": False, "error": "Alert not found"}
+    if alert.status != 'rejected':
+        return {"success": False, "error": "Alert is not currently rejected"}
+
+    if alert.reviewed_at and (datetime.utcnow() - alert.reviewed_at) > timedelta(days=3):
+        return {"success": False, "error": "This rejection has expired and can no longer be changed"}
+
+    alert.status = 'pending'
+    alert.reviewed_at = None
+    db.commit()
+    return {"success": True}
+
+
 @router.get("/settings")
 async def get_settings(db: Session = Depends(get_db)):
     return {"auto_publish_outbreaks": is_auto_publish_enabled(db)}
