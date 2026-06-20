@@ -61,21 +61,58 @@ class SymptomLog(BaseModel):
     region: Optional[str] = ""
     timestamp: Optional[str] = None
 
+# Severe symptom signals — these don't name a specific disease, they just
+# flag a report as needing urgent human review by health authorities.
+# This is intentionally NOT a diagnostic tool for high-consequence pathogens
+# (Ebola, Marburg, etc) — only lab testing can confirm those. This is a
+# safety net so unusual severe reports don't get lost in normal symptom logs.
+SEVERE_SIGNALS = [
+    'bleeding', 'blood', 'damu', 'kutokwa damu',
+    'unexplained death', 'died suddenly', 'kufa ghafla',
+    'severe bruising', 'michubuko mikali',
+    'multiple people sick', 'watu wengi wagonjwa',
+    'animal die off', 'wanyama wamekufa',
+]
+
+def is_severe_report(symptoms: str) -> bool:
+    text = symptoms.lower()
+    return any(signal in text for signal in SEVERE_SIGNALS)
+
 @router.post("/log")
 async def log_symptom(data: SymptomLog, db: Session = Depends(get_db)):
     """Lightweight endpoint — just saves symptom for outbreak tracking, no Claude call"""
+    severe = is_severe_report(data.symptoms)
     entry = SymptomReport(
         region=data.region or "",
         symptoms=data.symptoms[:500],
-        timestamp=datetime.fromisoformat(data.timestamp) if data.timestamp else datetime.utcnow()
+        timestamp=datetime.fromisoformat(data.timestamp) if data.timestamp else datetime.utcnow(),
+        flagged_severe=severe,
     )
     db.add(entry)
     db.commit()
-    return {"success": True}
+    return {"success": True, "flagged_severe": severe}
 
 @router.get("/ping")
 async def ping():
     return {"status": "ok"}
+
+@router.get("/severe")
+async def get_severe_reports(db: Session = Depends(get_db)):
+    """Returns recent symptom reports flagged as needing urgent human review."""
+    reports = db.query(SymptomReport).filter(
+        SymptomReport.flagged_severe == True
+    ).order_by(SymptomReport.timestamp.desc()).limit(50).all()
+    return {
+        "reports": [
+            {
+                "id": r.id,
+                "region": r.region,
+                "symptoms": r.symptoms,
+                "timestamp": r.timestamp.isoformat(),
+            } for r in reports
+        ],
+        "total": len(reports),
+    }
 
 @router.post("/chat")
 async def chat(request: ChatRequest, db: Session = Depends(get_db)):

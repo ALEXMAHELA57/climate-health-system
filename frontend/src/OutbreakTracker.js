@@ -1,301 +1,212 @@
 import React, { useState, useEffect } from 'react';
+import { API } from './constants';
 
-const API = 'https://climate-health-system-backend.onrender.com';
-
-const RISK_COLORS = {
-  low:       { bg:'#f0fdf4', border:'#bbf7d0', text:'#166534', dot:'#22c55e' },
-  medium:    { bg:'#fffbeb', border:'#fde68a', text:'#92400e', dot:'#f59e0b' },
-  high:      { bg:'#fef2f2', border:'#fecaca', text:'#991b1b', dot:'#ef4444' },
-  emergency: { bg:'#fef2f2', border:'#f87171', text:'#7f1d1d', dot:'#7f1d1d' },
-  loading:   { bg:'#f9fafb', border:'#e5e7eb', text:'#9ca3af', dot:'#d1d5db' },
+const RISK_CONFIG = {
+  emergency: { color: '#ef4444', bg: '#fef2f2', border: '#fecaca', label: 'Emergency', labelSw: 'Dharura' },
+  high:      { color: '#f59e0b', bg: '#fffbeb', border: '#fde68a', label: 'High',      labelSw: 'Juu'     },
+  medium:    { color: '#3b82f6', bg: '#eff6ff', border: '#bfdbfe', label: 'Medium',    labelSw: 'Wastani' },
+  low:       { color: '#22c55e', bg: '#f0fdf4', border: '#bbf7d0', label: 'Low',       labelSw: 'Chini'   },
 };
 
-function RiskPill({ risk, label }) {
-  const c = RISK_COLORS[risk] || RISK_COLORS.loading;
-  return (
-    <span style={{ background:c.bg, color:c.text,
-      border:`1px solid ${c.border}`,
-      padding:'2px 9px', borderRadius:99, fontSize:11, fontWeight:600 }}>
-      {label}
-    </span>
-  );
-}
-
-export default function OutbreakTracker({ t, lang }) {
-  const [summary, setSummary]     = useState([]);
-  const [loading, setLoading]     = useState(true);
+export default function OutbreakTracker({ lang = 'en' }) {
+  const [summary, setSummary]     = useState(null);
   const [selected, setSelected]   = useState(null);
-  const [totalReports, setTotalReports] = useState(0);
-  const [lastUpdated, setLastUpdated]   = useState(null);
+  const [detail, setDetail]       = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const sw = lang === 'sw';
 
-  const rl = {
-    en: { low:'Low', medium:'Medium', high:'High', emergency:'Emergency' },
-    sw: { low:'Chini', medium:'Kati', high:'Juu', emergency:'Dharura' },
-  }[lang] || { low:'Low', medium:'Medium', high:'High', emergency:'Emergency' };
+  useEffect(() => { fetchSummary(); }, []);
 
-  const T = {
-    en: {
-      title: '🦠 Disease Outbreak Tracker',
-      sub: 'Anonymous symptom reports from your community',
-      loading: 'Loading community health data...',
-      noData: 'No symptom reports yet this week. Data builds up as people use the symptom checker.',
-      totalReports: 'Total reports this week',
-      topSymptoms: 'Top reported symptoms',
-      weeklyReports: 'Weekly reports',
-      alerts: 'Outbreak alerts',
-      noAlerts: 'No outbreak alerts for this district',
-      howItWorks: 'How it works',
-      howText: 'Every time someone uses the Symptom Checker, their symptoms are anonymously recorded. If many people in the same district report similar symptoms, the system flags a potential outbreak.',
-      thresholds: 'Alert thresholds',
-      thresh1: '5+ fever reports in 7 days → High malaria/flu alert',
-      thresh2: '5+ diarrhoea reports → Possible cholera alert',
-      thresh3: '20+ total reports → Unusual activity alert',
-      updated: 'Updated',
-      reports: 'reports',
-      thisWeek: 'this week',
-      districtDetails: 'District details',
-      back: '← Back',
-    },
-    sw: {
-      title: '🦠 Ufuatiliaji wa Mlipuko wa Magonjwa',
-      sub: 'Ripoti za dalili zisizo na jina kutoka kwa jamii yako',
-      loading: 'Inapakia data ya afya ya jamii...',
-      noData: 'Hakuna ripoti za dalili wiki hii. Data inakua watu wanapotumia ukaguzi wa dalili.',
-      totalReports: 'Jumla ya ripoti wiki hii',
-      topSymptoms: 'Dalili zinazoripotiwa zaidi',
-      weeklyReports: 'Ripoti za kila wiki',
-      alerts: 'Tahadhari za mlipuko',
-      noAlerts: 'Hakuna tahadhari za mlipuko kwa wilaya hii',
-      howItWorks: 'Jinsi inavyofanya kazi',
-      howText: 'Kila wakati mtu anatumia Ukaguzi wa Dalili, dalili zao zinarekodiwa bila jina. Ikiwa watu wengi katika wilaya moja wanaripoti dalili sawa, mfumo unaonya mlipuko unaowezekana.',
-      thresholds: 'Viwango vya tahadhari',
-      thresh1: 'Ripoti 5+ za homa kwa siku 7 → Tahadhari ya malaria/homa',
-      thresh2: 'Ripoti 5+ za kuharisha → Tahadhari ya kipindupindu',
-      thresh3: 'Ripoti 20+ zote → Tahadhari ya shughuli isiyo ya kawaida',
-      updated: 'Imesasishwa',
-      reports: 'ripoti',
-      thisWeek: 'wiki hii',
-      districtDetails: 'Maelezo ya wilaya',
-      back: '← Rudi',
-    },
-  }[lang] || {};
-
-  useEffect(() => {
-    loadSummary();
-  }, []);
-
-  async function loadSummary() {
+  async function fetchSummary() {
     setLoading(true);
     try {
       const res  = await fetch(`${API}/api/outbreak/summary`);
       const data = await res.json();
-      setSummary(data.summary || []);
-      setTotalReports(data.total_reports || 0);
-      setLastUpdated(new Date().toLocaleTimeString());
-    } catch(e) {
-      setSummary([]);
-    }
+      setSummary(data);
+    } catch { setSummary(null); }
     setLoading(false);
   }
 
-  if (selected) {
-    return <DistrictDetail district={selected} onBack={()=>setSelected(null)} T={T} rl={rl} lang={lang}/>;
+  async function fetchDetail(region) {
+    if (selected === region) { setSelected(null); setDetail(null); return; }
+    setSelected(region);
+    setLoadingDetail(true);
+    try {
+      const res  = await fetch(`${API}/api/outbreak/region/${encodeURIComponent(region)}`);
+      const data = await res.json();
+      setDetail(data);
+    } catch { setDetail(null); }
+    setLoadingDetail(false);
   }
 
   return (
-    <div style={{ padding:16 }}>
-      <div style={{ fontSize:16, fontWeight:700, marginBottom:4 }}>{T.title}</div>
-      <div style={{ fontSize:12, color:'#6b7280', marginBottom:2 }}>{T.sub}</div>
-      {lastUpdated && (
-        <div style={{ fontSize:11, color:'#9ca3af', marginBottom:12 }}>
-          🔄 {T.updated}: {lastUpdated}
-        </div>
-      )}
-
-      {/* Total reports card */}
-      <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe',
-        borderRadius:12, padding:'12px 14px', marginBottom:14,
-        display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <div>
-          <div style={{ fontSize:13, fontWeight:600, color:'#1d4ed8' }}>{T.totalReports}</div>
-          <div style={{ fontSize:28, fontWeight:700, color:'#1d4ed8' }}>{totalReports}</div>
-        </div>
-        <div style={{ fontSize:40 }}>📊</div>
+    <div style={{ padding: 16 }}>
+      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>🦠 {sw ? 'Kufuatilia Milipuko' : 'Outbreak Tracker'}</div>
+      <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 14 }}>
+        {sw
+          ? 'Mfumo huu unagundua magonjwa yanayowezekana kutokana na ripoti za dalili za jamii.'
+          : 'Detects potential disease outbreaks from community symptom reports in real time.'}
       </div>
 
+      {/* Stats row */}
+      {summary && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '10px 12px' }}>
+            <div style={{ fontSize: 11, color: '#9ca3af' }}>{sw ? 'Ripoti wiki hii' : 'Reports this week'}</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#111' }}>{summary.total_reports_7day || 0}</div>
+          </div>
+          <div style={{ background: summary.regions_with_alerts > 0 ? '#fef2f2' : '#f0fdf4', border: `1px solid ${summary.regions_with_alerts > 0 ? '#fecaca' : '#bbf7d0'}`, borderRadius: 10, padding: '10px 12px' }}>
+            <div style={{ fontSize: 11, color: '#9ca3af' }}>{sw ? 'Mikoa yenye tahadhari' : 'Regions with alerts'}</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: summary.regions_with_alerts > 0 ? '#ef4444' : '#22c55e' }}>
+              {summary.regions_with_alerts || 0}
+            </div>
+          </div>
+        </div>
+      )}
+
       {loading && (
-        <div style={{ textAlign:'center', padding:'2rem', color:'#9ca3af', fontSize:14 }}>
-          <div style={{ width:24, height:24, border:'2px solid #e5e7eb',
-            borderTopColor:'#2563eb', borderRadius:'50%',
-            animation:'spin 0.7s linear infinite', margin:'0 auto 10px' }}/>
-          <style>{'@keyframes spin{to{transform:rotate(360deg)}}'}</style>
-          {T.loading}
+        <div style={{ textAlign: 'center', padding: '2rem', color: '#9ca3af' }}>
+          <div style={{ width: 24, height: 24, border: '3px solid #e5e7eb', borderTopColor: '#2563eb', borderRadius: '50%', animation: 'spin 0.7s linear infinite', margin: '0 auto 8px' }} />
+          <div style={{ fontSize: 13 }}>{sw ? 'Inachambua data...' : 'Analysing symptom data...'}</div>
         </div>
       )}
 
-      {!loading && summary.length === 0 && (
-        <div style={{ background:'#f9fafb', border:'1px solid #e5e7eb',
-          borderRadius:12, padding:'1.5rem', textAlign:'center' }}>
-          <div style={{ fontSize:32, marginBottom:8 }}>🏥</div>
-          <div style={{ fontSize:13, color:'#6b7280', lineHeight:1.6 }}>{T.noData}</div>
+      {!loading && summary && summary.districts.length === 0 && (
+        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: '20px 16px', textAlign: 'center' }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#166534', marginBottom: 4 }}>
+            {sw ? 'Hakuna Milipuko Inayoshukiwa' : 'No Outbreaks Detected'}
+          </div>
+          <div style={{ fontSize: 12, color: '#6b7280' }}>
+            {sw ? 'Hakuna mfumo wa ugonjwa unaoonekana wiki hii.' : 'No unusual disease patterns detected this week.'}
+          </div>
         </div>
       )}
 
-      {!loading && summary.length > 0 && (
-        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          {summary.map((item, i) => (
-            <button key={i} onClick={()=>setSelected(item.district)}
-              style={{ background:'#fff', border:`1px solid ${
-                item.risk==='low'?'#e5e7eb':RISK_COLORS[item.risk].border}`,
-                borderRadius:12, padding:'12px 14px', cursor:'pointer',
-                textAlign:'left',
-                borderLeft:`4px solid ${RISK_COLORS[item.risk]?.dot||'#e5e7eb'}` }}>
-              <div style={{ display:'flex', justifyContent:'space-between',
-                alignItems:'center', marginBottom:6 }}>
-                <div style={{ fontSize:14, fontWeight:700, color:'#111' }}>
-                  {item.district}
-                </div>
-                <RiskPill risk={item.risk} label={rl[item.risk]}/>
+      {/* Region outbreak cards */}
+      {summary && summary.districts.map((d, i) => {
+        const rc = RISK_CONFIG[d.risk] || RISK_CONFIG.low;
+        const isOpen = selected === d.district;
+
+        return (
+          <div key={i} style={{ marginBottom: 10 }}>
+            <button onClick={() => fetchDetail(d.district)}
+              style={{ width: '100%', background: rc.bg, border: `1px solid ${rc.border}`, borderRadius: 12, padding: '12px 14px', textAlign: 'left', cursor: 'pointer', borderLeft: `4px solid ${rc.color}` }}>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#111' }}>{d.district}</div>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 99, background: rc.color, color: '#fff' }}>
+                  {sw ? rc.labelSw : rc.label}
+                </span>
               </div>
-              <div style={{ fontSize:12, color:'#6b7280', marginBottom:6 }}>
-                📋 {item.total_reports} {T.reports} {T.thisWeek}
+
+              {/* Disease tags */}
+              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 6 }}>
+                {d.diseases.map((dis, j) => (
+                  <span key={j} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: 'rgba(0,0,0,0.08)', color: '#374151' }}>
+                    {dis.icon} {sw ? dis.disease_sw : dis.disease}
+                  </span>
+                ))}
               </div>
-              {item.top_symptoms?.length > 0 && (
-                <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
-                  {item.top_symptoms.slice(0,3).map(([sym, count], j) => (
-                    <span key={j} style={{ background:'#f3f4f6', color:'#374151',
-                      padding:'2px 8px', borderRadius:99, fontSize:11 }}>
-                      {sym} ({count})
-                    </span>
-                  ))}
-                </div>
-              )}
-              {item.alerts?.length > 0 && (
-                <div style={{ marginTop:6 }}>
-                  {item.alerts.slice(0,1).map((alert, j) => (
-                    <div key={j} style={{ fontSize:11,
-                      color:RISK_COLORS[item.risk]?.text||'#374151',
-                      background:RISK_COLORS[item.risk]?.bg||'#f9fafb',
-                      padding:'3px 8px', borderRadius:6, marginTop:3 }}>
-                      ⚠️ {alert}
-                    </div>
-                  ))}
-                </div>
-              )}
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#6b7280' }}>
+                <span>📊 {d.report_count} {sw ? 'ripoti wiki hii' : 'reports this week'}</span>
+                <span>{isOpen ? '▲ ' : '▼ '}{sw ? 'Maelezo' : 'Details'}</span>
+              </div>
             </button>
-          ))}
-        </div>
-      )}
 
-      {/* How it works */}
-      <div style={{ background:'#f9fafb', border:'1px solid #f3f4f6',
-        borderRadius:12, padding:14, marginTop:16 }}>
-        <div style={{ fontSize:13, fontWeight:600, color:'#374151', marginBottom:8 }}>
-          ℹ️ {T.howItWorks}
-        </div>
-        <div style={{ fontSize:12, color:'#6b7280', lineHeight:1.6, marginBottom:10 }}>
-          {T.howText}
-        </div>
-        <div style={{ fontSize:12, fontWeight:600, color:'#374151', marginBottom:6 }}>
-          {T.thresholds}:
-        </div>
-        {[T.thresh1, T.thresh2, T.thresh3].map((th, i) => (
-          <div key={i} style={{ fontSize:12, color:'#6b7280',
-            marginBottom:4, display:'flex', gap:6 }}>
-            <span style={{ color:'#ef4444', flexShrink:0 }}>•</span>{th}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+            {/* Detail panel */}
+            {isOpen && (
+              <div style={{ background: '#fff', border: `1px solid ${rc.border}`, borderTop: 'none', borderRadius: '0 0 12px 12px', padding: 14 }}>
+                {loadingDetail ? (
+                  <div style={{ textAlign: 'center', padding: '1rem', color: '#9ca3af', fontSize: 13 }}>
+                    {sw ? 'Inapakia...' : 'Loading...'}
+                  </div>
+                ) : detail ? (
+                  <>
+                    {/* Disease breakdown */}
+                    {detail.diseases.map((dis, j) => {
+                      const drc = RISK_CONFIG[dis.risk] || RISK_CONFIG.low;
+                      return (
+                        <div key={j} style={{ background: drc.bg, border: `1px solid ${drc.border}`, borderRadius: 8, padding: '10px 12px', marginBottom: 8 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600 }}>{dis.icon} {sw ? dis.disease_sw : dis.disease}</div>
+                            <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 99, background: drc.color, color: '#fff', fontWeight: 600 }}>
+                              {sw ? drc.labelSw : drc.label}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 11, color: '#6b7280' }}>
+                            {dis.reports_3day} {sw ? 'ripoti siku 3' : 'reports (3 days)'} · {dis.reports_7day} {sw ? 'ripoti siku 7' : 'reports (7 days)'}
+                            · {sw ? 'Uwezekano' : 'Confidence'}: {Math.round(dis.confidence * 100)}%
+                          </div>
+                        </div>
+                      );
+                    })}
 
-function DistrictDetail({ district, onBack, T, rl, lang }) {
-  const [data, setData]     = useState(null);
-  const [loading, setLoading] = useState(true);
+                    {/* Top symptoms */}
+                    {detail.top_symptoms.length > 0 && (
+                      <div style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 5 }}>
+                          {sw ? 'Dalili zinazojitokeza zaidi:' : 'Most reported symptoms:'}
+                        </div>
+                        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                          {detail.top_symptoms.map((s, k) => (
+                            <span key={k} style={{ fontSize: 11, background: '#f3f4f6', border: '1px solid #e5e7eb', padding: '2px 8px', borderRadius: 99, color: '#374151' }}>
+                              {s}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      try {
-        const res  = await fetch(
-          `https://climate-health-system-backend.onrender.com/api/outbreak/district/${encodeURIComponent(district)}`
-        );
-        const json = await res.json();
-        setData(json);
-      } catch(e) {}
-      setLoading(false);
-    }
-    load();
-  }, [district]);
+                    {/* 14-day trend chart */}
+                    {detail.daily_trend && (
+                      <div>
+                        <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6 }}>
+                          {sw ? 'Ripoti za siku 14 zilizopita:' : '14-day trend:'}
+                        </div>
+                        <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end', height: 40 }}>
+                          {detail.daily_trend.slice(-14).map((day, k) => {
+                            const maxCount = Math.max(...detail.daily_trend.map(d => d.count), 1);
+                            const height = Math.max(2, (day.count / maxCount) * 36);
+                            const isToday = k === detail.daily_trend.slice(-14).length - 1;
+                            return (
+                              <div key={k} title={`${day.date}: ${day.count}`}
+                                style={{ flex: 1, height, background: isToday ? '#2563eb' : rc.color, borderRadius: 2, opacity: day.count > 0 ? 1 : 0.2 }} />
+                            );
+                          })}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#9ca3af', marginTop: 2 }}>
+                          <span>{sw ? '14 siku zilizopita' : '14 days ago'}</span>
+                          <span>{sw ? 'Leo' : 'Today'}</span>
+                        </div>
+                      </div>
+                    )}
 
-  return (
-    <div style={{ padding:16 }}>
-      <button onClick={onBack}
-        style={{ background:'none', border:'none', color:'#2563eb',
-          fontSize:14, cursor:'pointer', padding:0, marginBottom:14,
-          fontWeight:500, minHeight:'auto' }}>
-        {T.back}
-      </button>
-
-      <div style={{ fontSize:16, fontWeight:700, marginBottom:4 }}>{district}</div>
-      <div style={{ fontSize:12, color:'#6b7280', marginBottom:14 }}>{T.districtDetails}</div>
-
-      {loading && (
-        <div style={{ textAlign:'center', padding:'2rem', color:'#9ca3af' }}>
-          <div style={{ width:24, height:24, border:'2px solid #e5e7eb',
-            borderTopColor:'#2563eb', borderRadius:'50%',
-            animation:'spin 0.7s linear infinite', margin:'0 auto 10px' }}/>
-          <style>{'@keyframes spin{to{transform:rotate(360deg)}}'}</style>
-          {T.loading}
-        </div>
-      )}
-
-      {data && !loading && (
-        <>
-          <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe',
-            borderRadius:12, padding:'12px 14px', marginBottom:14 }}>
-            <div style={{ fontSize:13, fontWeight:600, color:'#1d4ed8', marginBottom:2 }}>
-              {lang==='en'?'Last 30 days':'Siku 30 zilizopita'}
-            </div>
-            <div style={{ fontSize:28, fontWeight:700, color:'#1d4ed8' }}>
-              {data.last_30_days} {T.reports}
-            </div>
-          </div>
-
-          {Object.keys(data.weekly_trend || {}).length > 0 && (
-            <div style={{ background:'#fff', border:'1px solid #e5e7eb',
-              borderRadius:12, padding:14, marginBottom:14 }}>
-              <div style={{ fontSize:13, fontWeight:600, color:'#374151', marginBottom:10 }}>
-                📅 {T.weeklyReports}
-              </div>
-              {Object.entries(data.weekly_trend).slice(-4).reverse().map(([week, wdata], i) => (
-                <div key={i} style={{ display:'flex', justifyContent:'space-between',
-                  alignItems:'center', padding:'8px 0',
-                  borderBottom: i < 3 ? '1px solid #f3f4f6' : 'none' }}>
-                  <div>
-                    <div style={{ fontSize:13, fontWeight:500, color:'#111' }}>{week}</div>
-                    <div style={{ fontSize:11, color:'#6b7280', marginTop:2 }}>
-                      {Object.entries(wdata.symptoms).slice(0,3)
-                        .map(([s,c])=>`${s}(${c})`).join(' · ')}
+                    {/* Warning */}
+                    <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 10px', marginTop: 10, fontSize: 11, color: '#92400e' }}>
+                      ⚠️ {sw
+                        ? 'Hii ni tahadhari ya mfumo. Tafadhali wasiliana na mamlaka ya afya kwa uthibitisho.'
+                        : 'This is a system-generated alert. Please contact health authorities for confirmation.'}
                     </div>
+                  </>
+                ) : (
+                  <div style={{ fontSize: 13, color: '#9ca3af', textAlign: 'center', padding: 12 }}>
+                    {sw ? 'Imeshindwa kupakia maelezo' : 'Could not load details'}
                   </div>
-                  <div style={{ fontSize:20, fontWeight:700, color:'#2563eb' }}>
-                    {wdata.count}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
 
-          {Object.keys(data.weekly_trend || {}).length === 0 && (
-            <div style={{ textAlign:'center', padding:'1.5rem',
-              color:'#9ca3af', fontSize:13 }}>
-              {T.noData}
-            </div>
-          )}
-        </>
-      )}
+      <div style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
+        {sw
+          ? 'Data inasasishwa kila wakati mtumiaji anaripoti dalili. Alama zinatokana na ripoti za jamii.'
+          : 'Data updates each time a user reports symptoms. Alerts are based on community reports only.'}
+      </div>
     </div>
   );
 }

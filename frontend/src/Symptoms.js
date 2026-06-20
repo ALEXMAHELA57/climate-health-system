@@ -175,14 +175,18 @@ export default function Symptoms({ t, lang, district, setPage }) {
     setInput(updated.join(', '));
   }
 
-  function saveHistory(text) {
+  async function saveHistory(text) {
     const hist = JSON.parse(localStorage.getItem('afya_symptom_history') || '[]');
     hist.push({ symptoms: text, district, date: new Date().toISOString() });
     localStorage.setItem('afya_symptom_history', JSON.stringify(hist.slice(-20)));
-    fetch(`${API}/api/symptoms/log`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ symptoms:text, region:district, timestamp:new Date().toISOString() }),
-    }).catch(() => {});
+    try {
+      const res = await fetch(`${API}/api/symptoms/log`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ symptoms:text, region:district, timestamp:new Date().toISOString() }),
+      });
+      const data = await res.json();
+      return !!data.flagged_severe;
+    } catch { return false; }
   }
 
   async function send() {
@@ -190,7 +194,8 @@ export default function Symptoms({ t, lang, district, setPage }) {
     const userMsg = { role:'user', content:input };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
-    saveHistory(input);
+    const isSevere = await saveHistory(input);
+    if (isSevere) setEmergency(true); // immediate, conservative — don't wait for Claude's reply
     setInput('');
     setSelectedTags([]);
     setLoading(true);

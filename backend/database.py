@@ -49,10 +49,11 @@ class CommunityReport(Base):
 
 class SymptomReport(Base):
     __tablename__ = "symptom_reports"
-    id          = Column(Integer, primary_key=True, index=True)
-    region      = Column(String(100))
-    symptoms    = Column(Text)
-    timestamp   = Column(DateTime, default=datetime.utcnow)
+    id             = Column(Integer, primary_key=True, index=True)
+    region         = Column(String(100))
+    symptoms       = Column(Text)
+    timestamp      = Column(DateTime, default=datetime.utcnow)
+    flagged_severe = Column(Boolean, default=False)
 
 class SMSLog(Base):
     __tablename__ = "sms_logs"

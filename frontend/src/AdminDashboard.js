@@ -22,6 +22,7 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
   const [subscribers, setSubscribers] = useState([]);
   const [reports, setReports] = useState([]);
   const [outbreaks, setOutbreaks] = useState([]);
+  const [severeReports, setSevereReports] = useState([]);
   const [broadcastMsg, setBroadcastMsg] = useState('');
   const [broadcastDistrict, setBroadcastDistrict] = useState('ALL');
   const [broadcastLang, setBroadcastLang] = useState('both');
@@ -49,6 +50,11 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
         const r = await fetch(`${API}/api/outbreak/summary`);
         const d = await r.json();
         setOutbreaks(d.districts || []);
+      }
+      if (tab === 'urgent') {
+        const r = await fetch(`${API}/api/symptoms/severe`);
+        const d = await r.json();
+        setSevereReports(d.reports || []);
       }
     } catch { /* offline */ }
     setLoading(false);
@@ -111,6 +117,7 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
   );
 
   const tabs = [
+    { id: 'urgent', label: sw ? 'Dharura' : 'Urgent', icon: '🚨' },
     { id: 'overview', label: sw ? 'Muhtasari' : 'Overview', icon: '📊' },
     { id: 'subscribers', label: sw ? 'Waandikishaji' : 'Subscribers', icon: '👥' },
     { id: 'reports', label: sw ? 'Ripoti' : 'Reports', icon: '📢' },
@@ -196,6 +203,31 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
             </div>
           ))}
           {subscribers.length === 0 && <div style={{ textAlign: 'center', color: '#9ca3af', padding: 20, fontSize: 13 }}>{sw ? 'Hakuna waandikishaji bado' : 'No subscribers yet'}</div>}
+        </div>
+      )}
+
+      {/* URGENT — severe symptom signals needing human review */}
+      {tab === 'urgent' && (
+        <div>
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '10px 12px', marginBottom: 12, fontSize: 12, color: '#991b1b' }}>
+            {sw
+              ? 'Ripoti hizi zina dalili kali zinazohitaji ufuatiliaji wa haraka na mamlaka ya afya. Hii si uchunguzi wa ugonjwa maalum — ni tahadhari tu.'
+              : 'These reports contain severe signals requiring prompt review by health authorities. This is not a specific disease diagnosis — only a safety flag for human follow-up.'}
+          </div>
+          {severeReports.map((r, i) => (
+            <div key={i} style={{ background: '#fff', border: '1px solid #fecaca', borderLeft: '4px solid #ef4444', borderRadius: 10, padding: 12, marginBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{r.region || (sw ? 'Haijulikani' : 'Unknown region')}</div>
+                <span style={{ fontSize: 10, color: '#9ca3af' }}>{new Date(r.timestamp).toLocaleString()}</span>
+              </div>
+              <div style={{ fontSize: 12, color: '#374151' }}>{r.symptoms}</div>
+            </div>
+          ))}
+          {severeReports.length === 0 && (
+            <div style={{ textAlign: 'center', color: '#9ca3af', padding: 20, fontSize: 13 }}>
+              {sw ? 'Hakuna ripoti za dharura kwa sasa' : 'No urgent reports at this time'}
+            </div>
+          )}
         </div>
       )}
 
