@@ -167,18 +167,31 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
         <div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
             {[
-              { label: sw ? 'Waandikishaji' : 'Total Subscribers', value: stats.total_subscribers || 0, color: '#2563eb', bg: '#eff6ff', icon: '👥' },
-              { label: sw ? 'Ripoti Leo' : 'Reports Today', value: stats.reports_today || 0, color: '#f59e0b', bg: '#fffbeb', icon: '📢' },
-              { label: sw ? 'Ukaguzi wa Dalili' : 'Symptom Checks', value: stats.symptom_checks_week || 0, color: '#7c3aed', bg: '#f5f3ff', icon: '🤒' },
-              { label: sw ? 'Milipuko Inayoshukiwa' : 'Active Alerts', value: stats.active_outbreaks || 0, color: '#ef4444', bg: '#fef2f2', icon: '🦠' },
+              { label: sw ? 'Waandikishaji' : 'Total Subscribers', value: stats.total_subscribers || 0, color: '#2563eb', bg: '#eff6ff', icon: '👥', tab: 'subscribers' },
+              { label: sw ? 'Ripoti Leo' : 'Reports Today', value: stats.reports_today || 0, color: '#f59e0b', bg: '#fffbeb', icon: '📢', tab: 'reports' },
+              { label: sw ? 'Ukaguzi wa Dalili' : 'Symptom Checks', value: stats.symptom_checks_week || 0, color: '#7c3aed', bg: '#f5f3ff', icon: '🤒', tab: null },
+              { label: sw ? 'Milipuko Iliyoidhinishwa' : 'Active Alerts', value: stats.active_outbreaks || 0, color: '#ef4444', bg: '#fef2f2', icon: '🦠', tab: 'outbreaks' },
             ].map((s, i) => (
-              <div key={i} style={{ background: s.bg, border: `1px solid ${s.color}30`, borderRadius: 10, padding: 12 }}>
+              <button key={i} onClick={() => s.tab && setTab(s.tab)}
+                style={{ background: s.bg, border: `1px solid ${s.color}30`, borderRadius: 10, padding: 12, textAlign: 'left', cursor: s.tab ? 'pointer' : 'default' }}>
                 <div style={{ fontSize: 20, marginBottom: 4 }}>{s.icon}</div>
                 <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</div>
                 <div style={{ fontSize: 11, color: '#6b7280' }}>{s.label}</div>
-              </div>
+              </button>
             ))}
           </div>
+
+          {stats.pending_outbreaks > 0 && (
+            <button onClick={() => setTab('outbreaks')}
+              style={{ width: '100%', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '10px 12px', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+              <span style={{ fontSize: 12, color: '#92400e' }}>
+                ⏳ {sw
+                  ? `Milipuko ${stats.pending_outbreaks} inasubiri idhini yako`
+                  : `${stats.pending_outbreaks} outbreak${stats.pending_outbreaks > 1 ? 's' : ''} awaiting your approval`}
+              </span>
+              <span style={{ fontSize: 11, color: '#92400e', fontWeight: 600 }}>{sw ? 'Angalia →' : 'Review →'}</span>
+            </button>
+          )}
 
           {stats.top_districts && (
             <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 12 }}>
