@@ -262,27 +262,58 @@ async def get_active_alerts(db: Session = Depends(get_db)):
 
 # ── Admin endpoints ──────────────────────────────────────────────────────────
 
-@router.get("/pending")
-async def get_pending_alerts(db: Session = Depends(get_db)):
-    """Admin queue — outbreak detections awaiting approval before going public."""
+@router.get("/queue")
+async def get_review_queue(db: Session = Depends(get_db)):
+    """Admin review queue — shows:
+    - pending: awaiting first decision
+    - approved: can be reverted back to pending anytime
+    - rejected: visible for 3 days after rejection, then locked/hidden
+    """
     detections = detect_all_outbreaks(db)
     sync_detections_to_alerts(db, detections)
+
+    three_days_ago = datetime.utcnow() - timedelta(days=3)
 
     pending = db.query(OutbreakAlert).filter(
         OutbreakAlert.status == 'pending'
     ).order_by(OutbreakAlert.detected_at.desc()).all()
 
+    approved = db.query(OutbreakAlert).filter(
+        OutbreakAlert.status == 'approved'
+    ).order_by(OutbreakAlert.reviewed_at.desc()).all()
+
+    # Only show rejected items reviewed within the last 3 days
+    rejected = db.query(OutbreakAlert).filter(
+        and_(OutbreakAlert.status == 'rejected', OutbreakAlert.reviewed_at >= three_days_ago)
+    ).order_by(OutbreakAlert.reviewed_at.desc()).all()
+
+    def serialize(a, include_expiry=False):
+        item = {
+            'id': a.id, 'region': a.region, 'disease': a.disease,
+            'risk': a.risk, 'confidence': a.confidence,
+            'reports_3day': a.reports_3day, 'reports_7day': a.reports_7day,
+            'detected_at': a.detected_at.isoformat(),
+            'reviewed_at': a.reviewed_at.isoformat() if a.reviewed_at else None,
+        }
+        if include_expiry and a.reviewed_at:
+            expires_at = a.reviewed_at + timedelta(days=3)
+            hours_left = max(0, (expires_at - datetime.utcnow()).total_seconds() / 3600)
+            item['expires_at'] = expires_at.isoformat()
+            item['hours_left'] = round(hours_left, 1)
+        return item
+
     return {
-        'pending': [
-            {
-                'id': a.id, 'region': a.region, 'disease': a.disease,
-                'risk': a.risk, 'confidence': a.confidence,
-                'reports_3day': a.reports_3day, 'reports_7day': a.reports_7day,
-                'detected_at': a.detected_at.isoformat(),
-            } for a in pending
-        ],
-        'total': len(pending),
+        'pending': [serialize(a) for a in pending],
+        'approved': [serialize(a) for a in approved],
+        'rejected': [serialize(a, include_expiry=True) for a in rejected],
     }
+
+
+# Kept for backward compatibility
+@router.get("/pending")
+async def get_pending_alerts(db: Session = Depends(get_db)):
+    queue = await get_review_queue(db)
+    return {'pending': queue['pending'], 'total': len(queue['pending'])}
 
 
 class ReviewAction(BaseModel):
@@ -297,6 +328,20 @@ async def approve_alert(alert_id: int, action: ReviewAction, db: Session = Depen
     alert.status = 'approved'
     alert.admin_note = action.admin_note or ""
     alert.reviewed_at = datetime.utcnow()
+    db.commit()
+    return {"success": True}
+
+
+@router.post("/alert/{alert_id}/unapprove")
+async def unapprove_alert(alert_id: int, db: Session = Depends(get_db)):
+    """Admin made a mistake approving — revert back to pending. No time limit."""
+    alert = db.query(OutbreakAlert).filter(OutbreakAlert.id == alert_id).first()
+    if not alert:
+        return {"success": False, "error": "Alert not found"}
+    if alert.status != 'approved':
+        return {"success": False, "error": "Alert is not currently approved"}
+    alert.status = 'pending'
+    alert.reviewed_at = None
     db.commit()
     return {"success": True}
 

@@ -462,27 +462,35 @@ function ReportsPanel({ reports, sw, API, onRefresh }) {
 }
 
 // ── Outbreak Queue Panel — auto-publish toggle + approve/reject ──────────────
+
+// ── Outbreak Queue Panel ─────────────────────────────────────────────────────
+// Three sections: Pending (decide), Approved (can revert anytime),
+// Rejected (visible 3 days then auto-hidden and locked)
 function OutbreakQueuePanel({ sw, API }) {
   const [autoPublish, setAutoPublish] = useState(false);
   const [pending, setPending] = useState([]);
+  const [approved, setApproved] = useState([]);
+  const [rejected, setRejected] = useState([]);
+  const [section, setSection] = useState('pending');
   const [loading, setLoading] = useState(true);
   const [savingToggle, setSavingToggle] = useState(false);
   const [actioning, setActioning] = useState({});
-  const [actioned, setActioned] = useState({});
 
   useEffect(() => { load(); }, []);
 
   async function load() {
     setLoading(true);
     try {
-      const [settingsRes, pendingRes] = await Promise.all([
+      const [settingsRes, queueRes] = await Promise.all([
         fetch(`${API}/api/outbreak/settings`),
-        fetch(`${API}/api/outbreak/pending`),
+        fetch(`${API}/api/outbreak/queue`),
       ]);
       const settings = await settingsRes.json();
-      const pendingData = await pendingRes.json();
+      const queue = await queueRes.json();
       setAutoPublish(!!settings.auto_publish_outbreaks);
-      setPending(pendingData.pending || []);
+      setPending(queue.pending || []);
+      setApproved(queue.approved || []);
+      setRejected(queue.rejected || []);
     } catch {}
     setLoading(false);
   }
@@ -501,24 +509,13 @@ function OutbreakQueuePanel({ sw, API }) {
     setSavingToggle(false);
   }
 
-  async function approve(id) {
+  async function runAction(id, endpoint) {
     setActioning(p => ({ ...p, [id]: true }));
     try {
-      await fetch(`${API}/api/outbreak/alert/${id}/approve`, {
+      await fetch(`${API}/api/outbreak/alert/${id}/${endpoint}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
       });
-      setActioned(p => ({ ...p, [id]: 'approved' }));
-    } catch {}
-    setActioning(p => ({ ...p, [id]: false }));
-  }
-
-  async function reject(id) {
-    setActioning(p => ({ ...p, [id]: true }));
-    try {
-      await fetch(`${API}/api/outbreak/alert/${id}/reject`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
-      });
-      setActioned(p => ({ ...p, [id]: 'rejected' }));
+      await load(); // refresh all three lists so item moves between sections
     } catch {}
     setActioning(p => ({ ...p, [id]: false }));
   }
@@ -529,6 +526,21 @@ function OutbreakQueuePanel({ sw, API }) {
     medium:    { color: '#3b82f6', bg: '#eff6ff', border: '#bfdbfe' },
     low:       { color: '#22c55e', bg: '#f0fdf4', border: '#bbf7d0' },
   };
+
+  function formatHoursLeft(hours) {
+    if (hours <= 0) return sw ? 'inaisha sasa' : 'expiring now';
+    if (hours < 1) return sw ? `dakika ${Math.round(hours * 60)}` : `${Math.round(hours * 60)} min left`;
+    const h = Math.floor(hours);
+    return sw ? `saa ${h} zimebaki` : `${h}h left`;
+  }
+
+  const sections = [
+    { id: 'pending', label: sw ? 'Inasubiri' : 'Pending', count: pending.length, icon: '⏳' },
+    { id: 'approved', label: sw ? 'Imeidhinishwa' : 'Approved', count: approved.length, icon: '✅' },
+    { id: 'rejected', label: sw ? 'Imekataliwa' : 'Rejected', count: rejected.length, icon: '❌' },
+  ];
+
+  const activeList = section === 'pending' ? pending : section === 'approved' ? approved : rejected;
 
   return (
     <div>
@@ -550,31 +562,29 @@ function OutbreakQueuePanel({ sw, API }) {
         </button>
       </div>
 
-      {/* Pending queue */}
-      <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 8 }}>
-        {sw ? `Inasubiri Idhini (${pending.length})` : `Pending Approval (${pending.length})`}
+      {/* Section tabs */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+        {sections.map(s => (
+          <button key={s.id} onClick={() => setSection(s.id)}
+            style={{ flex: 1, padding: '8px 4px', borderRadius: 8, border: 'none', background: section === s.id ? '#2563eb' : '#f3f4f6', color: section === s.id ? '#fff' : '#374151', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
+            {s.icon} {s.label} ({s.count})
+          </button>
+        ))}
       </div>
 
       {loading && <div style={{ textAlign: 'center', color: '#9ca3af', padding: 20, fontSize: 13 }}>{sw ? 'Inapakia...' : 'Loading...'}</div>}
 
-      {!loading && pending.filter(p => !actioned[p.id]).length === 0 && (
+      {!loading && activeList.length === 0 && (
         <div style={{ textAlign: 'center', color: '#9ca3af', padding: 20, fontSize: 13 }}>
-          {autoPublish
+          {section === 'pending' && (autoPublish
             ? (sw ? 'Uchapishaji wa kiotomatiki umewashwa — hakuna foleni' : 'Auto-publish is on — no queue needed')
-            : (sw ? 'Hakuna milipuko inayosubiri idhini' : 'No outbreaks waiting for approval')}
+            : (sw ? 'Hakuna milipuko inayosubiri idhini' : 'No outbreaks waiting for approval'))}
+          {section === 'approved' && (sw ? 'Hakuna milipuko iliyoidhinishwa' : 'No approved outbreaks')}
+          {section === 'rejected' && (sw ? 'Hakuna milipuko iliyokataliwa hivi karibuni' : 'No recently rejected outbreaks')}
         </div>
       )}
 
-      {pending.map((p) => {
-        if (actioned[p.id]) {
-          return (
-            <div key={p.id} style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 10, padding: 10, marginBottom: 8, opacity: 0.6 }}>
-              <div style={{ fontSize: 12, color: '#6b7280' }}>
-                {p.region} — {p.disease} {actioned[p.id] === 'approved' ? `✓ ${sw ? 'Imeidhinishwa' : 'Approved'}` : `✗ ${sw ? 'Imekataliwa' : 'Rejected'}`}
-              </div>
-            </div>
-          );
-        }
+      {!loading && activeList.map((p) => {
         const rc = riskColors[p.risk] || riskColors.low;
         return (
           <div key={p.id} style={{ background: '#fff', border: `1px solid ${rc.border}`, borderLeft: `4px solid ${rc.color}`, borderRadius: 10, padding: 12, marginBottom: 10 }}>
@@ -588,16 +598,40 @@ function OutbreakQueuePanel({ sw, API }) {
             <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 8 }}>
               {p.reports_3day} {sw ? 'ripoti siku 3' : 'reports (3d)'} · {p.reports_7day} {sw ? 'ripoti siku 7' : 'reports (7d)'} · {Math.round(p.confidence * 100)}% {sw ? 'uwezekano' : 'confidence'}
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => approve(p.id)} disabled={actioning[p.id]}
-                style={{ flex: 1, padding: '8px', background: '#166534', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                {actioning[p.id] ? '...' : `✅ ${sw ? 'Idhinisha' : 'Approve'}`}
+
+            {/* Rejected — show countdown */}
+            {section === 'rejected' && p.hours_left !== undefined && (
+              <div style={{ fontSize: 11, color: '#991b1b', background: '#fef2f2', borderRadius: 6, padding: '5px 10px', marginBottom: 8 }}>
+                ⏱ {sw ? 'Itatoweka baada ya' : 'Disappears in'} {formatHoursLeft(p.hours_left)} — {sw ? 'baada ya hapo haitaweza kubadilishwa' : 'after that it cannot be changed'}
+              </div>
+            )}
+
+            {/* Action buttons per section */}
+            {section === 'pending' && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => runAction(p.id, 'approve')} disabled={actioning[p.id]}
+                  style={{ flex: 1, padding: '8px', background: '#166534', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  {actioning[p.id] ? '...' : `✅ ${sw ? 'Idhinisha' : 'Approve'}`}
+                </button>
+                <button onClick={() => runAction(p.id, 'reject')} disabled={actioning[p.id]}
+                  style={{ flex: 1, padding: '8px', background: '#991b1b', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  {actioning[p.id] ? '...' : `❌ ${sw ? 'Kataa' : 'Reject'}`}
+                </button>
+              </div>
+            )}
+
+            {section === 'approved' && (
+              <button onClick={() => runAction(p.id, 'unapprove')} disabled={actioning[p.id]}
+                style={{ width: '100%', padding: '8px', background: '#fffbeb', color: '#92400e', border: '1px solid #fde68a', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                {actioning[p.id] ? '...' : `↩ ${sw ? 'Tengua Idhini' : 'Undo Approval'}`}
               </button>
-              <button onClick={() => reject(p.id)} disabled={actioning[p.id]}
-                style={{ flex: 1, padding: '8px', background: '#991b1b', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                {actioning[p.id] ? '...' : `❌ ${sw ? 'Kataa' : 'Reject'}`}
-              </button>
-            </div>
+            )}
+
+            {section === 'rejected' && (
+              <div style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', padding: '4px 0' }}>
+                {sw ? 'Hakuna hatua zinazoweza kuchukuliwa kwa sasa' : 'No actions available'}
+              </div>
+            )}
           </div>
         );
       })}
