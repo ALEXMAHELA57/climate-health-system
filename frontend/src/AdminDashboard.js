@@ -60,6 +60,21 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
     setLoading(false);
   }
 
+  async function dismissSevere(reportId) {
+    try {
+      await fetch(`${API}/api/symptoms/${reportId}/dismiss`, { method: 'POST' });
+      setSevereReports(prev => prev.filter(r => r.id !== reportId));
+    } catch {}
+  }
+
+  async function deleteSymptomReport(reportId) {
+    if (!window.confirm(sw ? 'Una uhakika unataka kufuta ripoti hii?' : 'Are you sure you want to delete this report?')) return;
+    try {
+      await fetch(`${API}/api/symptoms/${reportId}`, { method: 'DELETE' });
+      setSevereReports(prev => prev.filter(r => r.id !== reportId));
+    } catch {}
+  }
+
   function login() {
     if (pw === ADMIN_PASSWORD) {
       sessionStorage.setItem('afya_admin', 'true');
@@ -214,13 +229,23 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
               ? 'Ripoti hizi zina dalili kali zinazohitaji ufuatiliaji wa haraka na mamlaka ya afya. Hii si uchunguzi wa ugonjwa maalum — ni tahadhari tu.'
               : 'These reports contain severe signals requiring prompt review by health authorities. This is not a specific disease diagnosis — only a safety flag for human follow-up.'}
           </div>
-          {severeReports.map((r, i) => (
-            <div key={i} style={{ background: '#fff', border: '1px solid #fecaca', borderLeft: '4px solid #ef4444', borderRadius: 10, padding: 12, marginBottom: 8 }}>
+          {severeReports.map((r) => (
+            <div key={r.id} style={{ background: '#fff', border: '1px solid #fecaca', borderLeft: '4px solid #ef4444', borderRadius: 10, padding: 12, marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{r.region || (sw ? 'Haijulikani' : 'Unknown region')}</div>
                 <span style={{ fontSize: 10, color: '#9ca3af' }}>{new Date(r.timestamp).toLocaleString()}</span>
               </div>
-              <div style={{ fontSize: 12, color: '#374151' }}>{r.symptoms}</div>
+              <div style={{ fontSize: 12, color: '#374151', marginBottom: 8 }}>{r.symptoms}</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={() => dismissSevere(r.id)}
+                  style={{ flex: 1, padding: '6px', background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                  ✓ {sw ? 'Si Dharura' : 'Not Urgent'}
+                </button>
+                <button onClick={() => deleteSymptomReport(r.id)}
+                  style={{ flex: 1, padding: '6px', background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                  🗑 {sw ? 'Futa' : 'Delete'}
+                </button>
+              </div>
             </div>
           ))}
           {severeReports.length === 0 && (
@@ -313,6 +338,7 @@ function ReportsPanel({ reports, sw, API, onRefresh }) {
   const [note, setNote] = useState({});
   const [updating, setUpdating] = useState({});
   const [localStatus, setLocalStatus] = useState({});
+  const [deleted, setDeleted] = useState({});
 
   async function updateStatus(reportId, status, adminNote) {
     setUpdating(p => ({ ...p, [reportId]: true }));
@@ -325,6 +351,16 @@ function ReportsPanel({ reports, sw, API, onRefresh }) {
       setLocalStatus(p => ({ ...p, [reportId]: { status, admin_note: adminNote || '' } }));
       setExpanded(null);
     } catch { alert('Failed to update. Check connection.'); }
+    setUpdating(p => ({ ...p, [reportId]: false }));
+  }
+
+  async function deleteReport(reportId) {
+    if (!window.confirm(sw ? 'Una uhakika unataka kufuta ripoti hii kabisa? Hatua hii haiwezi kutenduliwa.' : 'Permanently delete this report? This cannot be undone.')) return;
+    setUpdating(p => ({ ...p, [reportId]: true }));
+    try {
+      await fetch(`${API}/api/community/report/${reportId}`, { method: 'DELETE' });
+      setDeleted(p => ({ ...p, [reportId]: true }));
+    } catch { alert('Failed to delete. Check connection.'); }
     setUpdating(p => ({ ...p, [reportId]: false }));
   }
 
@@ -343,6 +379,7 @@ function ReportsPanel({ reports, sw, API, onRefresh }) {
   return (
     <div>
       {reports.map((r, i) => {
+        if (deleted[r.id]) return null;
         const current = localStatus[r.id] || { status: r.status || 'under_review', admin_note: r.admin_note || '' };
         const sc = statusColors[current.status] || statusColors.under_review;
         const isExpanded = expanded === i;
@@ -384,10 +421,16 @@ function ReportsPanel({ reports, sw, API, onRefresh }) {
 
             {/* Action buttons — only show if report has an ID and not yet actioned */}
             {r.id && current.status === 'under_review' && (
-              <button onClick={() => setExpanded(isExpanded ? null : i)}
-                style={{ fontSize: 11, color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '5px 12px', cursor: 'pointer', width: '100%', marginTop: 4 }}>
-                {isExpanded ? '▲ Close' : '▼ Review this report'}
-              </button>
+              <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                <button onClick={() => setExpanded(isExpanded ? null : i)}
+                  style={{ flex: 1, fontSize: 11, color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '5px 12px', cursor: 'pointer' }}>
+                  {isExpanded ? '▲ Close' : '▼ Review this report'}
+                </button>
+                <button onClick={() => deleteReport(r.id)} disabled={updating[r.id]}
+                  style={{ fontSize: 11, color: '#991b1b', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '5px 10px', cursor: 'pointer' }}>
+                  🗑
+                </button>
+              </div>
             )}
 
             {/* Expanded review panel */}
@@ -420,12 +463,18 @@ function ReportsPanel({ reports, sw, API, onRefresh }) {
               </div>
             )}
 
-            {/* Already actioned — allow re-review */}
+            {/* Already actioned — allow re-review or delete */}
             {r.id && current.status !== 'under_review' && (
-              <button onClick={() => updateStatus(r.id, 'under_review', '')}
-                style={{ fontSize: 11, color: '#6b7280', background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', marginTop: 6 }}>
-                ↩ {sw ? 'Rudisha kwa mapitio' : 'Move back to review'}
-              </button>
+              <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                <button onClick={() => updateStatus(r.id, 'under_review', '')}
+                  style={{ flex: 1, fontSize: 11, color: '#6b7280', background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>
+                  ↩ {sw ? 'Rudisha kwa mapitio' : 'Move back to review'}
+                </button>
+                <button onClick={() => deleteReport(r.id)} disabled={updating[r.id]}
+                  style={{ fontSize: 11, color: '#991b1b', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>
+                  🗑 {sw ? 'Futa' : 'Delete'}
+                </button>
+              </div>
             )}
           </div>
         );

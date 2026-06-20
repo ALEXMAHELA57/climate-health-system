@@ -114,6 +114,28 @@ async def get_severe_reports(db: Session = Depends(get_db)):
         "total": len(reports),
     }
 
+@router.delete("/{report_id}")
+async def delete_symptom_report(report_id: int, db: Session = Depends(get_db)):
+    """Admin-only deletion of a symptom report — e.g. spam, duplicate, or false flag.
+    Permanently removes it from outbreak detection calculations."""
+    report = db.query(SymptomReport).filter(SymptomReport.id == report_id).first()
+    if not report:
+        return {"success": False, "error": "Report not found"}
+    db.delete(report)
+    db.commit()
+    return {"success": True}
+
+@router.post("/{report_id}/dismiss")
+async def dismiss_severe_flag(report_id: int, db: Session = Depends(get_db)):
+    """Admin reviewed the severe flag and determined it's not urgent —
+    clears the flag but keeps the report for outbreak statistics."""
+    report = db.query(SymptomReport).filter(SymptomReport.id == report_id).first()
+    if not report:
+        return {"success": False, "error": "Report not found"}
+    report.flagged_severe = False
+    db.commit()
+    return {"success": True}
+
 @router.post("/chat")
 async def chat(request: ChatRequest, db: Session = Depends(get_db)):
     client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))

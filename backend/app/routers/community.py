@@ -75,6 +75,16 @@ async def update_status(update: StatusUpdate, db: Session = Depends(get_db)):
     db.commit()
     return {"success": True}
 
+@router.delete("/report/{report_id}")
+async def delete_report(report_id: str, db: Session = Depends(get_db)):
+    """Admin-only — permanently delete a community report (spam, duplicate, test entry)."""
+    report = db.query(CommunityReport).filter(CommunityReport.report_id == report_id).first()
+    if not report:
+        return {"success": False, "error": "Report not found"}
+    db.delete(report)
+    db.commit()
+    return {"success": True}
+
 @router.get("/reports")
 async def get_reports(limit: int = 20, region: Optional[str] = None, db: Session = Depends(get_db)):
     query = db.query(CommunityReport)
