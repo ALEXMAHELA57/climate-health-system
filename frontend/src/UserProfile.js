@@ -1,235 +1,249 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 
-const API = 'https://climate-health-system-backend.onrender.com';
-
-const TRANSLATIONS = {
-  en: {
-    profile: 'My Profile',
-    district: 'My Region',
-    language: 'Language',
-    notifications: 'Notifications',
-    alertTypes: 'Alert Types',
-    saveSettings: 'Save Settings',
-    saved: 'Settings saved!',
-    symptomHistory: 'My Symptom History',
-    noHistory: 'No symptom checks yet.',
-    clearHistory: 'Clear History',
-    smsAlerts: 'SMS Alerts',
-    phone: 'Phone Number',
-    subscribed: 'Subscribed',
-    notSubscribed: 'Not subscribed',
-    subscribe: 'Subscribe',
-    unsubscribe: 'Unsubscribe',
-    adminLogin: 'Admin Login',
-    about: 'About AfyaHewa',
-    version: 'Version 1.0.0 — Climate Health System Tanzania',
-    english: 'English',
-    swahili: 'Kiswahili',
-    malaria: 'Malaria',
-    flood: 'Flood',
-    cholera: 'Cholera',
-    heat: 'Heat',
-    outbreak: 'Outbreak',
-  },
-  sw: {
-    profile: 'Wasifu Wangu',
-    district: 'Mkoa Wangu',
-    language: 'Lugha',
-    notifications: 'Arifa',
-    alertTypes: 'Aina za Taarifa',
-    saveSettings: 'Hifadhi Mipangilio',
-    saved: 'Mipangilio imehifadhiwa!',
-    symptomHistory: 'Historia ya Dalili',
-    noHistory: 'Hakuna ukaguzi wa dalili bado.',
-    clearHistory: 'Futa Historia',
-    smsAlerts: 'Taarifa za SMS',
-    phone: 'Nambari ya Simu',
-    subscribed: 'Umejiandikisha',
-    notSubscribed: 'Hujajisajili',
-    subscribe: 'Jisajili',
-    unsubscribe: 'Jiondoe',
-    adminLogin: 'Ingia kwa Msimamizi',
-    about: 'Kuhusu AfyaHewa',
-    version: 'Toleo 1.0.0 — Mfumo wa Afya wa Hali ya Hewa Tanzania',
-    english: 'English',
-    swahili: 'Kiswahili',
-    malaria: 'Malaria',
-    flood: 'Mafuriko',
-    cholera: 'Kipindupindu',
-    heat: 'Joto',
-    outbreak: 'Mlipuko',
-  }
-};
-
-const DISTRICTS = [
-  'Arusha','Dar es Salaam','Dodoma','Geita','Iringa','Kagera','Katavi',
-  'Kigoma','Kilimanjaro','Lindi','Manyara','Mara','Mbeya','Morogoro',
-  'Mtwara','Mwanza','Njombe','Pwani','Rukwa','Ruvuma','Shinyanga',
-  'Simiyu','Singida','Songea','Tabora','Tanga',
-  'Zanzibar North','Zanzibar South','Zanzibar West','Pemba North','Pemba South'
+const AGE_GROUPS = [
+  { value: 'under5', label: '👶 Under 5',  label_sw: '👶 Chini ya miaka 5' },
+  { value: '5to17',  label: '🧒 5 – 17',   label_sw: '🧒 Miaka 5 – 17'    },
+  { value: '18to35', label: '🧑 18 – 35',  label_sw: '🧑 Miaka 18 – 35'   },
+  { value: '36to59', label: '👨 36 – 59',  label_sw: '👨 Miaka 36 – 59'   },
+  { value: '60plus', label: '👴 60+',       label_sw: '👴 Miaka 60+'       },
 ];
 
-export default function UserProfile({ lang = 'en', onLangChange, onDistrictChange, onAdminClick }) {
-  const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
+export default function UserProfile({ lang, setLang, API }) {
+  const t = lang === 'sw';
 
-  const [district, setDistrict] = useState(() => localStorage.getItem('afya_district') || 'Dar es Salaam');
-  const [selectedLang, setSelectedLang] = useState(lang);
-  const [alertTypes, setAlertTypes] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('afya_alerts') || '["malaria","flood","cholera","heat","outbreak"]'); }
-    catch { return ['malaria','flood','cholera','heat','outbreak']; }
-  });
-  const [phone, setPhone] = useState(() => localStorage.getItem('afya_phone') || '');
-  const [subscribed, setSubscribed] = useState(() => localStorage.getItem('afya_subscribed') === 'true');
-  const [history, setHistory] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('afya_symptom_history') || '[]'); }
-    catch { return []; }
-  });
-  const [saved, setSaved] = useState(false);
-  const [phoneError, setPhoneError] = useState('');
+  const [region, setRegion]     = React.useState(localStorage.getItem('selectedDistrict') || '');
+  const [language, setLanguage] = React.useState(lang || 'en');
+  const [ageGroup, setAgeGroup] = React.useState(localStorage.getItem('ageGroup') || '');
+  const [phone, setPhone]       = React.useState(localStorage.getItem('smsPhone') || '');
+  const [subscribed, setSubscribed] = React.useState(!!localStorage.getItem('smsSubscribed'));
+  const [saved, setSaved]       = React.useState(false);
+  const [subscribing, setSubscribing] = React.useState(false);
+  const [subMsg, setSubMsg]     = React.useState('');
 
-  function validatePhone(p) {
-    return /^(\+255|0)[67]\d{8}$/.test(p.replace(/\s/g, ''));
-  }
+  const REGIONS = [
+    'Arusha','Dar es Salaam','Dodoma','Geita','Iringa','Kagera','Katavi',
+    'Kigoma','Kilimanjaro','Lindi','Manyara','Mara','Mbeya','Morogoro',
+    'Mtwara','Mwanza','Njombe','Pemba North','Pemba South','Pwani','Rukwa',
+    'Ruvuma','Shinyanga','Simiyu','Singida','Songwe','Tabora','Tanga',
+    'Unguja North','Unguja South','Unguja West',
+  ];
 
-  function toggleAlert(type) {
-    setAlertTypes(prev =>
-      prev.includes(type) ? prev.filter(a => a !== type) : [...prev, type]
-    );
-  }
-
-  function saveSettings() {
-    localStorage.setItem('afya_district', district);
-    localStorage.setItem('afya_lang', selectedLang);
-    localStorage.setItem('afya_alerts', JSON.stringify(alertTypes));
-    if (onLangChange) onLangChange(selectedLang);
-    if (onDistrictChange) onDistrictChange(district);
+  const saveProfile = () => {
+    localStorage.setItem('selectedDistrict', region);
+    localStorage.setItem('appLanguage', language);
+    localStorage.setItem('ageGroup', ageGroup);
+    if (setLang) setLang(language);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
-  }
+  };
 
-  async function handleSubscribe() {
-    if (!validatePhone(phone)) { setPhoneError('Please enter a valid Tanzania number (07XX or +255)'); return; }
-    setPhoneError('');
+  const handleSubscribe = async () => {
+    if (!phone || !region) {
+      setSubMsg(t ? 'Jaza namba ya simu na mkoa kwanza' : 'Enter phone number and region first');
+      return;
+    }
+    setSubscribing(true);
+    setSubMsg('');
     try {
-      await fetch(`${API}/api/sms/subscribe`, {
+      const res = await fetch(`${API}/api/sms/subscribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, district, language: selectedLang })
+        body: JSON.stringify({ phone, region, language }),
       });
-      localStorage.setItem('afya_phone', phone);
-      localStorage.setItem('afya_subscribed', 'true');
-      setSubscribed(true);
+      const data = await res.json();
+      if (data.subscribed) {
+        localStorage.setItem('smsSubscribed', '1');
+        localStorage.setItem('smsPhone', phone);
+        setSubscribed(true);
+        setSubMsg(t
+          ? '✓ Umejisajili! Utapokea tahadhari za AfyaHewa'
+          : '✓ Subscribed! You will receive AfyaHewa alerts');
+      } else {
+        setSubMsg(data.error || (t ? 'Imeshindwa kujisajili' : 'Subscription failed'));
+      }
     } catch {
-      setPhoneError('Could not connect. Try again.');
+      setSubMsg(t ? 'Hitilafu ya mtandao' : 'Network error — try again');
     }
-  }
+    setSubscribing(false);
+  };
 
-  function handleUnsubscribe() {
-    localStorage.setItem('afya_subscribed', 'false');
+  const handleUnsubscribe = async () => {
+    if (!window.confirm(t ? 'Una uhakika unataka kuacha?' : 'Are you sure you want to unsubscribe?')) return;
+    try {
+      await fetch(`${API}/api/sms/unsubscribe?phone=${encodeURIComponent(phone)}`, { method: 'POST' });
+    } catch {}
+    localStorage.removeItem('smsSubscribed');
     setSubscribed(false);
-  }
+    setSubMsg(t ? 'Umefutwa usajili' : 'Unsubscribed successfully');
+  };
 
-  function clearHistory() {
-    localStorage.removeItem('afya_symptom_history');
-    setHistory([]);
-  }
+  const inputStyle = {
+    width: '100%', padding: '11px 14px', border: '1.5px solid #e5e7eb',
+    borderRadius: 10, fontSize: 15, boxSizing: 'border-box',
+    background: '#fafafa', outline: 'none',
+  };
 
-  const alertIcons = { malaria: '🦟', flood: '🌊', cholera: '💧', heat: '🌡️', outbreak: '🦠' };
+  const labelStyle = {
+    display: 'block', fontWeight: 600, marginBottom: 7, fontSize: 15, color: '#1f2937',
+  };
 
   return (
-    <div style={{ padding: 16 }}>
-      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>👤 {t.profile}</div>
+    <div style={{ padding: '0 16px 100px', maxWidth: 480, margin: '0 auto' }}>
+      <h2 style={{ fontSize: 22, fontWeight: 700, margin: '20px 0 6px' }}>
+        {t ? '👤 Wasifu Wangu' : '👤 My Profile'}
+      </h2>
+      <p style={{ color: '#6b7280', fontSize: 14, marginTop: 0, marginBottom: 24 }}>
+        {t
+          ? 'Mipangilio yako inasaidia AfyaHewa kutoa taarifa sahihi zaidi'
+          : 'Your settings help AfyaHewa give you more accurate health information'}
+      </p>
 
-      {/* District & Language */}
-      <div style={card}>
-        <div style={sectionTitle}>⚙️ {t.saveSettings.replace('Save', 'Settings')}</div>
-
-        <label style={label}>{t.district}</label>
-        <select value={district} onChange={e => setDistrict(e.target.value)} style={input}>
-          {DISTRICTS.map(d => <option key={d}>{d}</option>)}
+      {/* Region */}
+      <div style={{ marginBottom: 20 }}>
+        <label style={labelStyle}>🌍 {t ? 'Mkoa Wako' : 'Your Region'}</label>
+        <select value={region} onChange={e => setRegion(e.target.value)} style={inputStyle}>
+          <option value="">{t ? '-- Chagua Mkoa --' : '-- Select Region --'}</option>
+          {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
         </select>
-
-        <label style={{ ...label, marginTop: 12 }}>{t.language}</label>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {['en', 'sw'].map(l => (
-            <button key={l} onClick={() => setSelectedLang(l)}
-              style={{ ...toggleBtn, background: selectedLang === l ? '#2563eb' : '#f3f4f6', color: selectedLang === l ? '#fff' : '#374151' }}>
-              {l === 'en' ? t.english : t.swahili}
-            </button>
-          ))}
-        </div>
-
-        <label style={{ ...label, marginTop: 12 }}>{t.alertTypes}</label>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {Object.entries(alertIcons).map(([type, icon]) => (
-            <button key={type} onClick={() => toggleAlert(type)}
-              style={{ ...toggleBtn, background: alertTypes.includes(type) ? '#dcfce7' : '#f3f4f6', color: alertTypes.includes(type) ? '#166534' : '#6b7280', border: alertTypes.includes(type) ? '1px solid #bbf7d0' : '1px solid #e5e7eb' }}>
-              {icon} {t[type]}
-            </button>
-          ))}
-        </div>
-
-        <button onClick={saveSettings} style={{ ...primaryBtn, marginTop: 14 }}>
-          {saved ? `✓ ${t.saved}` : t.saveSettings}
-        </button>
       </div>
+
+      {/* Language */}
+      <div style={{ marginBottom: 20 }}>
+        <label style={labelStyle}>🌐 {t ? 'Lugha' : 'Language'}</label>
+        <div style={{ display: 'flex', gap: 10 }}>
+          {[['en', '🇬🇧 English'], ['sw', '🇹🇿 Kiswahili']].map(([val, lbl]) => (
+            <button
+              key={val}
+              onClick={() => setLanguage(val)}
+              style={{
+                flex: 1, padding: '11px 0', borderRadius: 10,
+                border: language === val ? '2px solid #2563eb' : '2px solid #e5e7eb',
+                background: language === val ? '#eff6ff' : '#fff',
+                color: language === val ? '#2563eb' : '#374151',
+                fontWeight: language === val ? 700 : 400,
+                cursor: 'pointer', fontSize: 15,
+              }}
+            >
+              {lbl}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Age Group */}
+      <div style={{ marginBottom: 20 }}>
+        <label style={labelStyle}>👤 {t ? 'Kundi la Umri' : 'Age Group'}</label>
+        <p style={{ fontSize: 13, color: '#6b7280', marginTop: 0, marginBottom: 12 }}>
+          {t
+            ? 'Afya atatoa ushauri unaofaa kwa umri wako'
+            : 'Afya will tailor health advice to your age group'}
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
+          {AGE_GROUPS.map(g => (
+            <button
+              key={g.value}
+              onClick={() => setAgeGroup(g.value)}
+              style={{
+                padding: '13px 10px',
+                borderRadius: 10,
+                border: ageGroup === g.value ? '2px solid #2563eb' : '2px solid #e5e7eb',
+                background: ageGroup === g.value ? '#eff6ff' : '#fff',
+                color: ageGroup === g.value ? '#2563eb' : '#374151',
+                fontWeight: ageGroup === g.value ? 700 : 400,
+                cursor: 'pointer', fontSize: 14, textAlign: 'center',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}
+            >
+              {t ? g.label_sw : g.label}
+              {ageGroup === g.value && <span style={{ fontSize: 12 }}>✓</span>}
+            </button>
+          ))}
+        </div>
+        {!ageGroup && (
+          <p style={{ fontSize: 12, color: '#f59e0b', marginTop: 8 }}>
+            ⚠️ {t
+              ? 'Chagua kundi lako la umri kwa ushauri bora zaidi'
+              : 'Select your age group for more accurate health advice'}
+          </p>
+        )}
+      </div>
+
+      {/* Save button */}
+      <button
+        onClick={saveProfile}
+        style={{
+          width: '100%', padding: 14, borderRadius: 12, border: 'none',
+          background: saved ? '#16a34a' : '#2563eb',
+          color: '#fff', fontWeight: 700, fontSize: 16, cursor: 'pointer',
+          marginBottom: 28, transition: 'background 0.2s',
+        }}
+      >
+        {saved
+          ? (t ? '✓ Imehifadhiwa!' : '✓ Saved!')
+          : (t ? '💾 Hifadhi Mipangilio' : '💾 Save Settings')}
+      </button>
 
       {/* SMS Subscription */}
-      <div style={card}>
-        <div style={sectionTitle}>📲 {t.smsAlerts}</div>
-        {subscribed ? (
-          <div>
-            <div style={{ fontSize: 13, color: '#166534', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>
-              ✓ {t.subscribed} — {phone}
-            </div>
-            <button onClick={handleUnsubscribe} style={{ ...dangerBtn }}>{t.unsubscribe}</button>
-          </div>
+      <div style={{ background: '#f8fafc', border: '1.5px solid #e5e7eb', borderRadius: 14, padding: 18, marginBottom: 20 }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 6px' }}>
+          📱 {t ? 'Tahadhari za SMS' : 'SMS Alerts'}
+        </h3>
+        <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 14px' }}>
+          {t
+            ? 'Pokea tahadhari za hali ya hewa na afya moja kwa moja kwenye simu yako'
+            : 'Receive weather and health alerts directly to your phone'}
+        </p>
+
+        {!subscribed ? (
+          <>
+            <input
+              type="tel"
+              value={phone}
+              onChange={e => setPhone(e.target.value)}
+              placeholder={t ? 'Namba ya simu e.g. 0712345678' : 'Phone number e.g. 0712345678'}
+              style={{ ...inputStyle, marginBottom: 10 }}
+            />
+            <button
+              onClick={handleSubscribe}
+              disabled={subscribing}
+              style={{
+                width: '100%', padding: 12, borderRadius: 10, border: 'none',
+                background: subscribing ? '#9ca3af' : '#16a34a',
+                color: '#fff', fontWeight: 600, fontSize: 15, cursor: subscribing ? 'wait' : 'pointer',
+              }}
+            >
+              {subscribing ? '⟳ ...' : (t ? '🔔 Jisajili kwa SMS' : '🔔 Subscribe to SMS Alerts')}
+            </button>
+          </>
         ) : (
           <div>
-            <label style={label}>{t.phone}</label>
-            <input value={phone} onChange={e => setPhone(e.target.value)}
-              placeholder="+255712345678 or 0712345678"
-              style={{ ...input, borderColor: phoneError ? '#ef4444' : '#e5e7eb' }} />
-            {phoneError && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>{phoneError}</div>}
-            <button onClick={handleSubscribe} style={{ ...primaryBtn, marginTop: 10 }}>{t.subscribe}</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 20 }}>✅</span>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>
+                  {t ? 'Umejisajili' : 'Subscribed'}
+                </div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>{phone}</div>
+              </div>
+            </div>
+            <button
+              onClick={handleUnsubscribe}
+              style={{
+                padding: '8px 16px', borderRadius: 8, border: '1px solid #e5e7eb',
+                background: '#fff', color: '#dc2626', fontSize: 13, cursor: 'pointer',
+              }}
+            >
+              {t ? 'Acha kupokea ujumbe' : 'Unsubscribe'}
+            </button>
           </div>
         )}
-      </div>
 
-      {/* Symptom History */}
-      <div style={card}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <div style={sectionTitle}>📋 {t.symptomHistory}</div>
-          {history.length > 0 && (
-            <button onClick={clearHistory} style={{ fontSize: 11, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}>{t.clearHistory}</button>
-          )}
-        </div>
-        {history.length === 0 ? (
-          <div style={{ fontSize: 13, color: '#9ca3af', textAlign: 'center', padding: '12px 0' }}>{t.noHistory}</div>
-        ) : (
-          history.slice(-5).reverse().map((h, i) => (
-            <div key={i} style={{ background: '#f9fafb', borderRadius: 8, padding: '8px 10px', marginBottom: 6, fontSize: 12 }}>
-              <div style={{ color: '#374151', fontWeight: 500 }}>{h.symptoms}</div>
-              <div style={{ color: '#9ca3af', marginTop: 2 }}>{h.district} · {new Date(h.date).toLocaleDateString()}</div>
-            </div>
-          ))
+        {subMsg && (
+          <p style={{ fontSize: 13, color: subMsg.startsWith('✓') ? '#16a34a' : '#dc2626', marginTop: 10 }}>
+            {subMsg}
+          </p>
         )}
-      </div>
-
-      {/* About */}
-      <div style={card}>
-        <div style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', lineHeight: 1.5 }}>
-          {t.about}<br />{t.version}
-        </div>
       </div>
     </div>
   );
 }
-
-const card = { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 14, marginBottom: 12 };
-const sectionTitle = { fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 10 };
-const label = { display: 'block', fontSize: 11, color: '#6b7280', marginBottom: 4 };
-const input = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14, boxSizing: 'border-box', background: '#fff' };
-const primaryBtn = { width: '100%', padding: '10px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: 'pointer' };
-const dangerBtn = { width: '100%', padding: '10px', background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca', borderRadius: 8, fontSize: 14, cursor: 'pointer' };
-const toggleBtn = { padding: '6px 14px', borderRadius: 99, border: '1px solid #e5e7eb', fontSize: 12, cursor: 'pointer' };
