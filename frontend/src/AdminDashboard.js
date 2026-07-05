@@ -22,11 +22,7 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
   const [subscribers, setSubscribers] = useState([]);
   const [reports, setReports] = useState([]);
   const [severeReports, setSevereReports] = useState([]);
-  const [broadcastMsg, setBroadcastMsg] = useState('');
-  const [broadcastDistrict, setBroadcastDistrict] = useState('ALL');
-  const [broadcastLang, setBroadcastLang] = useState('both');
-  const [sending, setSending] = useState(false);
-  const [broadcastResult, setBroadcastResult] = useState('');
+
   const [loading, setLoading] = useState(false);
 
   useEffect(() => { if (authed) loadData(); }, [authed, tab]);
@@ -84,24 +80,7 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
     if (onClose) onClose();
   }
 
-  async function sendBroadcast() {
-    if (!broadcastMsg.trim()) return;
-    setSending(true);
-    try {
-      const res = await fetch(`${API}/api/sms/broadcast`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: broadcastMsg, district: broadcastDistrict, language: broadcastLang })
-      });
-      const d = await res.json();
-      setBroadcastResult(`✓ Sent to ${d.sent || 0} subscribers`);
-      setBroadcastMsg('');
-    } catch {
-      setBroadcastResult('Error: Could not send. Check connection.');
-    }
-    setSending(false);
-    setTimeout(() => setBroadcastResult(''), 4000);
-  }
+
 
   if (!authed) return (
     <div style={{ padding: 16 }}>
@@ -275,46 +254,7 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
 
       {/* BROADCAST */}
       {tab === 'broadcast' && (
-        <div>
-          <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: 12, marginBottom: 14, fontSize: 12, color: '#92400e' }}>
-            ⚠️ {sw ? 'SMS zitatumwa kwa waandikishaji wa wilaya uliyochagua. Hii itaathiri bajeti yako.' : 'SMS will be sent to subscribers in the selected district. This will use your SMS budget.'}
-          </div>
-
-          <label style={labelSt}>{sw ? 'Mkoa' : 'Region'}</label>
-          <select value={broadcastDistrict} onChange={e => setBroadcastDistrict(e.target.value)} style={inputSt}>
-            <option value="ALL">{sw ? 'Mikoa Yote' : 'All Regions'}</option>
-            {ALL_REGIONS.map(d => <option key={d}>{d}</option>)}
-          </select>
-
-          <label style={{ ...labelSt, marginTop: 10 }}>{sw ? 'Lugha' : 'Language'}</label>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-            {[{ v: 'en', l: 'English' }, { v: 'sw', l: 'Swahili' }, { v: 'both', l: 'Both' }].map(x => (
-              <button key={x.v} onClick={() => setBroadcastLang(x.v)}
-                style={{ flex: 1, padding: '8px 4px', borderRadius: 8, border: 'none', background: broadcastLang === x.v ? '#2563eb' : '#f3f4f6', color: broadcastLang === x.v ? '#fff' : '#374151', fontSize: 12, cursor: 'pointer' }}>
-                {x.l}
-              </button>
-            ))}
-          </div>
-
-          <label style={labelSt}>{sw ? 'Ujumbe' : 'Message'}</label>
-          <textarea value={broadcastMsg} onChange={e => setBroadcastMsg(e.target.value.slice(0, 160))}
-            placeholder={sw ? 'Andika ujumbe hapa...' : 'Type your message here...'}
-            rows={4} style={{ ...inputSt, resize: 'none' }} />
-          <div style={{ fontSize: 11, color: broadcastMsg.length > 140 ? '#f59e0b' : '#9ca3af', textAlign: 'right', marginBottom: 10 }}>
-            {broadcastMsg.length}/160 {sw ? 'herufi' : 'characters'}
-          </div>
-
-          {broadcastResult && (
-            <div style={{ background: broadcastResult.startsWith('✓') ? '#f0fdf4' : '#fef2f2', border: `1px solid ${broadcastResult.startsWith('✓') ? '#bbf7d0' : '#fecaca'}`, borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontSize: 13, color: broadcastResult.startsWith('✓') ? '#166534' : '#ef4444' }}>
-              {broadcastResult}
-            </div>
-          )}
-
-          <button onClick={sendBroadcast} disabled={sending || !broadcastMsg.trim()}
-            style={{ width: '100%', padding: 12, background: sending || !broadcastMsg.trim() ? '#9ca3af' : '#2563eb', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-            {sending ? (sw ? 'Inatuma...' : 'Sending...') : (sw ? '📲 Tuma SMS' : '📲 Send Broadcast')}
-          </button>
-        </div>
+        <BroadcastPanel sw={sw} API={API} />
       )}
     </div>
   );
@@ -322,6 +262,149 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
 
 const labelSt = { display: 'block', fontSize: 11, color: '#6b7280', marginBottom: 4 };
 const inputSt = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14, boxSizing: 'border-box', background: '#fff', marginBottom: 0 };
+
+// ── Broadcast Panel ───────────────────────────────────────────────────────────
+function BroadcastPanel({ sw, API }) {
+  const [region, setRegion]       = useState('ALL');
+  const [lang, setLang]           = useState('both');
+  const [msg, setMsg]             = useState('');
+  const [sending, setSending]     = useState(false);
+  const [result, setResult]       = useState(null);
+  const [logs, setLogs]           = useState([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [beemStatus, setBeemStatus]   = useState(null);
+  const [showLogs, setShowLogs]       = useState(false);
+
+  useEffect(() => { checkBeem(); fetchLogs(); }, []);
+
+  async function checkBeem() {
+    try {
+      const res  = await fetch(`${API}/api/sms/test`);
+      const data = await res.json();
+      setBeemStatus(data);
+    } catch { setBeemStatus({ configured: false }); }
+  }
+
+  async function fetchLogs() {
+    setLoadingLogs(true);
+    try {
+      const res  = await fetch(`${API}/api/sms/logs`);
+      const data = await res.json();
+      setLogs(data.logs || []);
+    } catch {}
+    setLoadingLogs(false);
+  }
+
+  async function sendBroadcast() {
+    if (!msg.trim()) return;
+    setSending(true);
+    setResult(null);
+    try {
+      const res  = await fetch(`${API}/api/sms/broadcast`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg, region, language: lang }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setResult({ ok: true, text: `✓ Sent to ${data.sent} subscriber${data.sent !== 1 ? 's' : ''}${data.failed > 0 ? ` (${data.failed} failed)` : ''}` });
+        setMsg('');
+        fetchLogs();
+      } else {
+        setResult({ ok: false, text: `Failed: ${data.error || 'Unknown error'}` });
+      }
+    } catch {
+      setResult({ ok: false, text: sw ? 'Tatizo la muunganisho' : 'Connection error' });
+    }
+    setSending(false);
+  }
+
+  const charCount = msg.length;
+  const smsUnits  = Math.ceil(charCount / 160) || 1;
+
+  return (
+    <div>
+      {/* Beem status indicator */}
+      {beemStatus !== null && (
+        <div style={{ background: beemStatus.configured ? '#f0fdf4' : '#fef2f2', border: `1px solid ${beemStatus.configured ? '#bbf7d0' : '#fecaca'}`, borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12 }}>
+          {beemStatus.configured
+            ? `✓ ${sw ? 'Beem Africa imeunganishwa' : 'Beem Africa connected'} · Sender: ${beemStatus.sender}`
+            : `⚠ ${sw ? 'Beem haijasanidiwa — ongeza BEEM_API_KEY kwenye Render' : 'Beem not configured — add BEEM_API_KEY to Render env vars'}`}
+        </div>
+      )}
+
+      <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', marginBottom: 14, fontSize: 12, color: '#92400e' }}>
+        ⚠️ {sw ? 'SMS zitatumwa kwa waandikishaji wote wa mkoa uliochagua na zitatumia salio lako la Beem.' : 'SMS will be sent to all subscribers in the selected region and will use your Beem credit balance.'}
+      </div>
+
+      {/* Region */}
+      <label style={labelSt}>{sw ? 'Mkoa' : 'Region'}</label>
+      <select value={region} onChange={e => setRegion(e.target.value)} style={{ ...inputSt, marginBottom: 10 }}>
+        <option value="ALL">{sw ? 'Mikoa Yote' : 'All Regions'}</option>
+        {ALL_REGIONS.map(d => <option key={d}>{d}</option>)}
+      </select>
+
+      {/* Language */}
+      <label style={labelSt}>{sw ? 'Lugha' : 'Language'}</label>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+        {[{ v:'en', l:'English' }, { v:'sw', l:'Swahili' }, { v:'both', l:'Both' }].map(x => (
+          <button key={x.v} onClick={() => setLang(x.v)}
+            style={{ flex:1, padding:'8px', borderRadius:8, border:'none', background:lang===x.v?'#2563eb':'#f3f4f6', color:lang===x.v?'#fff':'#374151', fontSize:12, cursor:'pointer' }}>
+            {x.l}
+          </button>
+        ))}
+      </div>
+
+      {/* Message */}
+      <label style={labelSt}>{sw ? 'Ujumbe' : 'Message'}</label>
+      <textarea value={msg} onChange={e => setMsg(e.target.value.slice(0, 320))}
+        placeholder={sw ? 'Andika ujumbe hapa...' : 'Type your message here...'}
+        rows={4} style={{ ...inputSt, resize:'none', marginBottom:4 }} />
+      <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, color: charCount > 160 ? '#f59e0b' : '#9ca3af', marginBottom:12 }}>
+        <span>{charCount > 160 ? `${sw?'SMS':'SMS'} x${smsUnits}` : `${sw?'SMS 1 (kawaida)':'1 SMS unit'}`}</span>
+        <span>{charCount}/160{charCount > 160 ? ` (${smsUnits} ${sw?'SMS':'units'})` : ''}</span>
+      </div>
+
+      {/* Result */}
+      {result && (
+        <div style={{ background: result.ok ? '#f0fdf4' : '#fef2f2', border:`1px solid ${result.ok?'#bbf7d0':'#fecaca'}`, borderRadius:8, padding:'8px 12px', marginBottom:10, fontSize:13, color:result.ok?'#166534':'#ef4444' }}>
+          {result.text}
+        </div>
+      )}
+
+      <button onClick={sendBroadcast} disabled={sending || !msg.trim() || !beemStatus?.configured}
+        style={{ width:'100%', padding:12, background:sending||!msg.trim()||!beemStatus?.configured?'#9ca3af':'#2563eb', color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:600, cursor:'pointer', marginBottom:16 }}>
+        {sending ? (sw?'Inatuma...':'Sending...') : (sw?'📲 Tuma SMS':'📲 Send Broadcast')}
+      </button>
+
+      {/* SMS Logs */}
+      <button onClick={() => setShowLogs(p => !p)}
+        style={{ width:'100%', padding:'8px', background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:8, fontSize:12, color:'#374151', cursor:'pointer', marginBottom:8 }}>
+        📋 {sw ? `Historia ya SMS ${showLogs?'▲':'▼'}` : `SMS History ${showLogs?'▲':'▼'}`}
+      </button>
+
+      {showLogs && (
+        <div>
+          {loadingLogs && <div style={{ textAlign:'center', color:'#9ca3af', fontSize:12, padding:8 }}>{sw?'Inapakia...':'Loading...'}</div>}
+          {logs.map((log, i) => (
+            <div key={i} style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:8, padding:'8px 10px', marginBottom:6 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:2 }}>
+                <span style={{ fontSize:11, fontWeight:600, color: log.status==='sent'?'#166534':'#ef4444' }}>
+                  {log.status==='sent'?'✓':'✗'} {log.region}
+                </span>
+                <span style={{ fontSize:10, color:'#9ca3af' }}>{new Date(log.sent_at).toLocaleString()}</span>
+              </div>
+              <div style={{ fontSize:11, color:'#374151' }}>{log.message}</div>
+            </div>
+          ))}
+          {!loadingLogs && logs.length === 0 && (
+            <div style={{ textAlign:'center', color:'#9ca3af', fontSize:12, padding:8 }}>{sw?'Hakuna historia ya SMS':'No SMS history yet'}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Reports Panel with Accept/Decline ────────────────────────────────────────
 function ReportsPanel({ reports, sw, API, onRefresh }) {

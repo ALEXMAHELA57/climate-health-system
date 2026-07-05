@@ -100,54 +100,66 @@ function renderMessage(text, setPage, lang) {
 
 // Single chat function — tries Vercel proxy first (fastest, no cold start)
 // then falls back to Render backend
-async function askAfya(messages, onDebug) {
-  // Use absolute URL with current origin — more reliable on mobile than relative path
+async function callProxy(messages, timeoutMs = 15000) {
   const apiUrl = `${window.location.origin}/api/chat`;
-
-  // Step 1: Try Vercel serverless function
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    onDebug && onDebug('proxy-start');
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 12000);
     const res = await fetch(apiUrl, {
       method: 'POST',
       signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages, system: SYSTEM_PROMPT }),
-      cache: 'no-store', // explicitly bypass any caching layer
+      cache: 'no-store',
     });
     clearTimeout(t);
-    onDebug && onDebug(`proxy-status-${res.status}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.reply) return stripMarkdown(data.reply);
-      if (data.error) onDebug && onDebug(`proxy-error: ${data.error}`);
-    }
-  } catch (e) {
-    onDebug && onDebug(`proxy-failed: ${e.message}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.reply ? stripMarkdown(data.reply) : null;
+  } catch {
+    clearTimeout(t);
+    return null;
   }
+}
 
-  // Step 2: Fallback to Render backend
+async function callBackend(messages, district, timeoutMs = 30000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    onDebug && onDebug('backend-start');
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 35000);
     const res = await fetch(`${API}/api/symptoms/chat`, {
       method: 'POST',
       signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages, region: '' }),
+      body: JSON.stringify({ messages, region: district }),
       cache: 'no-store',
     });
     clearTimeout(t);
-    onDebug && onDebug(`backend-status-${res.status}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.reply) return stripMarkdown(data.reply);
-    }
-  } catch (e) {
-    onDebug && onDebug(`backend-failed: ${e.message}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.reply ? stripMarkdown(data.reply) : null;
+  } catch {
+    clearTimeout(t);
+    return null;
   }
+}
+
+async function askAfya(messages, district, onStatus) {
+  // Warm up backend in parallel from the start — so if proxy fails, backend is ready
+  fetch(`${API}/`).catch(() => {});
+
+  // Try proxy up to 3 times with short delays between retries
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    onStatus && onStatus(attempt === 1 ? 'thinking' : `retry-${attempt}`);
+    const reply = await callProxy(messages, 12000);
+    if (reply) return reply;
+    // Short pause before retry (300ms, 600ms)
+    if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 300));
+  }
+
+  // All proxy attempts failed — fall back to Render backend
+  onStatus && onStatus('backend');
+  const reply = await callBackend(messages, district, 30000);
+  if (reply) return reply;
 
   return null;
 }
@@ -159,7 +171,6 @@ export default function Symptoms({ t, lang, district, setPage }) {
   const [emergency, setEmergency]       = useState(false);
   const [selectedTags, setSelectedTags] = useState([]);
   const [waitMsg, setWaitMsg]           = useState('');
-  const [debugInfo, setDebugInfo]       = useState([]); // kept for console logging only
   const bottomRef = useRef(null);
   const sw = lang === 'sw';
 
@@ -189,36 +200,53 @@ export default function Symptoms({ t, lang, district, setPage }) {
     } catch { return false; }
   }
 
-  async function send() {
-    if (!input.trim() || loading) return;
-    const userMsg = { role:'user', content:input };
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
-    const isSevere = await saveHistory(input);
-    if (isSevere) setEmergency(true); // immediate, conservative — don't wait for Claude's reply
-    setInput('');
-    setSelectedTags([]);
+  async function send(retryMessages = null) {
+    const isRetry = !!retryMessages;
+    let newMessages;
+
+    if (!isRetry) {
+      if (!input.trim() || loading) return;
+      const userMsg = { role:'user', content:input };
+      newMessages = [...messages, userMsg];
+      setMessages(newMessages);
+      const isSevere = await saveHistory(input);
+      if (isSevere) setEmergency(true);
+      setInput('');
+      setSelectedTags([]);
+    } else {
+      newMessages = retryMessages;
+    }
+
     setLoading(true);
     setWaitMsg(sw ? 'Afya anaangalia dalili zako...' : 'Afya is reviewing your symptoms...');
 
-    const reply = await askAfya(newMessages, (step) => {
-      console.log('[Afya debug]', step);
-      setDebugInfo(prev => [...prev.slice(-4), step]);
+    const reply = await askAfya(newMessages, district, (status) => {
+      if (status === 'thinking')        setWaitMsg(sw ? 'Afya anaangalia dalili zako...' : 'Afya is reviewing your symptoms...');
+      else if (status.startsWith('retry')) setWaitMsg(sw ? 'Inajaribu tena...' : 'Retrying...');
+      else if (status === 'backend')    setWaitMsg(sw ? 'Afya anafikiria...' : 'Afya is thinking...');
     });
 
     setWaitMsg('');
     setLoading(false);
 
     if (reply) {
-      setMessages([...newMessages, { role:'assistant', content:reply }]);
+      setMessages(prev => {
+        const cleaned = prev.filter(m => !m._isError);
+        return [...cleaned, { role:'assistant', content:reply }];
+      });
       if (/emergency|hospital.*now|immediately|go.*now/i.test(reply)) setEmergency(true);
     } else {
-      setMessages([...newMessages, {
-        role:'assistant',
-        content: sw
-          ? 'Samahani, muunganisho umeshindwa. Tafadhali angalia intaneti yako na ujaribu tena.'
-          : 'Sorry, could not connect. Please check your internet and try again.',
-      }]);
+      setMessages(prev => [
+        ...prev.filter(m => !m._isError),
+        {
+          role:'assistant',
+          content: sw
+            ? 'Samahani, sikuweza kupata jibu. Tafadhali jaribu tena.'
+            : 'Sorry, could not get a response. Please try again.',
+          _isError: true,
+          _retryMessages: newMessages,
+        }
+      ]);
     }
   }
 
@@ -264,14 +292,25 @@ export default function Symptoms({ t, lang, district, setPage }) {
             {m.role==='assistant' && (
               <div style={{ width:28, height:28, borderRadius:'50%', background:'#eff6ff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, marginRight:6, flexShrink:0, alignSelf:'flex-end' }}>🤖</div>
             )}
-            <div style={{ maxWidth:'80%', padding:'9px 13px', borderRadius:16,
-              background:m.role==='user'?'#2563eb':'#fff',
-              color:m.role==='user'?'#fff':'#111',
-              border:m.role==='user'?'none':'1px solid #e5e7eb',
-              fontSize:14, lineHeight:1.55,
-              borderBottomRightRadius:m.role==='user'?4:16,
-              borderBottomLeftRadius:m.role==='assistant'?4:16 }}>
-              {m.role==='assistant' ? renderMessage(m.content, setPage, lang) : m.content}
+            <div style={{ maxWidth:'80%' }}>
+              <div style={{ padding:'9px 13px', borderRadius:16,
+                background: m._isError ? '#fef2f2' : m.role==='user' ? '#2563eb' : '#fff',
+                color: m._isError ? '#991b1b' : m.role==='user' ? '#fff' : '#111',
+                border: m._isError ? '1px solid #fecaca' : m.role==='user' ? 'none' : '1px solid #e5e7eb',
+                fontSize:14, lineHeight:1.55,
+                borderBottomRightRadius:m.role==='user'?4:16,
+                borderBottomLeftRadius:m.role==='assistant'?4:16 }}>
+                {m.role==='assistant' ? renderMessage(m.content, setPage, lang) : m.content}
+              </div>
+              {/* Retry button for failed messages */}
+              {m._isError && m._retryMessages && (
+                <button
+                  onClick={() => send(m._retryMessages)}
+                  disabled={loading}
+                  style={{ marginTop:4, fontSize:12, color:'#2563eb', background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:8, padding:'5px 12px', cursor:'pointer', fontWeight:600 }}>
+                  🔄 {sw ? 'Jaribu Tena' : 'Try Again'}
+                </button>
+              )}
             </div>
           </div>
         ))}
