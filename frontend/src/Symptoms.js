@@ -113,12 +113,19 @@ async function callProxy(messages, timeoutMs = 15000) {
       cache: 'no-store',
     });
     clearTimeout(t);
-    if (!res.ok) return null;
+    if (!res.ok) return { reply: null, error: `HTTP ${res.status}` };
     const data = await res.json();
-    return data.reply ? stripMarkdown(data.reply) : null;
-  } catch {
+    if (data.error && !data.reply) {
+      // Surface billing/auth errors immediately without retrying
+      const isBilling = /credit|billing|quota|insufficient|payment/i.test(data.error);
+      const isAuth    = /auth|api.key|invalid/i.test(data.error);
+      if (isBilling || isAuth) return { reply: null, error: data.error, fatal: true };
+      return { reply: null, error: data.error };
+    }
+    return { reply: data.reply ? stripMarkdown(data.reply) : null, error: null };
+  } catch (e) {
     clearTimeout(t);
-    return null;
+    return { reply: null, error: e.name === 'AbortError' ? 'timeout' : e.message };
   }
 }
 
@@ -144,15 +151,18 @@ async function callBackend(messages, district, timeoutMs = 30000) {
 }
 
 async function askAfya(messages, district, onStatus) {
-  // Warm up backend in parallel from the start — so if proxy fails, backend is ready
+  // Warm up backend in parallel from the start
   fetch(`${API}/`).catch(() => {});
 
-  // Try proxy up to 3 times with short delays between retries
+  // Try proxy up to 3 times — stop immediately on fatal errors (billing/auth)
   for (let attempt = 1; attempt <= 3; attempt++) {
     onStatus && onStatus(attempt === 1 ? 'thinking' : `retry-${attempt}`);
-    const reply = await callProxy(messages, 12000);
-    if (reply) return reply;
-    // Short pause before retry (300ms, 600ms)
+    const result = await callProxy(messages, 12000);
+    if (result.reply) return result.reply;
+    if (result.fatal) {
+      // Billing/auth issue — no point retrying, surface the error
+      return null;
+    }
     if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 300));
   }
 
@@ -241,8 +251,8 @@ export default function Symptoms({ t, lang, district, setPage }) {
         {
           role:'assistant',
           content: sw
-            ? 'Samahani, sikuweza kupata jibu. Tafadhali jaribu tena.'
-            : 'Sorry, could not get a response. Please try again.',
+            ? 'Samahani, Afya haiwezi kujibu sasa hivi. Tafadhali angalia muunganisho wako au jaribu baadaye.'
+            : 'Sorry, Afya is temporarily unavailable. Please check your connection or try again later.',
           _isError: true,
           _retryMessages: newMessages,
         }

@@ -3,7 +3,7 @@
 // cache only used as offline fallback. This guarantees users always
 // get the newest version when online, with zero manual action needed.
 
-const VERSION = 'v6';
+const VERSION = 'v7';
 const CACHE_NAME = `afyahewa-${VERSION}`;
 const RUNTIME_CACHE = `afyahewa-runtime-${VERSION}`;
 

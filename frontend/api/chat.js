@@ -38,12 +38,21 @@ export default async function handler(req, res) {
     });
 
     if (!response.ok) {
-      const err = await response.text();
-      return res.status(response.status).json({ error: err });
+      const errText = await response.text();
+      let errMsg = errText;
+      try {
+        const errJson = JSON.parse(errText);
+        errMsg = errJson.error?.message || errText;
+      } catch {}
+      console.error('Anthropic API error:', response.status, errMsg);
+      return res.status(200).json({ error: errMsg, reply: null });
     }
 
     const data = await response.json();
     const reply = data.content?.[0]?.text || '';
+    if (!reply) {
+      return res.status(200).json({ error: 'Empty response from API', reply: null });
+    }
     return res.status(200).json({ reply });
 
   } catch (err) {
