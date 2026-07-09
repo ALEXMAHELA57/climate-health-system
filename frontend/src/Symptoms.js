@@ -113,19 +113,13 @@ async function callProxy(messages, timeoutMs = 15000) {
       cache: 'no-store',
     });
     clearTimeout(t);
-    if (!res.ok) return { reply: null, error: `HTTP ${res.status}` };
+    if (!res.ok) return null;
     const data = await res.json();
-    if (data.error && !data.reply) {
-      // Surface billing/auth errors immediately without retrying
-      const isBilling = /credit|billing|quota|insufficient|payment/i.test(data.error);
-      const isAuth    = /auth|api.key|invalid/i.test(data.error);
-      if (isBilling || isAuth) return { reply: null, error: data.error, fatal: true };
-      return { reply: null, error: data.error };
-    }
-    return { reply: data.reply ? stripMarkdown(data.reply) : null, error: null };
-  } catch (e) {
+    if (!data.reply) return null;
+    return stripMarkdown(data.reply);
+  } catch {
     clearTimeout(t);
-    return { reply: null, error: e.name === 'AbortError' ? 'timeout' : e.message };
+    return null;
   }
 }
 
@@ -151,27 +145,20 @@ async function callBackend(messages, district, timeoutMs = 30000) {
 }
 
 async function askAfya(messages, district, onStatus) {
-  // Warm up backend in parallel from the start
+  // Warm up Render backend in parallel while trying proxy
   fetch(`${API}/`).catch(() => {});
 
-  // Try proxy up to 3 times — stop immediately on fatal errors (billing/auth)
+  // Try Vercel proxy up to 3 times
   for (let attempt = 1; attempt <= 3; attempt++) {
     onStatus && onStatus(attempt === 1 ? 'thinking' : `retry-${attempt}`);
-    const result = await callProxy(messages, 12000);
-    if (result.reply) return result.reply;
-    if (result.fatal) {
-      // Billing/auth issue — no point retrying, surface the error
-      return null;
-    }
+    const reply = await callProxy(messages, 12000);
+    if (reply) return reply;
     if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 300));
   }
 
-  // All proxy attempts failed — fall back to Render backend
+  // Fallback to Render backend
   onStatus && onStatus('backend');
-  const reply = await callBackend(messages, district, 30000);
-  if (reply) return reply;
-
-  return null;
+  return await callBackend(messages, district, 30000);
 }
 
 export default function Symptoms({ t, lang, district, setPage }) {
