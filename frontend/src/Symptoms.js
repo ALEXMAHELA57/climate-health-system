@@ -100,12 +100,46 @@ function renderMessage(text, setPage, lang) {
 
 // Single chat function — tries Vercel proxy first (fastest, no cold start)
 // then falls back to Render backend
-async function callProxy(messages, timeoutMs = 15000) {
-  const apiUrl = `${window.location.origin}/api/chat`;
+async function callAnthropicDirect(messages, timeoutMs = 20000) {
+  // Call Anthropic API directly from the browser
+  // REACT_APP_ prefix makes it available at build time in React
+  const key = process.env.REACT_APP_ANTHROPIC_API_KEY || '';
+  if (!key) return null;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(apiUrl, {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      signal: ctrl.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        max_tokens: 500,
+        system: SYSTEM_PROMPT,
+        messages: messages.map(m => ({ role: m.role, content: m.content })),
+      }),
+    });
+    clearTimeout(t);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const text = data.content?.[0]?.text;
+    return text ? stripMarkdown(text) : null;
+  } catch {
+    clearTimeout(t);
+    return null;
+  }
+}
+
+async function callVercelProxy(messages, timeoutMs = 15000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${window.location.origin}/api/chat`, {
       method: 'POST',
       signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json' },
@@ -115,15 +149,14 @@ async function callProxy(messages, timeoutMs = 15000) {
     clearTimeout(t);
     if (!res.ok) return null;
     const data = await res.json();
-    if (!data.reply) return null;
-    return stripMarkdown(data.reply);
+    return data.reply ? stripMarkdown(data.reply) : null;
   } catch {
     clearTimeout(t);
     return null;
   }
 }
 
-async function callBackend(messages, district, timeoutMs = 30000) {
+async function callRenderBackend(messages, district, timeoutMs = 30000) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -145,20 +178,23 @@ async function callBackend(messages, district, timeoutMs = 30000) {
 }
 
 async function askAfya(messages, district, onStatus) {
-  // Warm up Render backend in parallel while trying proxy
+  onStatus && onStatus('thinking');
+
+  // Warm up Render in background
   fetch(`${API}/`).catch(() => {});
 
-  // Try Vercel proxy up to 3 times
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    onStatus && onStatus(attempt === 1 ? 'thinking' : `retry-${attempt}`);
-    const reply = await callProxy(messages, 12000);
-    if (reply) return reply;
-    if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 300));
-  }
+  // Route 1: Direct Anthropic API (fastest, works on desktop/modern mobile)
+  const direct = await callAnthropicDirect(messages, 15000);
+  if (direct) return direct;
 
-  // Fallback to Render backend
+  // Route 2: Vercel serverless proxy (no CORS issues, same domain)
+  onStatus && onStatus('retry-2');
+  const proxy = await callVercelProxy(messages, 15000);
+  if (proxy) return proxy;
+
+  // Route 3: Render backend (final fallback)
   onStatus && onStatus('backend');
-  return await callBackend(messages, district, 30000);
+  return await callRenderBackend(messages, district, 30000);
 }
 
 export default function Symptoms({ t, lang, district, setPage }) {
