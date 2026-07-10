@@ -388,7 +388,7 @@ export default function Symptoms({ t, lang, district, setPage }) {
           onKeyDown={e => e.key==='Enter' && !e.shiftKey && send()}
           placeholder={t.typeSymptoms}
           style={{ flex:1, padding:'10px 13px', borderRadius:10, border:`1px solid ${input?'#2563eb':'#e5e7eb'}`, fontSize:14, background:'#fff' }} />
-        <button onClick={send} disabled={loading||!input.trim()}
+        <button onClick={() => send()} disabled={loading||!input.trim()}
           style={{ padding:'10px 15px', background:input.trim()&&!loading?'#2563eb':'#e5e7eb', color:'#fff', border:'none', borderRadius:10, cursor:input.trim()&&!loading?'pointer':'default', fontSize:18 }}>➤</button>
       </div>
 
