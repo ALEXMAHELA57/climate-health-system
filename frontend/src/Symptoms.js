@@ -156,7 +156,7 @@ async function callVercelProxy(messages, timeoutMs = 15000) {
   }
 }
 
-async function callRenderBackend(messages, district, timeoutMs = 30000) {
+async function callRenderBackend(messages, district, timeoutMs = 45000) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -210,6 +210,12 @@ export default function Symptoms({ t, lang, district, setPage }) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior:'smooth' });
   }, [messages, loading]);
+
+  // Wake up the Render backend as soon as this page opens, so it's warm
+  // by the time the user finishes picking symptoms and hits send.
+  useEffect(() => {
+    fetch(`${API}/`).catch(() => {});
+  }, []);
 
   function toggleTag(tag) {
     const updated = selectedTags.includes(tag)
