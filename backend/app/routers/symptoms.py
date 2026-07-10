@@ -140,7 +140,7 @@ async def dismiss_severe_flag(report_id: int, db: Session = Depends(get_db)):
 async def chat(request: ChatRequest, db: Session = Depends(get_db)):
     client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
     response = client.messages.create(
-        model="claude-haiku-4-5",
+        model="claude-haiku-4-5-20251001",
         max_tokens=500,   # reduced for faster response
         system=SYSTEM_PROMPT,
         messages=[{"role": m.role, "content": m.content} for m in request.messages]
