@@ -104,7 +104,7 @@ async function callAnthropicDirect(messages, timeoutMs = 20000) {
   // Call Anthropic API directly from the browser
   // REACT_APP_ prefix makes it available at build time in React
   const key = process.env.REACT_APP_ANTHROPIC_API_KEY || '';
-  if (!key) return null;
+  if (!key) { console.log('[Afya] direct: no REACT_APP_ANTHROPIC_API_KEY set, skipping'); return null; }
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -125,12 +125,14 @@ async function callAnthropicDirect(messages, timeoutMs = 20000) {
       }),
     });
     clearTimeout(t);
-    if (!res.ok) return null;
+    if (!res.ok) { console.log('[Afya] direct: bad status', res.status, await res.text()); return null; }
     const data = await res.json();
     const text = data.content?.[0]?.text;
+    if (!text) console.log('[Afya] direct: no text in response', data);
     return text ? stripMarkdown(text) : null;
-  } catch {
+  } catch (err) {
     clearTimeout(t);
+    console.log('[Afya] direct: threw', err);
     return null;
   }
 }
@@ -147,11 +149,13 @@ async function callVercelProxy(messages, timeoutMs = 15000) {
       cache: 'no-store',
     });
     clearTimeout(t);
-    if (!res.ok) return null;
+    if (!res.ok) { console.log('[Afya] proxy: bad status', res.status, await res.text()); return null; }
     const data = await res.json();
+    if (!data.reply) console.log('[Afya] proxy: no reply in response', data);
     return data.reply ? stripMarkdown(data.reply) : null;
-  } catch {
+  } catch (err) {
     clearTimeout(t);
+    console.log('[Afya] proxy: threw', err);
     return null;
   }
 }
@@ -168,16 +172,19 @@ async function callRenderBackend(messages, district, timeoutMs = 45000) {
       cache: 'no-store',
     });
     clearTimeout(t);
-    if (!res.ok) return null;
+    if (!res.ok) { console.log('[Afya] backend: bad status', res.status, await res.text()); return null; }
     const data = await res.json();
+    if (!data.reply) console.log('[Afya] backend: no reply in response', data);
     return data.reply ? stripMarkdown(data.reply) : null;
-  } catch {
+  } catch (err) {
     clearTimeout(t);
+    console.log('[Afya] backend: threw', err);
     return null;
   }
 }
 
 async function askAfya(messages, district, onStatus) {
+  console.log('[Afya] askAfya called with messages:', messages);
   onStatus && onStatus('thinking');
 
   // Warm up Render in background
@@ -185,16 +192,19 @@ async function askAfya(messages, district, onStatus) {
 
   // Route 1: Direct Anthropic API (fastest, works on desktop/modern mobile)
   const direct = await callAnthropicDirect(messages, 15000);
-  if (direct) return direct;
+  if (direct) { console.log('[Afya] direct succeeded'); return direct; }
 
   // Route 2: Vercel serverless proxy (no CORS issues, same domain)
   onStatus && onStatus('retry-2');
   const proxy = await callVercelProxy(messages, 15000);
-  if (proxy) return proxy;
+  if (proxy) { console.log('[Afya] proxy succeeded'); return proxy; }
 
   // Route 3: Render backend (final fallback)
   onStatus && onStatus('backend');
-  return await callRenderBackend(messages, district, 30000);
+  const backend = await callRenderBackend(messages, district, 45000);
+  if (backend) console.log('[Afya] backend succeeded');
+  else console.log('[Afya] all 3 routes failed');
+  return backend;
 }
 
 export default function Symptoms({ t, lang, district, setPage }) {
@@ -242,9 +252,10 @@ export default function Symptoms({ t, lang, district, setPage }) {
   async function send(retryMessages = null) {
     const isRetry = !!retryMessages;
     let newMessages;
+    console.log('[Afya] send() called, input:', JSON.stringify(input), 'isRetry:', isRetry);
 
     if (!isRetry) {
-      if (!input.trim() || loading) return;
+      if (!input.trim() || loading) { console.log('[Afya] send() bailed early - empty input or already loading'); return; }
       const userMsg = { role:'user', content:input };
       newMessages = [...messages, userMsg];
       setMessages(newMessages);
