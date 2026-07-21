@@ -61,6 +61,10 @@ async def fetch_osm_facilities(lat: float, lon: float):
             res = await client.post(
                 "https://overpass-api.de/api/interpreter",
                 data={"data": query},
+                headers={
+                    "User-Agent": "AfyaHewa-ClimateHealthSystem/1.0 (Tanzania health app; contact via GitHub ALEXMAHELA57)",
+                    "Accept": "application/json",
+                },
             )
         print(f"[clinics] OSM request status={res.status_code} for ({lat},{lon})")
         if res.status_code != 200:
