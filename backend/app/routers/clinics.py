@@ -1,6 +1,112 @@
 from fastapi import APIRouter
+import httpx
+import time
 
 router = APIRouter()
+
+# Rough district center coordinates, used to query OpenStreetMap for nearby
+# health facilities (hospitals, clinics, dispensaries, doctors' offices).
+DISTRICT_COORDS = {
+    'Iringa':        {'lat': -7.77,  'lon': 35.69},
+    'Dar es Salaam': {'lat': -6.79,  'lon': 39.21},
+    'Dodoma':        {'lat': -6.17,  'lon': 35.74},
+    'Mwanza':        {'lat': -2.52,  'lon': 32.92},
+    'Arusha':        {'lat': -3.39,  'lon': 36.68},
+    'Mbeya':         {'lat': -8.91,  'lon': 33.46},
+    'Morogoro':      {'lat': -6.82,  'lon': 37.66},
+    'Tanga':         {'lat': -5.07,  'lon': 39.10},
+    'Zanzibar West': {'lat': -6.17,  'lon': 39.20},
+    'Kilimanjaro':   {'lat': -3.35,  'lon': 37.33},
+    'Tabora':        {'lat': -5.02,  'lon': 32.80},
+    'Kigoma':        {'lat': -4.88,  'lon': 29.63},
+    'Lindi':         {'lat': -9.99,  'lon': 39.71},
+    'Mtwara':        {'lat':-10.27,  'lon': 40.18},
+    'Ruvuma':        {'lat':-10.68,  'lon': 35.65},
+    'Shinyanga':     {'lat': -3.66,  'lon': 33.42},
+    'Singida':       {'lat': -4.82,  'lon': 34.75},
+    'Rukwa':         {'lat': -7.98,  'lon': 32.03},
+    'Kagera':        {'lat': -1.33,  'lon': 31.82},
+    'Mara':          {'lat': -1.77,  'lon': 34.00},
+    'Geita':         {'lat': -2.87,  'lon': 32.23},
+    'Simiyu':        {'lat': -2.63,  'lon': 34.22},
+    'Njombe':        {'lat': -9.33,  'lon': 34.77},
+    'Pwani':         {'lat': -7.07,  'lon': 38.67},
+    'Manyara':       {'lat': -3.70,  'lon': 35.88},
+    'Katavi':        {'lat': -6.33,  'lon': 31.08},
+    'Songea':        {'lat':-10.68,  'lon': 35.65},
+    'Pemba North':   {'lat': -5.03,  'lon': 39.77},
+    'Pemba South':   {'lat': -5.32,  'lon': 39.72},
+    'Zanzibar North':{'lat': -5.72,  'lon': 39.25},
+    'Zanzibar South':{'lat': -6.38,  'lon': 39.52},
+}
+
+# In-memory cache so we don't hammer the public Overpass API on every request.
+# Render's free tier restarts periodically anyway, which naturally clears this.
+_osm_cache = {}
+_OSM_CACHE_TTL = 6 * 60 * 60  # 6 hours
+_OSM_RADIUS_M = 25000  # 25km around the district center
+
+async def fetch_osm_facilities(lat: float, lon: float):
+    query = f"""
+    [out:json][timeout:20];
+    (
+      node["amenity"~"hospital|clinic|doctors"](around:{_OSM_RADIUS_M},{lat},{lon});
+      way["amenity"~"hospital|clinic|doctors"](around:{_OSM_RADIUS_M},{lat},{lon});
+      node["healthcare"](around:{_OSM_RADIUS_M},{lat},{lon});
+    );
+    out center tags;
+    """
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            res = await client.post(
+                "https://overpass-api.de/api/interpreter",
+                data={"data": query},
+            )
+        data = res.json()
+    except Exception:
+        return []
+
+    facilities = []
+    for el in data.get("elements", []):
+        tags = el.get("tags", {})
+        name = tags.get("name")
+        if not name:
+            continue  # skip unnamed nodes, not useful to show a user
+        lat_v = el.get("lat") or el.get("center", {}).get("lat")
+        lon_v = el.get("lon") or el.get("center", {}).get("lon")
+        if lat_v is None or lon_v is None:
+            continue
+        amenity = tags.get("amenity") or tags.get("healthcare") or "clinic"
+        facility_type = {
+            "hospital": "hospital", "clinic": "clinic",
+            "doctors": "clinic", "dispensary": "dispensary",
+            "centre": "clinic", "pharmacy": "pharmacy",
+        }.get(amenity, "clinic")
+        address = tags.get("addr:full") or tags.get("addr:street") or tags.get("addr:city") or ""
+        facilities.append({
+            "name": name,
+            "type": facility_type,
+            "phone": tags.get("contact:phone") or tags.get("phone") or "",
+            "hours": tags.get("opening_hours") or "",
+            "address": address,
+            "lat": lat_v,
+            "lon": lon_v,
+            "source": "osm",
+        })
+    return facilities
+
+def merge_clinics(curated: list, osm: list):
+    """Curated hospitals (with verified phone numbers) come first;
+    OSM facilities are added after, skipping obvious name duplicates."""
+    curated_names = {c["name"].strip().lower() for c in curated}
+    merged = list(curated)
+    for f in osm:
+        key = f["name"].strip().lower()
+        if key in curated_names:
+            continue
+        curated_names.add(key)
+        merged.append(f)
+    return merged
 
 CLINICS = {
   'Iringa': [
@@ -118,4 +224,14 @@ async def list_districts():
 
 @router.get("/{district}")
 async def get_clinics(district: str):
-    return {"clinics": CLINICS.get(district, []), "emergency": "112"}
+    curated = CLINICS.get(district, [])
+
+    cached = _osm_cache.get(district)
+    if cached and (time.time() - cached["time"]) < _OSM_CACHE_TTL:
+        osm = cached["data"]
+    else:
+        coords = DISTRICT_COORDS.get(district)
+        osm = await fetch_osm_facilities(coords["lat"], coords["lon"]) if coords else []
+        _osm_cache[district] = {"time": time.time(), "data": osm}
+
+    return {"clinics": merge_clinics(curated, osm), "emergency": "112"}
