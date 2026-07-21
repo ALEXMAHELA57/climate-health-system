@@ -46,6 +46,12 @@ _osm_cache = {}
 _OSM_CACHE_TTL = 6 * 60 * 60  # 6 hours
 _OSM_RADIUS_M = 25000  # 25km around the district center
 
+OVERPASS_MIRRORS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://lz4.overpass-api.de/api/interpreter",
+]
+
 async def fetch_osm_facilities(lat: float, lon: float):
     query = f"""
     [out:json][timeout:20];
@@ -56,23 +62,25 @@ async def fetch_osm_facilities(lat: float, lon: float):
     );
     out center tags;
     """
-    try:
-        async with httpx.AsyncClient(timeout=20) as client:
-            res = await client.post(
-                "https://overpass-api.de/api/interpreter",
-                data={"data": query},
-                headers={
-                    "User-Agent": "AfyaHewa-ClimateHealthSystem/1.0 (Tanzania health app; contact via GitHub ALEXMAHELA57)",
-                    "Accept": "application/json",
-                },
-            )
-        print(f"[clinics] OSM request status={res.status_code} for ({lat},{lon})")
-        if res.status_code != 200:
-            print(f"[clinics] OSM error body: {res.text[:300]}")
-            return []
-        data = res.json()
-    except Exception as e:
-        print(f"[clinics] OSM fetch threw: {type(e).__name__}: {e}")
+    headers = {
+        "User-Agent": "AfyaHewa-ClimateHealthSystem/1.0 (Tanzania health app; contact via GitHub ALEXMAHELA57)",
+        "Accept": "application/json",
+    }
+
+    data = None
+    for mirror in OVERPASS_MIRRORS:
+        try:
+            async with httpx.AsyncClient(timeout=25) as client:
+                res = await client.post(mirror, data={"data": query}, headers=headers)
+            print(f"[clinics] OSM {mirror} status={res.status_code} for ({lat},{lon})")
+            if res.status_code == 200:
+                data = res.json()
+                break
+            print(f"[clinics] OSM error body: {res.text[:200]}")
+        except Exception as e:
+            print(f"[clinics] OSM {mirror} threw: {type(e).__name__}: {e}")
+    if data is None:
+        print("[clinics] all OSM mirrors failed, falling back to curated list only")
         return []
 
     elements = data.get("elements", [])
