@@ -62,12 +62,19 @@ async def fetch_osm_facilities(lat: float, lon: float):
                 "https://overpass-api.de/api/interpreter",
                 data={"data": query},
             )
+        print(f"[clinics] OSM request status={res.status_code} for ({lat},{lon})")
+        if res.status_code != 200:
+            print(f"[clinics] OSM error body: {res.text[:300]}")
+            return []
         data = res.json()
-    except Exception:
+    except Exception as e:
+        print(f"[clinics] OSM fetch threw: {type(e).__name__}: {e}")
         return []
 
+    elements = data.get("elements", [])
+    print(f"[clinics] OSM returned {len(elements)} raw elements")
     facilities = []
-    for el in data.get("elements", []):
+    for el in elements:
         tags = el.get("tags", {})
         name = tags.get("name")
         if not name:
@@ -93,6 +100,7 @@ async def fetch_osm_facilities(lat: float, lon: float):
             "lon": lon_v,
             "source": "osm",
         })
+    print(f"[clinics] parsed {len(facilities)} named facilities from OSM")
     return facilities
 
 def merge_clinics(curated: list, osm: list):
@@ -227,7 +235,8 @@ async def get_clinics(district: str):
     curated = CLINICS.get(district, [])
 
     cached = _osm_cache.get(district)
-    if cached and (time.time() - cached["time"]) < _OSM_CACHE_TTL:
+    ttl = _OSM_CACHE_TTL if (cached and cached["data"]) else 60  # retry quickly if last attempt was empty
+    if cached and (time.time() - cached["time"]) < ttl:
         osm = cached["data"]
     else:
         coords = DISTRICT_COORDS.get(district)
