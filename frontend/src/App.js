@@ -1,5 +1,7 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { Home as HomeIcon, CloudSun, Stethoscope, Building2, Megaphone, User, Globe, MapPin, Wifi, WifiOff, Sun, Moon } from 'lucide-react';
 import { API, T } from './constants';
+import { ThemeProvider, useTheme } from './ThemeContext';
 import UserProfile from './UserProfile';
 import CommunityReport from './CommunityReport';
 import Onboarding from './Onboarding';
@@ -35,7 +37,8 @@ function EmergencyPage({ lang, setPage }) {
   );
 }
 
-export default function App() {
+function AppShell() {
+  const { theme, isDark, toggleTheme } = useTheme();
   const [page, setPage]         = useState('home');
   const [lang, setLang]         = useState(()=>localStorage.getItem('afya_lang')||'en');
   const [district, setDistrict] = useState(()=>localStorage.getItem('afya_district')||'Dar es Salaam');
@@ -48,13 +51,10 @@ export default function App() {
   useEffect(()=>{
     function onHash(){ setShowAdmin(window.location.hash==='#admin'); }
     window.addEventListener('hashchange', onHash);
-    // Wake up backend immediately
     fetch(`${API}/`).catch(()=>{});
-    // Keep Render warm — ping every 10 minutes to prevent cold starts
-    // Render free tier sleeps after 15min of inactivity
     const keepAlive = setInterval(()=>{
       fetch(`${API}/`).catch(()=>{});
-    }, 10 * 60 * 1000); // every 10 minutes
+    }, 10 * 60 * 1000);
     return ()=>{
       window.removeEventListener('hashchange', onHash);
       window.removeEventListener('online', goOnline);
@@ -66,9 +66,6 @@ export default function App() {
     function goOffline(){ setIsOnline(false); }
     window.addEventListener('online', goOnline);
     window.addEventListener('offline', goOffline);
-
-
-
   },[]);
 
   function handleLangChange(l){ setLang(l); localStorage.setItem('afya_lang',l); }
@@ -84,42 +81,51 @@ export default function App() {
     return <Onboarding lang={lang} onFinish={()=>setShowOnboarding(false)} />;
   }
 
-  // Pages that require network — show offline emergency fallback instead
   const onlineRequiredPages = ['weather', 'symptoms', 'map', 'clinics', 'report', 'profile'];
   const showOfflineFallback = !isOnline && onlineRequiredPages.includes(page);
 
   const tabs = [
-    { id:'home',     icon:'🏠', label:t.home     },
-    { id:'weather',  icon:'🌤️', label:t.weather  },
-    { id:'symptoms', icon:'🤒', label:t.symptoms },
-    { id:'clinics',  icon:'🏥', label:t.clinics  },
-    { id:'report',   icon:'📢', label:lang==='sw'?'Ripoti':'Report' },
-    { id:'profile',  icon:'👤', label:t.profile  },
+    { id:'home',     Icon: HomeIcon,    label:t.home     },
+    { id:'weather',  Icon: CloudSun,    label:t.weather  },
+    { id:'symptoms', Icon: Stethoscope, label:t.symptoms },
+    { id:'clinics',  Icon: Building2,   label:t.clinics  },
+    { id:'report',   Icon: Megaphone,   label:lang==='sw'?'Ripoti':'Report' },
+    { id:'profile',  Icon: User,        label:t.profile  },
   ];
 
   return (
-    <div style={{ maxWidth:480, margin:'0 auto', minHeight:'100vh', display:'flex', flexDirection:'column', background:'#f3f4f6' }}>
+    <div style={{ maxWidth:480, margin:'0 auto', minHeight:'100vh', display:'flex', flexDirection:'column', background: theme.bg }}>
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        .spin-icon { animation: spin 1s linear infinite; display: inline-block; }
         * { box-sizing: border-box; }
         select, input, textarea, button { font-family: inherit; }
+        body { background: ${theme.bg}; }
       `}</style>
 
       {/* Header */}
-      <div style={{ background:'#2563eb', color:'#fff', padding:'12px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:100 }}>
+      <div style={{ background: theme.headerBg, color:'#fff', padding:'12px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:100 }}>
         <div>
-          <div style={{ fontSize:17, fontWeight:700 }}>🌍 AfyaHewa</div>
-          <div style={{ fontSize:11, opacity:0.8 }}>📍 {district}</div>
+          <div style={{ fontSize:17, fontWeight:700, display:'flex', alignItems:'center', gap:6 }}>
+            <Globe size={18} /> AfyaHewa
+          </div>
+          <div style={{ fontSize:11, opacity:0.8, display:'flex', alignItems:'center', gap:4, marginTop:2 }}>
+            <MapPin size={12} /> {district}
+          </div>
         </div>
         <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+          <button onClick={toggleTheme} title={isDark ? 'Light mode' : 'Dark mode'}
+            style={{ background:'rgba(255,255,255,0.2)', border:'none', color:'#fff', borderRadius:99, width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+            {isDark ? <Sun size={14} /> : <Moon size={14} />}
+          </button>
           <button onClick={()=>handleLangChange(lang==='en'?'sw':'en')}
             style={{ background:'rgba(255,255,255,0.2)', border:'none', color:'#fff', borderRadius:99, padding:'4px 10px', fontSize:12, cursor:'pointer', fontWeight:600 }}>
             {lang==='en'?'SW':'EN'}
           </button>
           <div title={isOnline ? (lang==='sw'?'Mtandaoni':'Online') : (lang==='sw'?'Nje ya mtandao':'Offline')}
-            style={{ fontSize:11, background:'rgba(255,255,255,0.2)', padding:'3px 8px', borderRadius:99 }}>
-            {isOnline ? '🟢' : '🔴'}
+            style={{ fontSize:11, background:'rgba(255,255,255,0.2)', padding:'3px 8px', borderRadius:99, display:'flex', alignItems:'center' }}>
+            {isOnline ? <Wifi size={13} /> : <WifiOff size={13} />}
           </div>
         </div>
       </div>
@@ -127,7 +133,7 @@ export default function App() {
       {/* Offline banner */}
       {!isOnline && (
         <div style={{ background:'#fef3c7', borderBottom:'1px solid #fde68a', padding:'7px 16px', fontSize:12, color:'#92400e', display:'flex', alignItems:'center', gap:8 }}>
-          <span style={{ fontSize:14 }}>📡</span>
+          <WifiOff size={14} />
           {lang==='sw' ? 'Hauna intaneti. Taarifa za msingi zinaonyeshwa.' : "You're offline. Showing essential info only."}
         </div>
       )}
@@ -151,16 +157,24 @@ export default function App() {
       </div>
 
       {/* Bottom nav */}
-      <div style={{ position:'fixed', bottom:0, left:'50%', transform:'translateX(-50%)', width:'100%', maxWidth:480, background:'#fff', borderTop:'1px solid #e5e7eb', display:'flex', zIndex:100 }}>
+      <div style={{ position:'fixed', bottom:0, left:'50%', transform:'translateX(-50%)', width:'100%', maxWidth:480, background: theme.tabBarBg, borderTop:`1px solid ${theme.border}`, display:'flex', zIndex:100 }}>
         {tabs.map(tab=>(
           <button key={tab.id} onClick={()=>setPage(tab.id)}
             style={{ flex:1, padding:'8px 2px', border:'none', background:'none', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:2,
               borderTop:page===tab.id?'2px solid #2563eb':'2px solid transparent' }}>
-            <span style={{ fontSize:17 }}>{tab.icon}</span>
-            <span style={{ fontSize:9, fontWeight:500, color:page===tab.id?'#2563eb':'#9ca3af' }}>{tab.label}</span>
+            <tab.Icon size={18} color={page===tab.id ? '#2563eb' : theme.textFaint} />
+            <span style={{ fontSize:9, fontWeight:500, color:page===tab.id?'#2563eb':theme.textFaint }}>{tab.label}</span>
           </button>
         ))}
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppShell />
+    </ThemeProvider>
   );
 }

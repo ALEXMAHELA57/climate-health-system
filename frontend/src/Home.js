@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import {
+  MapPin, Navigation, AlertTriangle, CheckCircle2, Bell,
+  CloudSun, Stethoscope, Building2, Map as MapIcon,
+  Ambulance, ChevronRight, Siren,
+  CloudLightning, CloudRain, CloudDrizzle, Sun as SunIcon,
+  Bug, Droplets, Thermometer, Sun,
+} from 'lucide-react';
 import { DISTRICTS, DISTRICT_COORDS, getRisk, findNearestDistrict, reverseGeocode, API } from './constants';
+import { useTheme } from './ThemeContext';
 
 export default function Home({ t, lang, district, onDistrictChange, setPage }) {
+  const { theme } = useTheme();
   const [weather, setWeather]   = useState(null);
   const [loading, setLoading]   = useState(false);
   const [gpsStatus, setGpsStatus] = useState('idle');
@@ -72,12 +81,9 @@ export default function Home({ t, lang, district, onDistrictChange, setPage }) {
       setGpsStatus('ok');
     }
 
-    // watchPosition keeps refining the fix; we wait for an accurate
-    // reading (accuracy <= 1000m) OR a max of 12 seconds, then lock it in.
     const watcher = navigator.geolocation.watchPosition(
       pos => {
         const { accuracy } = pos.coords;
-        // Only accept readings accurate to within 1km — skip noisy first fixes
         if (accuracy && accuracy <= 1000) {
           if (!resolved) {
             resolved = true;
@@ -96,7 +102,6 @@ export default function Home({ t, lang, district, onDistrictChange, setPage }) {
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
 
-    // Fallback: if no accurate reading within 12s, use whatever we have
     setTimeout(() => {
       if (!resolved) {
         resolved = true;
@@ -117,45 +122,49 @@ export default function Home({ t, lang, district, onDistrictChange, setPage }) {
   const maxDaily = daily ? Math.max(...(daily.precipitation_sum||[0])) : 0;
   const hasStorm = daily?.weather_code?.some(c=>c>=95) || false;
   const risk   = curr ? getRisk(rain7, maxTemp, hasStorm, maxDaily) : 'low';
-  const riskColors = { emergency:'#ef4444', high:'#f59e0b', medium:'#3b82f6', low:'#22c55e' };
 
-  // Build health alerts
   const alerts = [];
   if (curr) {
     const todayRain = daily?.precipitation_sum?.[0] || 0;
     const heavyDays = (daily?.precipitation_sum||[]).filter(r=>r>25).length;
-    if (hasStorm)                       alerts.push({ icon:'⛈️', color:'#ef4444', bg:'#fef2f2', text: sw?'Dhoruba inatarajiwa':'Storm expected' });
-    if (todayRain > 20)                 alerts.push({ icon:'🌧️', color:'#1d4ed8', bg:'#eff6ff', text: sw?`Mvua nzito leo ${todayRain.toFixed(0)}mm`:`Heavy rain ${todayRain.toFixed(0)}mm` });
-    if (rain7>40||heavyDays>=2)         alerts.push({ icon:'🦟', color:'#d97706', bg:'#fffbeb', text: sw?'Hatari ya malaria':'Malaria risk elevated' });
-    if (rain7>60)                       alerts.push({ icon:'💧', color:'#0e7490', bg:'#ecfeff', text: sw?'Hatari ya kipindupindu':'Cholera risk' });
-    if (maxTemp>36)                     alerts.push({ icon:'🌡️', color:'#dc2626', bg:'#fef2f2', text: sw?`Joto kali ${Math.round(maxTemp)}°C`:`Extreme heat ${Math.round(maxTemp)}°C` });
-    if (curr.relative_humidity_2m < 30) alerts.push({ icon:'🏜️', color:'#92400e', bg:'#fef3c7', text: sw?'Hewa kavu':'Dry air risk' });
+    if (hasStorm)                       alerts.push({ Icon: CloudLightning, color:'#ef4444', bg:'#fef2f2', text: sw?'Dhoruba inatarajiwa':'Storm expected' });
+    if (todayRain > 20)                 alerts.push({ Icon: CloudRain, color:'#1d4ed8', bg:'#eff6ff', text: sw?`Mvua nzito leo ${todayRain.toFixed(0)}mm`:`Heavy rain ${todayRain.toFixed(0)}mm` });
+    if (rain7>40||heavyDays>=2)         alerts.push({ Icon: Bug, color:'#d97706', bg:'#fffbeb', text: sw?'Hatari ya malaria':'Malaria risk elevated' });
+    if (rain7>60)                       alerts.push({ Icon: Droplets, color:'#0e7490', bg:'#ecfeff', text: sw?'Hatari ya kipindupindu':'Cholera risk' });
+    if (maxTemp>36)                     alerts.push({ Icon: Thermometer, color:'#dc2626', bg:'#fef2f2', text: sw?`Joto kali ${Math.round(maxTemp)}°C`:`Extreme heat ${Math.round(maxTemp)}°C` });
+    if (curr.relative_humidity_2m < 30) alerts.push({ Icon: Sun, color:'#92400e', bg:'#fef3c7', text: sw?'Hewa kavu':'Dry air risk' });
   }
+
+  const todayRainAmt = daily?.precipitation_sum?.[0] || 0;
+  const TodayIcon = daily?.weather_code?.[0]>=95 ? CloudLightning
+    : todayRainAmt > 10 ? CloudRain
+    : todayRainAmt > 0.5 ? CloudDrizzle
+    : SunIcon;
 
   return (
     <div style={{ padding:16 }}>
       {/* Region selector */}
-      <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:12, padding:'10px 12px', marginBottom:10, display:'flex', gap:8, alignItems:'center' }}>
-        <span style={{ fontSize:16 }}>📍</span>
+      <div style={{ background:theme.card, border:`1px solid ${theme.border}`, borderRadius:12, padding:'10px 12px', marginBottom:10, display:'flex', gap:8, alignItems:'center' }}>
+        <MapPin size={16} color={theme.textMuted} />
         <select value={district} onChange={e=>{ onDistrictChange(e.target.value); setGpsStatus('manual'); }}
-          style={{ flex:1, border:'none', fontSize:14, fontWeight:600, color:'#111', background:'transparent', outline:'none', cursor:'pointer' }}>
+          style={{ flex:1, border:'none', fontSize:14, fontWeight:600, color:theme.text, background:'transparent', outline:'none', cursor:'pointer' }}>
           {DISTRICTS.map(d=><option key={d}>{d}</option>)}
         </select>
         <button onClick={detectLocation} title={sw?'Tumia GPS':'Use GPS'}
-          style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:8, padding:'5px 10px', fontSize:12, color:'#1d4ed8', cursor:'pointer', whiteSpace:'nowrap' }}>
-          {gpsStatus==='detecting'?'⟳':'🛰 GPS'}
+          style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:8, padding:'5px 10px', fontSize:12, color:'#1d4ed8', cursor:'pointer', whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:4 }}>
+          <Navigation size={12} className={gpsStatus==='detecting' ? 'spin-icon' : ''} /> GPS
         </button>
       </div>
 
       {gpsStatus==='detecting' && (
         <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:8, padding:'6px 12px', marginBottom:10, fontSize:12, color:'#1d4ed8', display:'flex', alignItems:'center', gap:6 }}>
-          <span style={{ display:'inline-block', animation:'spin 1s linear infinite' }}>⟳</span>
+          <Navigation size={13} className="spin-icon" />
           {sw?'Inatafuta eneo lako kwa usahihi...':'Finding your precise location...'}
         </div>
       )}
       {gpsStatus==='denied' && (
-        <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:8, padding:'6px 12px', marginBottom:10, fontSize:12, color:'#92400e' }}>
-          ⚠️ {sw?'GPS haikufanya kazi. Chagua mkoa hapo juu.':'GPS unavailable. Select your region above.'}
+        <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:8, padding:'6px 12px', marginBottom:10, fontSize:12, color:'#92400e', display:'flex', alignItems:'center', gap:6 }}>
+          <AlertTriangle size={13} /> {sw?'GPS haikufanya kazi. Chagua mkoa hapo juu.':'GPS unavailable. Select your region above.'}
         </div>
       )}
 
@@ -169,16 +178,14 @@ export default function Home({ t, lang, district, onDistrictChange, setPage }) {
         ) : curr ? (
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
             <div>
-              <div style={{ fontSize:11, opacity:0.8, marginBottom:1 }}>📍 {district}</div>
+              <div style={{ fontSize:11, opacity:0.8, marginBottom:1, display:'flex', alignItems:'center', gap:3 }}><MapPin size={11} /> {district}</div>
               <div style={{ fontSize:36, fontWeight:700, lineHeight:1 }}>{Math.round(curr.temperature_2m)}°C</div>
               <div style={{ fontSize:11, opacity:0.85, marginTop:3 }}>
-                {sw?'Hisi':'Feels'} {Math.round(curr.apparent_temperature)}°C · 💧{curr.relative_humidity_2m}% · 💨{Math.round(curr.wind_speed_10m)}km/h
+                {sw?'Hisi':'Feels'} {Math.round(curr.apparent_temperature)}°C · {curr.relative_humidity_2m}% · {Math.round(curr.wind_speed_10m)}km/h
               </div>
             </div>
             <div style={{ textAlign:'right' }}>
-              <div style={{ fontSize:28, marginBottom:2 }}>
-                {daily?.weather_code?.[0]>=95?'⛈️':daily?.precipitation_sum?.[0]>10?'🌧️':daily?.precipitation_sum?.[0]>0.5?'🌦️':'☀️'}
-              </div>
+              <div style={{ marginBottom:2, display:'flex', justifyContent:'flex-end' }}><TodayIcon size={28} /></div>
               <div style={{ fontSize:11, opacity:0.85 }}>
                 {daily?.precipitation_sum?.[0]>0.5?`${daily.precipitation_sum[0].toFixed(0)}mm ${sw?'leo':'today'}`:sw?'Kavu leo':'Dry today'}
               </div>
@@ -188,26 +195,28 @@ export default function Home({ t, lang, district, onDistrictChange, setPage }) {
             </div>
           </div>
         ) : (
-          <div style={{ fontSize:12, opacity:0.85, cursor:'pointer' }} onClick={()=>fetchHomeWeather(district)}>
-            ⚠️ {sw?'Imeshindwa kupakia — gusa kurudia':'Failed to load — tap to retry'}
+          <div style={{ fontSize:12, opacity:0.85, cursor:'pointer', display:'flex', alignItems:'center', gap:5 }} onClick={()=>fetchHomeWeather(district)}>
+            <AlertTriangle size={13} /> {sw?'Imeshindwa kupakia — gusa kurudia':'Failed to load — tap to retry'}
           </div>
         )}
       </div>
 
-      {/* Health alerts — horizontal scroll */}
+      {/* Health alerts */}
       {curr && (
         <div style={{ marginBottom:10 }}>
           {alerts.length === 0 ? (
             <div style={{ display:'flex', alignItems:'center', gap:6, background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:8, padding:'7px 12px', fontSize:12, color:'#166534' }}>
-              ✅ {sw?'Hali ya hewa salama leo':'No health alerts today'}
+              <CheckCircle2 size={14} /> {sw?'Hali ya hewa salama leo':'No health alerts today'}
             </div>
           ) : (
             <>
-              <div style={{ fontSize:11, fontWeight:600, color:'#6b7280', marginBottom:5 }}>🔔 {sw?'TAARIFA ZA AFYA':'HEALTH ALERTS'}</div>
+              <div style={{ fontSize:11, fontWeight:600, color:'#6b7280', marginBottom:5, display:'flex', alignItems:'center', gap:4 }}>
+                <Bell size={12} /> {sw?'TAARIFA ZA AFYA':'HEALTH ALERTS'}
+              </div>
               <div style={{ display:'flex', gap:6, overflowX:'auto', paddingBottom:2 }}>
                 {alerts.map((a,i)=>(
                   <div key={i} style={{ flex:'0 0 auto', background:a.bg, borderRadius:8, padding:'7px 10px', display:'flex', alignItems:'center', gap:5 }}>
-                    <span style={{ fontSize:15 }}>{a.icon}</span>
+                    <a.Icon size={15} color={a.color} />
                     <span style={{ fontSize:11, color:a.color, fontWeight:600, whiteSpace:'nowrap' }}>{a.text}</span>
                   </div>
                 ))}
@@ -220,37 +229,39 @@ export default function Home({ t, lang, district, onDistrictChange, setPage }) {
       {/* Quick actions */}
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
         {[
-          { icon:'🌤️', title:t.weather, sub:sw?'Utabiri wa siku 7 & 15':'7 & 15 day forecast', page:'weather', color:'#eff6ff', border:'#bfdbfe' },
-          { icon:'🤒', title:t.symptoms, sub:sw?'Zungumza na Afya':'Chat with Afya', page:'symptoms', color:'#fffbeb', border:'#fde68a' },
-          { icon:'🏥', title:t.clinics, sub:sw?'Vituo vya karibu':'Nearby facilities', page:'clinics', color:'#f0fdf4', border:'#bbf7d0' },
-          { icon:'🗺️', title:lang==='sw'?'Ramani ya Hatari':'Risk Map', sub:sw?'Hatari za mkoa wako':'Climate risk levels', page:'map', color:'#f5f3ff', border:'#ddd6fe' },
+          { Icon: CloudSun, title:t.weather, sub:sw?'Utabiri wa siku 7 & 15':'7 & 15 day forecast', page:'weather', color:'#eff6ff', border:'#bfdbfe' },
+          { Icon: Stethoscope, title:t.symptoms, sub:sw?'Zungumza na Afya':'Chat with Afya', page:'symptoms', color:'#fffbeb', border:'#fde68a' },
+          { Icon: Building2, title:t.clinics, sub:sw?'Vituo vya karibu':'Nearby facilities', page:'clinics', color:'#f0fdf4', border:'#bbf7d0' },
+          { Icon: MapIcon, title:lang==='sw'?'Ramani ya Hatari':'Risk Map', sub:sw?'Hatari za mkoa wako':'Climate risk levels', page:'map', color:'#f5f3ff', border:'#ddd6fe' },
         ].map((item,i)=>(
           <button key={i} onClick={()=>setPage(item.page)}
             style={{ background:item.color, border:`1px solid ${item.border}`, borderRadius:12, padding:'12px 10px', textAlign:'left', cursor:'pointer' }}>
-            <div style={{ fontSize:22, marginBottom:4 }}>{item.icon}</div>
+            <div style={{ marginBottom:4 }}><item.Icon size={22} color="#2563eb" /></div>
             <div style={{ fontSize:13, fontWeight:600, color:'#111' }}>{item.title}</div>
             <div style={{ fontSize:11, color:'#6b7280' }}>{item.sub}</div>
           </button>
         ))}
       </div>
 
-      {/* Offline-ready emergency info link */}
+      {/* Emergency info link */}
       <button onClick={()=>setPage('emergency')}
-        style={{ width:'100%', background:'#fff', border:'1px solid #e5e7eb', borderRadius:12, padding:'10px 12px', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', marginBottom:10 }}>
+        style={{ width:'100%', background:theme.card, border:`1px solid ${theme.border}`, borderRadius:12, padding:'10px 12px', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', marginBottom:10 }}>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <span style={{ fontSize:18 }}>🚑</span>
+          <Ambulance size={18} color="#dc2626" />
           <div style={{ textAlign:'left' }}>
-            <div style={{ fontSize:13, fontWeight:600, color:'#111' }}>{sw?'Taarifa za Dharura':'Emergency Info'}</div>
-            <div style={{ fontSize:10, color:'#9ca3af' }}>{sw?'Inafanya kazi bila intaneti':'Works without internet'}</div>
+            <div style={{ fontSize:13, fontWeight:600, color:theme.text }}>{sw?'Taarifa za Dharura':'Emergency Info'}</div>
+            <div style={{ fontSize:10, color:theme.textFaint }}>{sw?'Inafanya kazi bila intaneti':'Works without internet'}</div>
           </div>
         </div>
-        <span style={{ fontSize:10, color:'#9ca3af' }}>›</span>
+        <ChevronRight size={16} color={theme.textFaint} />
       </button>
 
       {/* Emergency */}
       <div style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:12, padding:'10px 14px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <div>
-          <div style={{ fontSize:13, fontWeight:600, color:'#991b1b' }}>🚨 {t.emergency}</div>
+          <div style={{ fontSize:13, fontWeight:600, color:'#991b1b', display:'flex', alignItems:'center', gap:5 }}>
+            <Siren size={14} /> {t.emergency}
+          </div>
           <div style={{ fontSize:11, color:'#6b7280' }}>Ambulance · Police · Fire</div>
         </div>
         <a href="tel:112" style={{ background:'#ef4444', color:'#fff', padding:'8px 16px', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none' }}>{t.callEmergency}</a>
