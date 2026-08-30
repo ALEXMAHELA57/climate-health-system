@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   MapPin, Navigation, AlertTriangle, CheckCircle2, Bell,
   CloudSun, Stethoscope, Building2, Map as MapIcon,
-  Ambulance, ChevronRight, Siren,
+  Ambulance, ChevronRight, Siren, UserRound, Pill,
   CloudLightning, CloudRain, CloudDrizzle, Sun as SunIcon,
   Bug, Droplets, Thermometer, Sun,
 } from 'lucide-react';
@@ -233,6 +233,8 @@ export default function Home({ t, lang, district, onDistrictChange, setPage }) {
           { Icon: Stethoscope, title:t.symptoms, sub:sw?'Zungumza na Afya':'Chat with Afya', page:'symptoms', color:'#fffbeb', border:'#fde68a' },
           { Icon: Building2, title:t.clinics, sub:sw?'Vituo vya karibu':'Nearby facilities', page:'clinics', color:'#f0fdf4', border:'#bbf7d0' },
           { Icon: MapIcon, title:lang==='sw'?'Ramani ya Hatari':'Risk Map', sub:sw?'Hatari za mkoa wako':'Climate risk levels', page:'map', color:'#f5f3ff', border:'#ddd6fe' },
+          { Icon: UserRound, title:sw?'Ushauri wa Daktari':'Doctor Consultation', sub:sw?'Ongea na daktari':'Talk to a doctor', page:'consultation', color:'#fdf2f8', border:'#fbcfe8' },
+          { Icon: Pill, title:sw?'Ratiba ya Dawa':'Medicine Schedule', sub:sw?'Weka ukumbusho':'Set reminders', page:'medicine', color:'#fff7ed', border:'#fed7aa' },
         ].map((item,i)=>(
           <button key={i} onClick={()=>setPage(item.page)}
             style={{ background:item.color, border:`1px solid ${item.border}`, borderRadius:12, padding:'12px 10px', textAlign:'left', cursor:'pointer' }}>

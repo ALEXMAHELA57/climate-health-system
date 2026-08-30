@@ -12,6 +12,8 @@ const Weather  = lazy(() => import('./Weather'));
 const Symptoms = lazy(() => import('./Symptoms'));
 const Clinics  = lazy(() => import('./Clinics'));
 const RiskMap  = lazy(() => import('./RiskMap'));
+const Consultation = lazy(() => import('./Consultation'));
+const MedicineSchedule = lazy(() => import('./MedicineSchedule'));
 const AdminDashboard = lazy(() => import('./AdminDashboard'));
 
 function Loader() {
@@ -33,6 +35,22 @@ function EmergencyPage({ lang, setPage }) {
         </button>
       </div>
       <OfflineEmergency lang={lang} />
+    </div>
+  );
+}
+
+function SubPage({ lang, setPage, title, children }) {
+  const sw = lang === 'sw';
+  return (
+    <div>
+      <div style={{ padding:'12px 16px 0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <button onClick={()=>setPage('home')}
+          style={{ background:'none', border:'none', color:'#2563eb', fontSize:13, cursor:'pointer', padding:0, fontWeight:500 }}>
+          ‹ {sw?'Rudi Nyumbani':'Back to Home'}
+        </button>
+        <span style={{ fontSize:13, fontWeight:700, color:'#111' }}>{title}</span>
+      </div>
+      {children}
     </div>
   );
 }
@@ -81,7 +99,7 @@ function AppShell() {
     return <Onboarding lang={lang} onFinish={()=>setShowOnboarding(false)} />;
   }
 
-  const onlineRequiredPages = ['weather', 'symptoms', 'map', 'clinics', 'report', 'profile'];
+  const onlineRequiredPages = ['weather', 'symptoms', 'map', 'clinics', 'report', 'profile', 'consultation', 'medicine'];
   const showOfflineFallback = !isOnline && onlineRequiredPages.includes(page);
 
   const tabs = [
@@ -149,6 +167,8 @@ function AppShell() {
             {page==='symptoms'  && <Symptoms t={t} lang={lang} district={district} setPage={setPage} />}
             {page==='clinics'   && <Clinics  t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} />}
             {page==='map'       && <RiskMap  t={t} lang={lang} />}
+            {page==='consultation' && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Ushauri wa Daktari':'Doctor Consultation'}><Consultation lang={lang} /></SubPage>}
+            {page==='medicine'  && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Ratiba ya Dawa':'Medicine Schedule'}><MedicineSchedule lang={lang} /></SubPage>}
             {page==='profile'   && <UserProfile lang={lang} onLangChange={handleLangChange} onDistrictChange={handleDistrictChange} />}
             {page==='report'    && <CommunityReport lang={lang} />}
             {page==='emergency' && <EmergencyPage lang={lang} setPage={setPage} />}
