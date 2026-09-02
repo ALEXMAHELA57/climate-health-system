@@ -10,10 +10,17 @@ from database import get_db, Doctor, Appointment
 router = APIRouter()
 
 SPECIALTIES = {
-    "general":             {"en": "General Consultation",        "sw": "Ushauri wa Jumla"},
-    "reproductive_health":  {"en": "Reproductive Health",         "sw": "Afya ya Uzazi"},
+    "general":              {"en": "General Doctors",            "sw": "Madaktari wa Jumla"},
+    "mental_health":        {"en": "Mental Health",               "sw": "Afya ya Akili"},
+    "male_reproductive":    {"en": "Male Reproductive Health",    "sw": "Afya ya Uzazi wa Mwanaume"},
+    "female_reproductive":  {"en": "Female Reproductive Health",  "sw": "Afya ya Uzazi wa Mwanamke"},
+    "maternal_health":      {"en": "Maternal Health",             "sw": "Afya ya Mama na Mtoto"},
+    "menstrual_cycle":      {"en": "Menstrual Cycle",             "sw": "Mzunguko wa Hedhi"},
+    "dental":               {"en": "Dental",                      "sw": "Meno"},
+    "cardiology":           {"en": "Cardiology",                  "sw": "Moyo"},
+    "dermatology":          {"en": "Skin (Dermatology)",          "sw": "Ngozi"},
+    "nutrition":            {"en": "Nutrition",                   "sw": "Lishe"},
     "palliative_care":      {"en": "Palliative Care",             "sw": "Huduma ya Faraja"},
-    "mental_health":        {"en": "Mental Health & Psychology",  "sw": "Afya ya Akili na Saikolojia"},
 }
 
 def gen_id(prefix: str) -> str:
@@ -24,17 +31,25 @@ def gen_id(prefix: str) -> str:
 # doctors before this goes live to real patients - see the proposal's Health
 # Safety & Governance section regarding clinical review.
 SEED_DOCTORS = [
-    {"name": "Dr. Amina Juma", "specialty": "general", "bio": "General practitioner, 8 years experience.", "phone": "", "consultation_types": "chat,voice"},
-    {"name": "Dr. Grace Mushi", "specialty": "reproductive_health", "bio": "Gynecologist, reproductive and maternal health.", "phone": "", "consultation_types": "chat,video"},
-    {"name": "Dr. Peter Massawe", "specialty": "palliative_care", "bio": "Palliative and supportive care specialist.", "phone": "", "consultation_types": "chat,voice"},
-    {"name": "Dr. Fatuma Ally", "specialty": "mental_health", "bio": "Clinical psychologist, counseling and mental health support.", "phone": "", "consultation_types": "chat,video"},
+    {"name": "Dr. Amina Juma",      "specialty": "general",             "bio": "General practitioner, 8 years experience.",              "phone": "", "consultation_types": "chat,voice"},
+    {"name": "Dr. Fatuma Ally",     "specialty": "mental_health",       "bio": "Clinical psychologist, counseling and mental health support.", "phone": "", "consultation_types": "chat,video"},
+    {"name": "Dr. John Mrema",      "specialty": "male_reproductive",   "bio": "Urologist, men's reproductive and sexual health.",        "phone": "", "consultation_types": "chat,voice"},
+    {"name": "Dr. Grace Mushi",     "specialty": "female_reproductive", "bio": "Gynecologist, women's reproductive health.",              "phone": "", "consultation_types": "chat,video"},
+    {"name": "Dr. Neema Kessy",     "specialty": "maternal_health",     "bio": "Obstetrician, pregnancy and maternal care.",              "phone": "", "consultation_types": "chat,video"},
+    {"name": "Dr. Grace Mushi",     "specialty": "menstrual_cycle",     "bio": "Gynecologist, menstrual health and cycle-related concerns.", "phone": "", "consultation_types": "chat"},
+    {"name": "Dr. Hassan Kibwana",  "specialty": "dental",              "bio": "Dentist, general and restorative dental care.",           "phone": "", "consultation_types": "chat,voice"},
+    {"name": "Dr. Edward Lyimo",    "specialty": "cardiology",          "bio": "Cardiologist, heart health and hypertension management.", "phone": "", "consultation_types": "chat,voice"},
+    {"name": "Dr. Rehema Chuma",    "specialty": "dermatology",         "bio": "Dermatologist, skin, hair, and nail conditions.",         "phone": "", "consultation_types": "chat,video"},
+    {"name": "Dr. Baraka Ndosi",    "specialty": "nutrition",           "bio": "Nutritionist, diet and nutrition counseling.",            "phone": "", "consultation_types": "chat"},
+    {"name": "Dr. Peter Massawe",   "specialty": "palliative_care",     "bio": "Palliative and supportive care specialist.",              "phone": "", "consultation_types": "chat,voice"},
 ]
 
 def ensure_seed_doctors(db: Session):
-    if db.query(Doctor).count() == 0:
-        for d in SEED_DOCTORS:
+    existing_specialties = {row[0] for row in db.query(Doctor.specialty).distinct().all()}
+    for d in SEED_DOCTORS:
+        if d["specialty"] not in existing_specialties:
             db.add(Doctor(**d))
-        db.commit()
+    db.commit()
 
 class AppointmentIn(BaseModel):
     doctor_id: int

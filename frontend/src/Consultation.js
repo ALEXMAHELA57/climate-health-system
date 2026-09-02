@@ -1,14 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { Stethoscope, Heart, HandHeart, Brain, Calendar, Clock, MessageCircle, Video, Phone, ChevronRight, CheckCircle2, XCircle } from 'lucide-react';
+import { Stethoscope, Brain, UserRound, Users, Baby, CalendarHeart, Smile, HeartPulse, Sparkles, Apple, HandHeart, Calendar, Clock, MessageCircle, Video, Phone, ChevronRight, CheckCircle2, XCircle } from 'lucide-react';
 import { API } from './constants';
 import { useTheme } from './ThemeContext';
 
-const SPECIALTY_ICON = { general: Stethoscope, reproductive_health: Heart, palliative_care: HandHeart, mental_health: Brain };
+const SPECIALTY_ICON = {
+  general: Stethoscope,
+  mental_health: Brain,
+  male_reproductive: UserRound,
+  female_reproductive: Users,
+  maternal_health: Baby,
+  menstrual_cycle: CalendarHeart,
+  dental: Smile,
+  cardiology: HeartPulse,
+  dermatology: Sparkles,
+  nutrition: Apple,
+  palliative_care: HandHeart,
+};
 const SPECIALTY_COLOR = {
-  general: { fg: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
-  reproductive_health: { fg: '#db2777', bg: '#fdf2f8', border: '#fbcfe8' },
-  palliative_care: { fg: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
-  mental_health: { fg: '#0d9488', bg: '#f0fdfa', border: '#99f6e4' },
+  general:              { fg: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
+  mental_health:        { fg: '#0d9488', bg: '#f0fdfa', border: '#99f6e4' },
+  male_reproductive:    { fg: '#0369a1', bg: '#f0f9ff', border: '#bae6fd' },
+  female_reproductive:  { fg: '#db2777', bg: '#fdf2f8', border: '#fbcfe8' },
+  maternal_health:      { fg: '#c026d3', bg: '#fdf4ff', border: '#f5d0fe' },
+  menstrual_cycle:      { fg: '#e11d48', bg: '#fff1f2', border: '#fecdd3' },
+  dental:               { fg: '#0891b2', bg: '#ecfeff', border: '#a5f3fc' },
+  cardiology:           { fg: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
+  dermatology:          { fg: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+  nutrition:            { fg: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
+  palliative_care:      { fg: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
 };
 const TYPE_ICON = { chat: MessageCircle, voice: Phone, video: Video };
 
