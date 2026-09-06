@@ -5,6 +5,7 @@ import { ThemeProvider, useTheme } from './ThemeContext';
 import UserProfile from './UserProfile';
 import CommunityReport from './CommunityReport';
 import Onboarding from './Onboarding';
+import Auth from './Auth';
 import OfflineEmergency from './OfflineEmergency';
 
 const Home     = lazy(() => import('./Home'));
@@ -62,6 +63,10 @@ function AppShell() {
   const [district, setDistrict] = useState(()=>localStorage.getItem('afya_district')||'Dar es Salaam');
   const [showAdmin, setShowAdmin] = useState(()=>window.location.hash==='#admin');
   const [showOnboarding, setShowOnboarding] = useState(()=>!localStorage.getItem('afya_onboarded'));
+  const [user, setUser] = useState(()=>{
+    const saved = localStorage.getItem('afya_user');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   const t = T[lang] || T.en;
@@ -94,6 +99,10 @@ function AppShell() {
       <AdminDashboard lang={lang} onClose={()=>{ window.location.hash=''; setShowAdmin(false); }} />
     </Suspense>
   );
+
+  if (!user) {
+    return <Auth lang={lang} onAuthenticated={(u) => setUser(u)} />;
+  }
 
   if (showOnboarding) {
     return <Onboarding lang={lang} onFinish={()=>setShowOnboarding(false)} />;
