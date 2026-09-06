@@ -82,6 +82,49 @@ class OutbreakAlert(Base):
     detected_at = Column(DateTime, default=datetime.utcnow)
     reviewed_at = Column(DateTime, nullable=True)
 
+class User(Base):
+    """A registered AfyaHewa account. Signup order (agreed): language,
+    then phone or email, then verification, then name, date of birth,
+    and gender. Date of birth is exact (not an age bracket) - used both
+    to gate under-18s away from independent accounts (redirected to a
+    guardian-managed Family Health profile instead) and for age-specific
+    health guidance (screening ages, risk assessments)."""
+    __tablename__ = "users"
+    id             = Column(Integer, primary_key=True, index=True)
+    phone          = Column(String(20), unique=True, index=True, nullable=True)
+    email          = Column(String(200), unique=True, index=True, nullable=True)
+    password_hash  = Column(String(200), nullable=True)  # only set for email accounts
+    name           = Column(String(200), nullable=True)
+    date_of_birth  = Column(String(10), nullable=True)    # "YYYY-MM-DD"
+    gender         = Column(String(20), nullable=True)     # male | female | other
+    language       = Column(String(5), default="en")
+    phone_verified = Column(Boolean, default=False)
+    email_verified = Column(Boolean, default=False)
+    active         = Column(Boolean, default=True)
+    created_at     = Column(DateTime, default=datetime.utcnow)
+
+class OTPCode(Base):
+    """One-time codes sent via Beem SMS for phone signup/login."""
+    __tablename__ = "otp_codes"
+    id          = Column(Integer, primary_key=True, index=True)
+    phone       = Column(String(20), index=True)
+    code        = Column(String(10))
+    purpose     = Column(String(20), default="login")  # signup | login
+    expires_at  = Column(DateTime)
+    used        = Column(Boolean, default=False)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+
+class EmailVerificationToken(Base):
+    """Tokens emailed via Resend to verify an email-based account."""
+    __tablename__ = "email_verification_tokens"
+    id          = Column(Integer, primary_key=True, index=True)
+    email       = Column(String(200), index=True)
+    token       = Column(String(64), unique=True, index=True)
+    purpose     = Column(String(20), default="verify")  # verify | reset_password
+    expires_at  = Column(DateTime)
+    used        = Column(Boolean, default=False)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+
 class SystemSetting(Base):
     """Simple key-value store for admin-configurable system settings,
     e.g. whether outbreak alerts auto-publish or require approval."""
