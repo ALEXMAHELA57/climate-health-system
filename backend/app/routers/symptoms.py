@@ -55,6 +55,7 @@ class Message(BaseModel):
 class ChatRequest(BaseModel):
     messages: list[Message]
     region: Optional[str] = ""
+    topic: Optional[str] = ""  # e.g. "Mental Health", "Men's Reproductive Health" - scopes Afya's focus
 
 class SymptomLog(BaseModel):
     symptoms: str
@@ -139,10 +140,17 @@ async def dismiss_severe_flag(report_id: int, db: Session = Depends(get_db)):
 @router.post("/chat")
 async def chat(request: ChatRequest, db: Session = Depends(get_db)):
     client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    system_prompt = SYSTEM_PROMPT
+    if request.topic:
+        system_prompt += (
+            f"\n\nThe user has opened the '{request.topic}' section of the app, so focus your "
+            f"guidance on that topic unless they clearly ask about something else. Stay within "
+            f"the same health-only, non-diagnostic boundaries described above."
+        )
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=500,   # reduced for faster response
-        system=SYSTEM_PROMPT,
+        system=system_prompt,
         messages=[{"role": m.role, "content": m.content} for m in request.messages]
     )
     reply = response.content[0].text

@@ -100,7 +100,7 @@ function renderMessage(text, setPage, lang) {
 
 // Single chat function — tries Vercel proxy first (fastest, no cold start)
 // then falls back to Render backend
-async function callAnthropicDirect(messages, timeoutMs = 20000) {
+async function callAnthropicDirect(messages, timeoutMs = 20000, systemPrompt = SYSTEM_PROMPT) {
   // Call Anthropic API directly from the browser
   // REACT_APP_ prefix makes it available at build time in React
   const key = process.env.REACT_APP_ANTHROPIC_API_KEY || '';
@@ -120,7 +120,7 @@ async function callAnthropicDirect(messages, timeoutMs = 20000) {
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 500,
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
         messages: messages.map(m => ({ role: m.role, content: m.content })),
       }),
     });
@@ -137,7 +137,7 @@ async function callAnthropicDirect(messages, timeoutMs = 20000) {
   }
 }
 
-async function callVercelProxy(messages, timeoutMs = 15000) {
+async function callVercelProxy(messages, timeoutMs = 15000, systemPrompt = SYSTEM_PROMPT) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -145,7 +145,7 @@ async function callVercelProxy(messages, timeoutMs = 15000) {
       method: 'POST',
       signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages, system: SYSTEM_PROMPT }),
+      body: JSON.stringify({ messages, system: systemPrompt }),
       cache: 'no-store',
     });
     clearTimeout(t);
@@ -160,7 +160,7 @@ async function callVercelProxy(messages, timeoutMs = 15000) {
   }
 }
 
-async function callRenderBackend(messages, district, timeoutMs = 45000) {
+async function callRenderBackend(messages, district, timeoutMs = 45000, topic = '') {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -168,7 +168,7 @@ async function callRenderBackend(messages, district, timeoutMs = 45000) {
       method: 'POST',
       signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages, region: district }),
+      body: JSON.stringify({ messages, region: district, topic }),
       cache: 'no-store',
     });
     clearTimeout(t);
@@ -183,32 +183,36 @@ async function callRenderBackend(messages, district, timeoutMs = 45000) {
   }
 }
 
-async function askAfya(messages, district, onStatus) {
+async function askAfya(messages, district, onStatus, topic = '') {
   console.log('[Afya] askAfya called with messages:', messages);
   onStatus && onStatus('thinking');
+
+  const scopedPrompt = topic
+    ? `${SYSTEM_PROMPT}\n\nThe user has opened the '${topic}' section of the app, so focus your guidance on that topic unless they clearly ask about something else. Stay within the same health-only, non-diagnostic boundaries described above.`
+    : SYSTEM_PROMPT;
 
   // Warm up Render in background
   fetch(`${API}/`).catch(() => {});
 
   // Route 1: Direct Anthropic API (fastest, works on desktop/modern mobile)
-  const direct = await callAnthropicDirect(messages, 15000);
+  const direct = await callAnthropicDirect(messages, 15000, scopedPrompt);
   if (direct) { console.log('[Afya] direct succeeded'); return direct; }
 
   // Route 2: Vercel serverless proxy (no CORS issues, same domain)
   onStatus && onStatus('retry-2');
-  const proxy = await callVercelProxy(messages, 15000);
+  const proxy = await callVercelProxy(messages, 15000, scopedPrompt);
   if (proxy) { console.log('[Afya] proxy succeeded'); return proxy; }
 
   // Route 3: Render backend (final fallback)
   onStatus && onStatus('backend');
-  const backend = await callRenderBackend(messages, district, 45000);
+  const backend = await callRenderBackend(messages, district, 45000, topic);
   if (backend) console.log('[Afya] backend succeeded');
   else console.log('[Afya] all 3 routes failed');
   return backend;
 }
 
-export default function Symptoms({ t, lang, district, setPage }) {
-  const [messages, setMessages]         = useState([{ role:'assistant', content:t.afyaGreet }]);
+export default function Symptoms({ t, lang, district, setPage, topic }) {
+  const [messages, setMessages]         = useState([{ role:'assistant', content: topic ? `${t.afyaGreet} ${lang==='sw' ? `Nipo hapa kuzungumza kuhusu ${topic}.` : `I'm here to talk about ${topic}.`}` : t.afyaGreet }]);
   const [input, setInput]               = useState('');
   const [loading, setLoading]           = useState(false);
   const [emergency, setEmergency]       = useState(false);
@@ -274,7 +278,7 @@ export default function Symptoms({ t, lang, district, setPage }) {
       if (status === 'thinking')        setWaitMsg(sw ? 'Afya anaangalia dalili zako...' : 'Afya is reviewing your symptoms...');
       else if (status.startsWith('retry')) setWaitMsg(sw ? 'Inajaribu tena...' : 'Retrying...');
       else if (status === 'backend')    setWaitMsg(sw ? 'Afya anafikiria...' : 'Afya is thinking...');
-    });
+    }, topic);
 
     setWaitMsg('');
     setLoading(false);

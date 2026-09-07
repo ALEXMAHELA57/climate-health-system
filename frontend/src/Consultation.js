@@ -31,7 +31,7 @@ const SPECIALTY_COLOR = {
 };
 const TYPE_ICON = { chat: MessageCircle, voice: Phone, video: Video };
 
-export default function Consultation({ lang }) {
+export default function Consultation({ lang, initialSpecialty }) {
   const { theme } = useTheme();
   const sw = lang === 'sw';
   const [view, setView] = useState('browse'); // browse | book | my
@@ -50,6 +50,7 @@ export default function Consultation({ lang }) {
   const [myAppointments, setMyAppointments] = useState(null);
 
   useEffect(() => { fetch(`${API}/api/consultation/specialties`).then(r => r.json()).then(d => setSpecialties(d.specialties || [])).catch(() => {}); }, []);
+  useEffect(() => { if (initialSpecialty) loadDoctors(initialSpecialty); }, [initialSpecialty]);
 
   async function loadDoctors(specId) {
     setActiveSpecialty(specId);

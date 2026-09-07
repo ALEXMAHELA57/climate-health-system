@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { Home as HomeIcon, CloudSun, Stethoscope, Building2, Megaphone, User, Globe, MapPin, Wifi, WifiOff, Sun, Moon } from 'lucide-react';
+import { Home as HomeIcon, Cloud, Stethoscope, HeartPulse, User, Globe, MapPin, Wifi, WifiOff, Sun, Moon } from 'lucide-react';
 import { API, T } from './constants';
 import { ThemeProvider, useTheme } from './ThemeContext';
 import UserProfile from './UserProfile';
@@ -13,6 +13,9 @@ const Weather  = lazy(() => import('./Weather'));
 const Symptoms = lazy(() => import('./Symptoms'));
 const Clinics  = lazy(() => import('./Clinics'));
 const RiskMap  = lazy(() => import('./RiskMap'));
+const Climate  = lazy(() => import('./Climate'));
+const Health   = lazy(() => import('./Health'));
+const Care     = lazy(() => import('./Care'));
 const Consultation = lazy(() => import('./Consultation'));
 const MedicineSchedule = lazy(() => import('./MedicineSchedule'));
 const AdminDashboard = lazy(() => import('./AdminDashboard'));
@@ -68,6 +71,8 @@ function AppShell() {
     return saved ? JSON.parse(saved) : null;
   });
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [careFilter, setCareFilter] = useState(null);
+  const [afyaTopic, setAfyaTopic] = useState('');
 
   const t = T[lang] || T.en;
 
@@ -108,16 +113,15 @@ function AppShell() {
     return <Onboarding lang={lang} onFinish={()=>setShowOnboarding(false)} />;
   }
 
-  const onlineRequiredPages = ['weather', 'symptoms', 'map', 'clinics', 'report', 'profile', 'consultation', 'medicine'];
+  const onlineRequiredPages = ['climate', 'weather', 'symptoms', 'map', 'clinics', 'report', 'profile', 'consultation', 'medicine', 'health', 'care'];
   const showOfflineFallback = !isOnline && onlineRequiredPages.includes(page);
 
   const tabs = [
-    { id:'home',     Icon: HomeIcon,    label:t.home     },
-    { id:'weather',  Icon: CloudSun,    label:t.weather  },
-    { id:'symptoms', Icon: Stethoscope, label:t.symptoms },
-    { id:'clinics',  Icon: Building2,   label:t.clinics  },
-    { id:'report',   Icon: Megaphone,   label:lang==='sw'?'Ripoti':'Report' },
-    { id:'profile',  Icon: User,        label:t.profile  },
+    { id:'home',    Icon: HomeIcon,   label:t.home },
+    { id:'climate', Icon: Cloud,      label:lang==='sw'?'Hali ya Hewa':'Climate' },
+    { id:'health',  Icon: Stethoscope,label:lang==='sw'?'Afya':'Health' },
+    { id:'care',    Icon: HeartPulse, label:lang==='sw'?'Huduma':'Care' },
+    { id:'profile', Icon: User,       label:t.profile },
   ];
 
   return (
@@ -172,8 +176,11 @@ function AppShell() {
         ) : (
           <Suspense fallback={<Loader />}>
             {page==='home'      && <Home     t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} setPage={setPage} />}
+            {page==='climate'   && <Climate  t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} />}
+            {page==='health'    && <Health   lang={lang} user={user} setPage={setPage} setCareFilter={setCareFilter} setAfyaTopic={setAfyaTopic} />}
+            {page==='care'      && <Care     t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} careFilter={careFilter} clearCareFilter={()=>setCareFilter(null)} />}
+            {page==='symptoms'  && <Symptoms t={t} lang={lang} district={district} setPage={setPage} topic={afyaTopic} />}
             {page==='weather'   && <Weather  t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} />}
-            {page==='symptoms'  && <Symptoms t={t} lang={lang} district={district} setPage={setPage} />}
             {page==='clinics'   && <Clinics  t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} />}
             {page==='map'       && <RiskMap  t={t} lang={lang} />}
             {page==='consultation' && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Ushauri wa Daktari':'Doctor Consultation'}><Consultation lang={lang} /></SubPage>}
