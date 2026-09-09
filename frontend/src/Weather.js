@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DISTRICTS, DISTRICT_COORDS, getRisk, riskColor, riskBg, findNearestDistrict } from './constants';
+import { DISTRICTS, DISTRICT_COORDS, getRisk, riskColor, riskBg, findNearestDistrict, API } from './constants';
 
 export default function Weather({ t, lang, district, onDistrictChange }) {
   const [selectedDistrict, setSelectedDistrict] = useState(district);
@@ -7,6 +7,9 @@ export default function Weather({ t, lang, district, onDistrictChange }) {
   const [loading, setLoading] = useState(false);
   const [forecastDays, setForecastDays] = useState(7);
   const [selectedDay, setSelectedDay]   = useState(null);
+  const [airQuality, setAirQuality] = useState(null);
+  const [earlyWarnings, setEarlyWarnings] = useState([]);
+  const [seasonalAlerts, setSeasonalAlerts] = useState([]);
   const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const sw = lang === 'sw';
 
@@ -25,15 +28,31 @@ export default function Weather({ t, lang, district, onDistrictChange }) {
     setLoading(false);
   }
 
-  useEffect(() => { fetchWeather(selectedDistrict); }, [forecastDays]);
+  async function fetchClimateExtras(d) {
+    try {
+      const [aqRes, ewRes, seRes] = await Promise.all([
+        fetch(`${API}/api/weather/${encodeURIComponent(d)}/air-quality`),
+        fetch(`${API}/api/weather/${encodeURIComponent(d)}/early-warning`),
+        fetch(`${API}/api/weather/seasonal-alerts/active`),
+      ]);
+      const aq = await aqRes.json();
+      const ew = await ewRes.json();
+      const se = await seRes.json();
+      setAirQuality(aq);
+      setEarlyWarnings(ew.warnings || []);
+      setSeasonalAlerts(se.alerts || []);
+    } catch { /* non-critical - silently skip if unavailable */ }
+  }
 
-  function handleSearch() { onDistrictChange(selectedDistrict); fetchWeather(selectedDistrict); }
+  useEffect(() => { fetchWeather(selectedDistrict); fetchClimateExtras(selectedDistrict); }, [forecastDays]);
+
+  function handleSearch() { onDistrictChange(selectedDistrict); fetchWeather(selectedDistrict); fetchClimateExtras(selectedDistrict); }
 
   function locateGps() {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(async pos => {
       const d = findNearestDistrict(pos.coords.latitude, pos.coords.longitude);
-      setSelectedDistrict(d); onDistrictChange(d); fetchWeather(d);
+      setSelectedDistrict(d); onDistrictChange(d); fetchWeather(d); fetchClimateExtras(d);
     }, ()=>{}, { enableHighAccuracy:true });
   }
 
@@ -111,6 +130,30 @@ export default function Weather({ t, lang, district, onDistrictChange }) {
             <div style={{ fontSize:13, fontWeight:600, color:riskColor(risk) }}>{t.riskThisWeek}</div>
             <div style={{ background:riskColor(risk), color:'#fff', padding:'2px 12px', borderRadius:99, fontSize:12, fontWeight:600 }}>{risk.toUpperCase()}</div>
           </div>
+
+          {/* Air Quality */}
+          {airQuality?.aqi != null && (
+            <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:10, padding:'9px 12px', marginBottom:10, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <div style={{ fontSize:13, fontWeight:600, color:'#374151' }}>{sw?'Ubora wa Hewa':'Air Quality'}</div>
+              <div style={{ fontSize:12, color:'#6b7280' }}>AQI {airQuality.aqi} · {sw ? airQuality.label_sw : airQuality.label.replace('_',' ')}</div>
+            </div>
+          )}
+
+          {/* Seasonal Alerts (Tier 2 - admin curated, e.g. El Nino outlook) */}
+          {seasonalAlerts.map(a => (
+            <div key={a.id} style={{ background:'#fdf4ff', border:'1px solid #f0abfc', borderRadius:10, padding:'9px 12px', marginBottom:8 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:'#a21caf', marginBottom:2 }}>{sw ? a.title_sw : a.title_en}</div>
+              <div style={{ fontSize:12, color:'#86198f' }}>{sw ? a.message_sw : a.message_en}</div>
+            </div>
+          ))}
+
+          {/* Early Warning (Tier 1 - forecast-based, days ahead) */}
+          {earlyWarnings.map((w, i) => (
+            <div key={i} style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:10, padding:'9px 12px', marginBottom:8 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:'#92400e', marginBottom:2 }}>{sw?'Tahadhari ya Mapema':'Early Warning'}</div>
+              <div style={{ fontSize:12, color:'#92400e' }}>{sw ? w.message_sw : w.message_en}</div>
+            </div>
+          ))}
 
           {/* Metrics */}
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:12 }}>

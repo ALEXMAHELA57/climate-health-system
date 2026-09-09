@@ -198,6 +198,20 @@ class HealthMeasurement(Base):
     note               = Column(String(300), default="")
     recorded_at        = Column(DateTime, default=datetime.utcnow)
 
+class SeasonalAlert(Base):
+    """Admin-curated seasonal climate alerts (e.g. an El Nino outlook from
+    Tanzania Meteorological Authority) - distinct from the automatic
+    forecast-based early warnings, since seasonal patterns need real
+    interpretation rather than a simple threshold check."""
+    __tablename__ = "seasonal_alerts"
+    id           = Column(Integer, primary_key=True, index=True)
+    title_en     = Column(String(200))
+    title_sw     = Column(String(200))
+    message_en   = Column(Text)
+    message_sw   = Column(Text)
+    active       = Column(Boolean, default=True)
+    created_at   = Column(DateTime, default=datetime.utcnow)
+
 class EmergencyContact(Base):
     """A personal contact who gets an automatic SMS with the user's
     location when they trigger an emergency alert. Distinct from the
