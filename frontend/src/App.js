@@ -131,7 +131,7 @@ function AppShell() {
   );
 
   if (!user) {
-    return <Auth lang={lang} onAuthenticated={(u) => setUser(u)} />;
+    return <Auth lang={lang} onLangChange={handleLangChange} onAuthenticated={(u) => setUser(u)} />;
   }
 
   if (showOnboarding) {

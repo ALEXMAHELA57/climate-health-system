@@ -9,11 +9,11 @@ const GENDERS = [
   { id: 'other', en: 'Other', sw: 'Nyingine' },
 ];
 
-export default function Auth({ lang, onAuthenticated }) {
+export default function Auth({ lang, onLangChange, onAuthenticated }) {
   const { theme } = useTheme();
   const sw = lang === 'sw';
 
-  const [step, setStep] = useState('method'); // method | phone-entry | phone-verify | email-entry | email-login | profile | minor-blocked
+  const [step, setStep] = useState('language'); // language | method | phone-entry | phone-verify | email-entry | email-login | profile | minor-blocked
   const [method, setMethod] = useState('phone');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -113,10 +113,24 @@ export default function Auth({ lang, onAuthenticated }) {
         <div style={{ fontSize: 13, color: theme.textMuted, marginTop: 4 }}>{t('Climate & health guidance for Tanzania', 'Mwongozo wa afya na hali ya hewa Tanzania')}</div>
       </div>
 
-      {step !== 'method' && (
+      {step !== 'language' && (
         <button onClick={() => { setStep('method'); setError(''); }} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 4 }}>
           <ArrowLeft size={14} /> {t('Back', 'Rudi')}
         </button>
+      )}
+
+      {step === 'language' && (
+        <>
+          <p style={{ textAlign: 'center', fontSize: 13, color: theme.textMuted, marginBottom: 16 }}>
+            {lang === 'sw' ? 'Chagua lugha unayopendelea' : 'Choose your preferred language'}
+          </p>
+          <button onClick={() => { onLangChange('en'); setStep('method'); }} style={{ ...btnStyle, marginBottom: 10 }}>
+            English
+          </button>
+          <button onClick={() => { onLangChange('sw'); setStep('method'); }} style={{ ...btnStyle, background: theme.card, color: theme.text, border: `1px solid ${theme.border}` }}>
+            Kiswahili
+          </button>
+        </>
       )}
 
       {step === 'method' && (
