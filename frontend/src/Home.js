@@ -1,27 +1,38 @@
 import React, { useState, useEffect } from 'react';
 import {
   MapPin, Navigation, AlertTriangle, CheckCircle2, Bell,
-  CloudSun, Stethoscope, Building2, Map as MapIcon,
-  Ambulance, ChevronRight, Siren, UserRound, Pill,
+  Stethoscope, Users, Pill, HeartPulse,
+  Ambulance, ChevronRight, Siren, MessageCircle, Wind,
   CloudLightning, CloudRain, CloudDrizzle, Sun as SunIcon,
-  Bug, Droplets, Thermometer, Sun,
+  Bug, Droplets, Thermometer, Sun, Calendar, Clock,
 } from 'lucide-react';
 import { DISTRICTS, DISTRICT_COORDS, getRisk, findNearestDistrict, reverseGeocode, API } from './constants';
 import { useTheme } from './ThemeContext';
 
+function authHeaders() {
+  const token = localStorage.getItem('afya_token');
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
 export default function Home({ t, lang, district, onDistrictChange, setPage }) {
   const { theme } = useTheme();
   const [weather, setWeather]   = useState(null);
+  const [airQuality, setAirQuality] = useState(null);
+  const [earlyWarnings, setEarlyWarnings] = useState([]);
   const [loading, setLoading]   = useState(false);
   const [gpsStatus, setGpsStatus] = useState('idle');
+  const [nextMed, setNextMed] = useState(null);
+  const [nextAppt, setNextAppt] = useState(null);
   const sw = lang === 'sw';
+  const user = JSON.parse(localStorage.getItem('afya_user') || 'null');
 
   useEffect(() => {
-    if (district) fetchHomeWeather(district);
+    if (district) { fetchHomeWeather(district); fetchClimateExtras(district); }
     detectLocation();
+    fetchSnapshot();
   }, []);
 
-  useEffect(() => { if (district) fetchHomeWeather(district); }, [district]);
+  useEffect(() => { if (district) { fetchHomeWeather(district); fetchClimateExtras(district); } }, [district]);
 
   async function fetchHomeWeather(d) {
     const c = DISTRICT_COORDS[d];
@@ -56,10 +67,50 @@ export default function Home({ t, lang, district, onDistrictChange, setPage }) {
     setLoading(false);
   }
 
+  async function fetchClimateExtras(d) {
+    try {
+      const [aqRes, ewRes] = await Promise.all([
+        fetch(`${API}/api/weather/${encodeURIComponent(d)}/air-quality`),
+        fetch(`${API}/api/weather/${encodeURIComponent(d)}/early-warning`),
+      ]);
+      setAirQuality(await aqRes.json());
+      const ew = await ewRes.json();
+      setEarlyWarnings(ew.warnings || []);
+    } catch { /* non-critical */ }
+  }
+
+  async function fetchSnapshot() {
+    if (!user) return;
+    try {
+      const medRes = await fetch(`${API}/api/medicine/mine/all`, { headers: authHeaders() });
+      const medData = await medRes.json();
+      const now = new Date();
+      const nowHM = now.toTimeString().slice(0, 5);
+      let soonest = null;
+      (medData.reminders || []).forEach(r => {
+        r.times.forEach(time => {
+          if (time >= nowHM && (!soonest || time < soonest.time)) soonest = { ...r, time };
+        });
+      });
+      setNextMed(soonest);
+    } catch { /* silent */ }
+
+    if (user.phone) {
+      try {
+        const apptRes = await fetch(`${API}/api/consultation/appointments/${user.phone}`);
+        const apptData = await apptRes.json();
+        const today = new Date().toISOString().slice(0, 10);
+        const upcoming = (apptData.appointments || [])
+          .filter(a => a.status !== 'cancelled' && a.status !== 'completed' && a.requested_date >= today)
+          .sort((a, b) => (a.requested_date + a.requested_time).localeCompare(b.requested_date + b.requested_time))[0];
+        setNextAppt(upcoming || null);
+      } catch { /* silent */ }
+    }
+  }
+
   function detectLocation() {
     if (!navigator.geolocation) return;
     setGpsStatus('detecting');
-
     let resolved = false;
 
     async function applyPosition(pos) {
@@ -85,20 +136,10 @@ export default function Home({ t, lang, district, onDistrictChange, setPage }) {
       pos => {
         const { accuracy } = pos.coords;
         if (accuracy && accuracy <= 1000) {
-          if (!resolved) {
-            resolved = true;
-            navigator.geolocation.clearWatch(watcher);
-            applyPosition(pos);
-          }
+          if (!resolved) { resolved = true; navigator.geolocation.clearWatch(watcher); applyPosition(pos); }
         }
       },
-      () => {
-        if (!resolved) {
-          resolved = true;
-          navigator.geolocation.clearWatch(watcher);
-          setGpsStatus('denied');
-        }
-      },
+      () => { if (!resolved) { resolved = true; navigator.geolocation.clearWatch(watcher); setGpsStatus('denied'); } },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
 
@@ -106,11 +147,7 @@ export default function Home({ t, lang, district, onDistrictChange, setPage }) {
       if (!resolved) {
         resolved = true;
         navigator.geolocation.clearWatch(watcher);
-        navigator.geolocation.getCurrentPosition(
-          applyPosition,
-          () => setGpsStatus('denied'),
-          { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-        );
+        navigator.geolocation.getCurrentPosition(applyPosition, () => setGpsStatus('denied'), { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 });
       }
     }, 12000);
   }
@@ -168,7 +205,7 @@ export default function Home({ t, lang, district, onDistrictChange, setPage }) {
         </div>
       )}
 
-      {/* Compact weather card */}
+      {/* Weather card */}
       <div style={{ background:'linear-gradient(135deg,#1d4ed8,#0ea5e9)', borderRadius:14, padding:'12px 14px', color:'#fff', marginBottom:10 }}>
         {loading && !curr ? (
           <div style={{ display:'flex', alignItems:'center', gap:8, opacity:0.9 }}>
@@ -176,24 +213,31 @@ export default function Home({ t, lang, district, onDistrictChange, setPage }) {
             <span style={{ fontSize:12 }}>{sw?'Inapakia...':'Loading weather...'}</span>
           </div>
         ) : curr ? (
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-            <div>
-              <div style={{ fontSize:11, opacity:0.8, marginBottom:1, display:'flex', alignItems:'center', gap:3 }}><MapPin size={11} /> {district}</div>
-              <div style={{ fontSize:36, fontWeight:700, lineHeight:1 }}>{Math.round(curr.temperature_2m)}°C</div>
-              <div style={{ fontSize:11, opacity:0.85, marginTop:3 }}>
-                {sw?'Hisi':'Feels'} {Math.round(curr.apparent_temperature)}°C · {curr.relative_humidity_2m}% · {Math.round(curr.wind_speed_10m)}km/h
+          <>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <div>
+                <div style={{ fontSize:11, opacity:0.8, marginBottom:1, display:'flex', alignItems:'center', gap:3 }}><MapPin size={11} /> {district}</div>
+                <div style={{ fontSize:36, fontWeight:700, lineHeight:1 }}>{Math.round(curr.temperature_2m)}°C</div>
+                <div style={{ fontSize:11, opacity:0.85, marginTop:3 }}>
+                  {sw?'Hisi':'Feels'} {Math.round(curr.apparent_temperature)}°C · {curr.relative_humidity_2m}% · {Math.round(curr.wind_speed_10m)}km/h
+                </div>
+              </div>
+              <div style={{ textAlign:'right' }}>
+                <div style={{ marginBottom:2, display:'flex', justifyContent:'flex-end' }}><TodayIcon size={28} /></div>
+                <div style={{ fontSize:11, opacity:0.85 }}>
+                  {daily?.precipitation_sum?.[0]>0.5?`${daily.precipitation_sum[0].toFixed(0)}mm ${sw?'leo':'today'}`:sw?'Kavu leo':'Dry today'}
+                </div>
+                <div style={{ marginTop:4, background:'rgba(255,255,255,0.25)', padding:'2px 10px', borderRadius:99, fontSize:10, fontWeight:700 }}>
+                  {risk.toUpperCase()} {sw?'HATARI':'RISK'}
+                </div>
               </div>
             </div>
-            <div style={{ textAlign:'right' }}>
-              <div style={{ marginBottom:2, display:'flex', justifyContent:'flex-end' }}><TodayIcon size={28} /></div>
-              <div style={{ fontSize:11, opacity:0.85 }}>
-                {daily?.precipitation_sum?.[0]>0.5?`${daily.precipitation_sum[0].toFixed(0)}mm ${sw?'leo':'today'}`:sw?'Kavu leo':'Dry today'}
+            {airQuality?.aqi != null && (
+              <div style={{ marginTop:8, paddingTop:8, borderTop:'1px solid rgba(255,255,255,0.25)', display:'flex', alignItems:'center', gap:5, fontSize:11, opacity:0.9 }}>
+                <Wind size={12} /> {sw?'Ubora wa Hewa':'Air Quality'}: AQI {airQuality.aqi} · {sw ? airQuality.label_sw : airQuality.label.replace('_',' ')}
               </div>
-              <div style={{ marginTop:4, background:'rgba(255,255,255,0.25)', padding:'2px 10px', borderRadius:99, fontSize:10, fontWeight:700 }}>
-                {risk.toUpperCase()} {sw?'HATARI':'RISK'}
-              </div>
-            </div>
-          </div>
+            )}
+          </>
         ) : (
           <div style={{ fontSize:12, opacity:0.85, cursor:'pointer', display:'flex', alignItems:'center', gap:5 }} onClick={()=>fetchHomeWeather(district)}>
             <AlertTriangle size={13} /> {sw?'Imeshindwa kupakia — gusa kurudia':'Failed to load — tap to retry'}
@@ -201,10 +245,10 @@ export default function Home({ t, lang, district, onDistrictChange, setPage }) {
         )}
       </div>
 
-      {/* Health alerts */}
+      {/* Health + Early Warning alerts */}
       {curr && (
         <div style={{ marginBottom:10 }}>
-          {alerts.length === 0 ? (
+          {alerts.length === 0 && earlyWarnings.length === 0 ? (
             <div style={{ display:'flex', alignItems:'center', gap:6, background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:8, padding:'7px 12px', fontSize:12, color:'#166534' }}>
               <CheckCircle2 size={14} /> {sw?'Hali ya hewa salama leo':'No health alerts today'}
             </div>
@@ -220,8 +264,34 @@ export default function Home({ t, lang, district, onDistrictChange, setPage }) {
                     <span style={{ fontSize:11, color:a.color, fontWeight:600, whiteSpace:'nowrap' }}>{a.text}</span>
                   </div>
                 ))}
+                {earlyWarnings.slice(0,2).map((w,i)=>(
+                  <div key={`ew-${i}`} style={{ flex:'0 0 auto', background:'#fffbeb', borderRadius:8, padding:'7px 10px', display:'flex', alignItems:'center', gap:5 }}>
+                    <AlertTriangle size={15} color="#92400e" />
+                    <span style={{ fontSize:11, color:'#92400e', fontWeight:600, whiteSpace:'nowrap' }}>{sw?`Siku ${w.days_ahead}: `:`In ${w.days_ahead}d: `}{(sw?w.message_sw:w.message_en).slice(0,40)}...</span>
+                  </div>
+                ))}
               </div>
             </>
+          )}
+        </div>
+      )}
+
+      {/* My Health snapshot */}
+      {user && (nextMed || nextAppt) && (
+        <div style={{ display:'grid', gridTemplateColumns: nextMed && nextAppt ? '1fr 1fr' : '1fr', gap:8, marginBottom:10 }}>
+          {nextMed && (
+            <button onClick={()=>setPage('medicine')} style={{ background:theme.card, border:`1px solid ${theme.border}`, borderRadius:10, padding:10, textAlign:'left', cursor:'pointer' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:5, marginBottom:3 }}><Pill size={13} color="#2563eb" /><span style={{ fontSize:10, fontWeight:600, color:theme.textMuted }}>{sw?'DAWA IJAYO':'NEXT DOSE'}</span></div>
+              <div style={{ fontSize:12, fontWeight:700, color:theme.text }}>{nextMed.medicine_name}</div>
+              <div style={{ fontSize:11, color:theme.textMuted, display:'flex', alignItems:'center', gap:3 }}><Clock size={10} /> {nextMed.time}</div>
+            </button>
+          )}
+          {nextAppt && (
+            <button onClick={()=>setPage('care')} style={{ background:theme.card, border:`1px solid ${theme.border}`, borderRadius:10, padding:10, textAlign:'left', cursor:'pointer' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:5, marginBottom:3 }}><Calendar size={13} color="#7c3aed" /><span style={{ fontSize:10, fontWeight:600, color:theme.textMuted }}>{sw?'MIADI IJAYO':'NEXT APPOINTMENT'}</span></div>
+              <div style={{ fontSize:12, fontWeight:700, color:theme.text }}>{nextAppt.doctor_name}</div>
+              <div style={{ fontSize:11, color:theme.textMuted }}>{nextAppt.requested_date} · {nextAppt.requested_time}</div>
+            </button>
           )}
         </div>
       )}
@@ -229,12 +299,10 @@ export default function Home({ t, lang, district, onDistrictChange, setPage }) {
       {/* Quick actions */}
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
         {[
-          { Icon: CloudSun, title:t.weather, sub:sw?'Utabiri wa siku 7 & 15':'7 & 15 day forecast', page:'weather', color:'#eff6ff', border:'#bfdbfe' },
-          { Icon: Stethoscope, title:t.symptoms, sub:sw?'Zungumza na Afya':'Chat with Afya', page:'symptoms', color:'#fffbeb', border:'#fde68a' },
-          { Icon: Building2, title:t.clinics, sub:sw?'Vituo vya karibu':'Nearby facilities', page:'clinics', color:'#f0fdf4', border:'#bbf7d0' },
-          { Icon: MapIcon, title:lang==='sw'?'Ramani ya Hatari':'Risk Map', sub:sw?'Hatari za mkoa wako':'Climate risk levels', page:'map', color:'#f5f3ff', border:'#ddd6fe' },
-          { Icon: UserRound, title:sw?'Ushauri wa Daktari':'Doctor Consultation', sub:sw?'Ongea na daktari':'Talk to a doctor', page:'consultation', color:'#fdf2f8', border:'#fbcfe8' },
+          { Icon: Stethoscope, title:sw?'Afya':'Health', sub:sw?'Wataalamu, ushauri, vipimo':'Experts, guidance, tests', page:'health', color:'#eff6ff', border:'#bfdbfe' },
+          { Icon: MessageCircle, title:sw?'Uliza Afya AI':'Ask Afya AI', sub:sw?'Zungumza sasa':'Chat now', page:'symptoms', color:'#fffbeb', border:'#fde68a' },
           { Icon: Pill, title:sw?'Ratiba ya Dawa':'Medicine Schedule', sub:sw?'Weka ukumbusho':'Set reminders', page:'medicine', color:'#fff7ed', border:'#fed7aa' },
+          { Icon: Users, title:sw?'Afya ya Familia':'Family Health', sub:sw?'Simamia wanafamilia':'Manage family members', page:'family', color:'#f0fdf4', border:'#bbf7d0' },
         ].map((item,i)=>(
           <button key={i} onClick={()=>setPage(item.page)}
             style={{ background:item.color, border:`1px solid ${item.border}`, borderRadius:12, padding:'12px 10px', textAlign:'left', cursor:'pointer' }}>
@@ -244,6 +312,19 @@ export default function Home({ t, lang, district, onDistrictChange, setPage }) {
           </button>
         ))}
       </div>
+
+      {/* My Health link */}
+      <button onClick={()=>setPage('myhealth')}
+        style={{ width:'100%', background:theme.card, border:`1px solid ${theme.border}`, borderRadius:12, padding:'10px 12px', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', marginBottom:10 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <HeartPulse size={18} color="#2563eb" />
+          <div style={{ textAlign:'left' }}>
+            <div style={{ fontSize:13, fontWeight:600, color:theme.text }}>{sw?'Afya Yangu':'My Health'}</div>
+            <div style={{ fontSize:10, color:theme.textFaint }}>{sw?'Kumbukumbu, vipimo, ripoti':'Records, measurements, reports'}</div>
+          </div>
+        </div>
+        <ChevronRight size={16} color={theme.textFaint} />
+      </button>
 
       {/* Emergency info link */}
       <button onClick={()=>setPage('emergency')}
