@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Stethoscope, Brain, UserRound, Users, Baby, CalendarHeart,
-  Smile, HeartPulse, Sparkles, Apple, HandHeart, MessageCircle, UserSearch, ArrowLeft,
+  Smile, HeartPulse, Sparkles, Apple, HandHeart, MessageCircle, UserSearch, ArrowLeft, Building2,
 } from 'lucide-react';
 import { useTheme } from './ThemeContext';
 
@@ -19,7 +19,7 @@ const DOMAINS = [
   { id: 'palliative_care', specialty: 'palliative_care', Icon: HandHeart, en: 'Palliative Care', sw: 'Huduma ya Faraja', color: '#7c3aed', bg: '#f5f3ff' },
 ];
 
-export default function Health({ lang, user, setPage, setCareFilter, setAfyaTopic }) {
+export default function Health({ lang, user, setPage, setCareFilter, setAfyaTopic, setCareView }) {
   const { theme } = useTheme();
   const sw = lang === 'sw';
   const [selected, setSelected] = useState(null);
@@ -37,6 +37,13 @@ export default function Health({ lang, user, setPage, setCareFilter, setAfyaTopi
 
   function findExpert(d) {
     setCareFilter(d.specialty);
+    setCareView && setCareView('expert');
+    setPage('care');
+  }
+
+  function findFacility() {
+    setCareFilter(null);
+    setCareView && setCareView('facility');
     setPage('care');
   }
 
@@ -77,8 +84,17 @@ export default function Health({ lang, user, setPage, setCareFilter, setAfyaTopi
 
   return (
     <div style={{ padding: 16 }}>
+      <button onClick={findFacility}
+        style={{ width: '100%', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, padding: 14, textAlign: 'left', cursor: 'pointer', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <Building2 size={22} color="#2563eb" />
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: theme.text }}>{sw ? 'Tafuta Hospitali au Kliniki' : 'Find a Hospital or Clinic'}</div>
+          <div style={{ fontSize: 12, color: theme.textMuted }}>{sw ? 'Umbali, mawasiliano, saa za kazi' : 'Distance, contact, opening hours'}</div>
+        </div>
+      </button>
+
       <p style={{ fontSize: 13, color: theme.textMuted, marginBottom: 14 }}>
-        {sw ? 'Chagua sehemu ili kujifunza au kupata msaada' : 'Choose an area to learn more or get help'}
+        {sw ? 'Au chagua sehemu ili kujifunza au kupata msaada' : 'Or choose an area to learn more or get help'}
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {visibleDomains.map(d => (

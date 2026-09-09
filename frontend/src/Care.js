@@ -3,14 +3,14 @@ import { useTheme } from './ThemeContext';
 import Consultation from './Consultation';
 import Clinics from './Clinics';
 
-export default function Care({ t, lang, district, onDistrictChange, careFilter, clearCareFilter }) {
+export default function Care({ t, lang, district, onDistrictChange, careFilter, clearCareFilter, initialView }) {
   const { theme } = useTheme();
   const sw = lang === 'sw';
-  const [view, setView] = useState('expert'); // expert | facility
+  const [view, setView] = useState(initialView || 'expert'); // expert | facility
 
   useEffect(() => {
-    if (careFilter) setView('expert');
-  }, [careFilter]);
+    setView(initialView || 'expert');
+  }, [initialView, careFilter]);
 
   return (
     <div>

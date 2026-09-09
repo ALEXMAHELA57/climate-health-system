@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { Home as HomeIcon, Cloud, Stethoscope, HeartPulse, User, Globe, MapPin, Wifi, WifiOff, Sun, Moon } from 'lucide-react';
+import { Home as HomeIcon, Cloud, Stethoscope, User, Globe, MapPin, Wifi, WifiOff, Sun, Moon } from 'lucide-react';
 import { API, T } from './constants';
 import { ThemeProvider, useTheme } from './ThemeContext';
 import UserProfile from './UserProfile';
@@ -74,6 +74,7 @@ function AppShell() {
   });
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [careFilter, setCareFilter] = useState(null);
+  const [careView, setCareView] = useState('expert');
   const [afyaTopic, setAfyaTopic] = useState('');
 
   const t = T[lang] || T.en;
@@ -122,7 +123,6 @@ function AppShell() {
     { id:'home',    Icon: HomeIcon,   label:t.home },
     { id:'climate', Icon: Cloud,      label:lang==='sw'?'Hali ya Hewa':'Climate' },
     { id:'health',  Icon: Stethoscope,label:lang==='sw'?'Afya':'Health' },
-    { id:'care',    Icon: HeartPulse, label:lang==='sw'?'Huduma':'Care' },
     { id:'profile', Icon: User,       label:t.profile },
   ];
 
@@ -179,8 +179,8 @@ function AppShell() {
           <Suspense fallback={<Loader />}>
             {page==='home'      && <Home     t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} setPage={setPage} />}
             {page==='climate'   && <Climate  t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} />}
-            {page==='health'    && <Health   lang={lang} user={user} setPage={setPage} setCareFilter={setCareFilter} setAfyaTopic={setAfyaTopic} />}
-            {page==='care'      && <Care     t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} careFilter={careFilter} clearCareFilter={()=>setCareFilter(null)} />}
+            {page==='health'    && <Health   lang={lang} user={user} setPage={setPage} setCareFilter={setCareFilter} setAfyaTopic={setAfyaTopic} setCareView={setCareView} />}
+            {page==='care'      && <SubPage lang={lang} setPage={()=>setPage('health')} title={lang==='sw'?'Huduma':'Care'}><Care t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} careFilter={careFilter} clearCareFilter={()=>setCareFilter(null)} initialView={careView} /></SubPage>}
             {page==='symptoms'  && <Symptoms t={t} lang={lang} district={district} setPage={setPage} topic={afyaTopic} />}
             {page==='weather'   && <Weather  t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} />}
             {page==='clinics'   && <Clinics  t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} />}
