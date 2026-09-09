@@ -208,11 +208,18 @@ class MedicineReminder(Base):
     """A patient's medicine schedule. times is a comma-separated list of
     HH:MM slots (e.g. '08:00,14:00,20:00'). The scheduler checks this
     every minute and fires an SMS (and the mobile app fires a local
-    alarm-style notification) when a scheduled time is reached."""
+    alarm-style notification) when a scheduled time is reached.
+    family_profile_id is optional - set when an account holder creates
+    this reminder on behalf of a managed family member rather than for
+    themselves; patient_phone still determines who actually receives
+    the SMS (the family member's own phone if they have one, otherwise
+    falls back to whoever's phone was provided)."""
     __tablename__ = "medicine_reminders"
     id                  = Column(Integer, primary_key=True, index=True)
     reminder_id         = Column(String(20), unique=True, index=True)
     patient_phone       = Column(String(20), index=True)
+    family_profile_id   = Column(Integer, nullable=True, index=True)
+    on_behalf_of_name   = Column(String(200), nullable=True)  # display name if set on behalf of a family member
     medicine_name       = Column(String(200))
     dosage              = Column(String(100), default="")
     times               = Column(String(200))   # "08:00,14:00,20:00"

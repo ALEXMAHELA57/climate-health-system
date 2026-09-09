@@ -82,7 +82,7 @@ def remove_profile(profile_id: int, user: User = Depends(get_current_user), db: 
 # ── Linked accounts (adults who keep their own independent login) ────────────
 
 @router.post("/link-requests")
-def send_link_request(data: LinkRequestIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def send_link_request(data: LinkRequestIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if not data.target_phone and not data.target_email:
         return {"success": False, "error": "Provide the phone number or email of the person you're inviting"}
     req = FamilyLinkRequest(
@@ -92,8 +92,36 @@ def send_link_request(data: LinkRequestIn, user: User = Depends(get_current_user
     db.add(req)
     db.commit()
     db.refresh(req)
-    # Note: notifying the target person (SMS/email that they've been invited) is a
-    # natural next step once this is wired to the frontend - not sent yet here.
+
+    inviter_name = user.name or (user.phone or user.email or "Someone")
+    if data.target_phone:
+        try:
+            from sms import send_beem_sms, normalize_phone
+            message = (
+                f"{inviter_name} invited you on AfyaHewa as their {data.relationship_type}. "
+                f"Open AfyaHewa and log in with this phone number to accept or decline."
+            )[:160]
+            await send_beem_sms([{"recipient_id": "1", "dest_addr": normalize_phone(data.target_phone)}], message)
+        except Exception as e:
+            print(f"[family] SMS notification failed: {e}")
+    elif data.target_email:
+        try:
+            from app.routers.auth import RESEND_API_KEY
+            if RESEND_API_KEY:
+                import httpx
+                async with httpx.AsyncClient(timeout=15) as client:
+                    await client.post(
+                        "https://api.resend.com/emails",
+                        headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+                        json={
+                            "from": "AfyaHewa <noreply@afyahewa.com>", "to": [data.target_email],
+                            "subject": "You've been invited on AfyaHewa",
+                            "text": f"{inviter_name} invited you on AfyaHewa as their {data.relationship_type}. Log in with this email to accept or decline.",
+                        },
+                    )
+        except Exception as e:
+            print(f"[family] Email notification failed: {e}")
+
     return {"success": True, "request_id": req.id}
 
 @router.get("/link-requests/incoming")

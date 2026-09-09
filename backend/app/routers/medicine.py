@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 import random
 import string
-from database import get_db, MedicineReminder
+from database import get_db, MedicineReminder, FamilyProfile, User
+from app.routers.auth import get_current_user
 
 router = APIRouter()
 
@@ -21,13 +22,29 @@ class ReminderIn(BaseModel):
     end_date: Optional[str] = None
     sms_fallback: Optional[bool] = True
     language: Optional[str] = "en"
+    family_profile_id: Optional[int] = None  # set when creating this on behalf of a managed family member
 
 @router.post("")
 def create_reminder(data: ReminderIn, db: Session = Depends(get_db)):
     rid = gen_id("MED")
+    on_behalf_of_name = None
+    patient_phone = data.patient_phone
+
+    if data.family_profile_id:
+        profile = db.query(FamilyProfile).filter(FamilyProfile.id == data.family_profile_id, FamilyProfile.active == True).first()
+        if profile:
+            on_behalf_of_name = profile.name
+            # The family member's own phone gets the SMS if they have one on file;
+            # otherwise fall back to whatever phone was submitted (typically the
+            # managing account holder's own number).
+            if profile.phone:
+                patient_phone = profile.phone
+
     reminder = MedicineReminder(
         reminder_id=rid,
-        patient_phone=data.patient_phone,
+        patient_phone=patient_phone,
+        family_profile_id=data.family_profile_id,
+        on_behalf_of_name=on_behalf_of_name,
         medicine_name=data.medicine_name,
         dosage=data.dosage,
         times=",".join(data.times),
@@ -56,7 +73,32 @@ def list_reminders(phone: str, db: Session = Depends(get_db)):
         "end_date": r.end_date,
         "sms_fallback": r.sms_fallback,
         "language": r.language,
+        "on_behalf_of_name": r.on_behalf_of_name,
     } for r in reminders]}
+
+@router.get("/mine/all")
+def list_my_reminders(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Everything the logged-in account holder manages: their own reminders
+    (by their own phone) plus every reminder created for their managed
+    family profiles - one combined view, regardless of whose phone
+    actually receives each SMS."""
+    profile_ids = [p.id for p in db.query(FamilyProfile).filter(FamilyProfile.managed_by_user_id == user.id, FamilyProfile.active == True).all()]
+
+    query = db.query(MedicineReminder).filter(MedicineReminder.active == True)
+    own = query.filter(MedicineReminder.patient_phone == user.phone).all() if user.phone else []
+    family = query.filter(MedicineReminder.family_profile_id.in_(profile_ids)).all() if profile_ids else []
+
+    combined = {r.reminder_id: r for r in (own + family)}.values()  # dedupe just in case
+    return {"reminders": [{
+        "reminder_id": r.reminder_id,
+        "medicine_name": r.medicine_name,
+        "dosage": r.dosage,
+        "times": r.times.split(","),
+        "start_date": r.start_date,
+        "end_date": r.end_date,
+        "on_behalf_of_name": r.on_behalf_of_name,
+        "is_own": r.family_profile_id is None,
+    } for r in combined]}
 
 @router.delete("/{reminder_id}")
 def delete_reminder(reminder_id: str, db: Session = Depends(get_db)):
