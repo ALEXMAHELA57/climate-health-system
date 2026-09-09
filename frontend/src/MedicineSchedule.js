@@ -1,28 +1,43 @@
-import React, { useState } from 'react';
-import { Pill, Plus, Trash2, Bell, Clock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Pill, Plus, Trash2, Bell, Clock, User } from 'lucide-react';
 import { API } from './constants';
 import { useTheme } from './ThemeContext';
+
+function authHeaders() {
+  const token = localStorage.getItem('afya_token');
+  return token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+}
 
 export default function MedicineSchedule({ lang }) {
   const { theme } = useTheme();
   const sw = lang === 'sw';
+  const user = JSON.parse(localStorage.getItem('afya_user') || 'null');
 
-  const [phone, setPhone] = useState('');
   const [reminders, setReminders] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [familyProfiles, setFamilyProfiles] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ medicine_name: '', dosage: '', times: ['08:00'], start_date: new Date().toISOString().slice(0, 10), end_date: '', sms_fallback: true });
+  const [form, setForm] = useState({
+    for_profile_id: '', medicine_name: '', dosage: '', times: ['08:00'],
+    start_date: new Date().toISOString().slice(0, 10), end_date: '', sms_fallback: true,
+  });
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  async function loadReminders() {
-    if (!phone.trim()) return;
+  useEffect(() => { loadAll(); }, []);
+
+  async function loadAll() {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/api/medicine/${phone}`);
-      const data = await res.json();
-      setReminders(data.reminders || []);
+      const [rRes, fRes] = await Promise.all([
+        fetch(`${API}/api/medicine/mine/all`, { headers: authHeaders() }),
+        fetch(`${API}/api/family/profiles`, { headers: authHeaders() }),
+      ]);
+      const rData = await rRes.json();
+      const fData = await fRes.json();
+      setReminders(rData.reminders || []);
+      setFamilyProfiles(fData.profiles || []);
     } catch { setReminders([]); }
     setLoading(false);
   }
@@ -32,61 +47,69 @@ export default function MedicineSchedule({ lang }) {
   function removeTime(i) { setForm({ ...form, times: form.times.filter((_, idx) => idx !== i) }); }
 
   async function submit() {
-    if (!phone.trim() || !form.medicine_name.trim() || form.times.length === 0) {
+    if (!form.medicine_name.trim() || form.times.length === 0) {
       setError(sw ? 'Tafadhali jaza sehemu zote muhimu' : 'Please fill in all required fields');
       return;
     }
     setSubmitting(true); setError('');
     try {
       const res = await fetch(`${API}/api/medicine`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ patient_phone: phone, language: lang, ...form, end_date: form.end_date || null }),
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({
+          patient_phone: user?.phone || '', language: lang,
+          medicine_name: form.medicine_name, dosage: form.dosage, times: form.times,
+          start_date: form.start_date, end_date: form.end_date || null, sms_fallback: form.sms_fallback,
+          family_profile_id: form.for_profile_id || null,
+        }),
       });
       const data = await res.json();
       if (data.success) {
         setShowForm(false);
-        setForm({ medicine_name: '', dosage: '', times: ['08:00'], start_date: new Date().toISOString().slice(0, 10), end_date: '', sms_fallback: true });
-        loadReminders();
+        setForm({ for_profile_id: '', medicine_name: '', dosage: '', times: ['08:00'], start_date: new Date().toISOString().slice(0, 10), end_date: '', sms_fallback: true });
+        loadAll();
       } else setError(data.error || (sw ? 'Imeshindwa' : 'Failed to save'));
     } catch { setError(sw ? 'Hitilafu ya muunganisho' : 'Connection error'); }
     setSubmitting(false);
   }
 
   async function remove(id) {
-    await fetch(`${API}/api/medicine/${id}`, { method: 'DELETE' }).catch(() => {});
-    loadReminders();
+    await fetch(`${API}/api/medicine/${id}`, { method: 'DELETE', headers: authHeaders() }).catch(() => {});
+    loadAll();
   }
+
+  const inputStyle = { width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.text, fontSize: 14 };
 
   return (
     <div style={{ padding: 16 }}>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        <input placeholder={sw ? 'Nambari yako ya simu' : 'Your phone number'} value={phone} onChange={e => setPhone(e.target.value)}
-          style={{ flex: 1, padding: 10, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.card, color: theme.text, fontSize: 14 }} />
-        <button onClick={loadReminders} style={{ padding: '0 16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-          {sw ? 'Tafuta' : 'Load'}
-        </button>
-      </div>
-
-      {phone.trim() && (
-        <button onClick={() => setShowForm(s => !s)}
-          style={{ width: '100%', padding: 11, background: showForm ? theme.card : '#f0fdf4', border: `1px solid ${showForm ? theme.border : '#bbf7d0'}`, borderRadius: 10, marginBottom: 14, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: showForm ? theme.textMuted : '#166534' }}>
-          <Plus size={15} /> {showForm ? (sw ? 'Ghairi' : 'Cancel') : (sw ? 'Ongeza Dawa Mpya' : 'Add New Medicine')}
-        </button>
-      )}
+      <button onClick={() => setShowForm(s => !s)}
+        style={{ width: '100%', padding: 11, background: showForm ? theme.card : '#f0fdf4', border: `1px solid ${showForm ? theme.border : '#bbf7d0'}`, borderRadius: 10, marginBottom: 14, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: showForm ? theme.textMuted : '#166534' }}>
+        <Plus size={15} /> {showForm ? (sw ? 'Ghairi' : 'Cancel') : (sw ? 'Ongeza Dawa Mpya' : 'Add New Medicine')}
+      </button>
 
       {showForm && (
         <div style={{ background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
-          <input placeholder={sw ? 'Jina la dawa' : 'Medicine name'} value={form.medicine_name} onChange={e => setForm({ ...form, medicine_name: e.target.value })}
-            style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.text, fontSize: 14 }} />
-          <input placeholder={sw ? 'Kipimo (mfano: 500mg, kidonge 1)' : 'Dosage (e.g. 500mg, 1 tablet)'} value={form.dosage} onChange={e => setForm({ ...form, dosage: e.target.value })}
-            style={{ width: '100%', padding: 10, marginBottom: 10, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.text, fontSize: 14 }} />
+          {familyProfiles.length > 0 && (
+            <>
+              <div style={{ fontSize: 12, fontWeight: 600, color: theme.textMuted, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <User size={12} /> {sw ? 'KWA AJILI YA' : 'FOR'}
+              </div>
+              <select value={form.for_profile_id} onChange={e => setForm({ ...form, for_profile_id: e.target.value })} style={inputStyle}>
+                <option value="">{sw ? 'Mimi mwenyewe' : 'Myself'}</option>
+                {familyProfiles.filter(p => !p.is_linked).map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </>
+          )}
+
+          <input placeholder={sw ? 'Jina la dawa' : 'Medicine name'} value={form.medicine_name} onChange={e => setForm({ ...form, medicine_name: e.target.value })} style={inputStyle} />
+          <input placeholder={sw ? 'Kipimo (mfano: 500mg, kidonge 1)' : 'Dosage (e.g. 500mg, 1 tablet)'} value={form.dosage} onChange={e => setForm({ ...form, dosage: e.target.value })} style={{ ...inputStyle, marginBottom: 10 }} />
 
           <div style={{ fontSize: 12, fontWeight: 600, color: theme.textMuted, marginBottom: 6 }}>{sw ? 'MUDA WA KUTUMIA' : 'REMINDER TIMES'}</div>
           {form.times.map((t, i) => (
             <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-              <input type="time" value={t} onChange={e => updateTime(i, e.target.value)}
-                style={{ flex: 1, padding: 9, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.text, fontSize: 14 }} />
+              <input type="time" value={t} onChange={e => updateTime(i, e.target.value)} style={{ flex: 1, padding: 9, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.text, fontSize: 14 }} />
               {form.times.length > 1 && (
                 <button onClick={() => removeTime(i)} style={{ padding: '0 10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, cursor: 'pointer' }}>
                   <Trash2 size={14} color="#ef4444" />
@@ -113,7 +136,7 @@ export default function MedicineSchedule({ lang }) {
 
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: theme.textMuted, marginBottom: 12, cursor: 'pointer' }}>
             <input type="checkbox" checked={form.sms_fallback} onChange={e => setForm({ ...form, sms_fallback: e.target.checked })} />
-            {sw ? 'Nitumie SMS pia (kwa wakati bila intaneti)' : 'Also send me an SMS reminder (works without internet)'}
+            {sw ? 'Tuma SMS pia (kwa wakati bila intaneti)' : 'Also send an SMS reminder (works without internet)'}
           </label>
 
           {!!error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: 10, marginBottom: 10, fontSize: 12, color: '#991b1b' }}>{error}</div>}
@@ -137,6 +160,11 @@ export default function MedicineSchedule({ lang }) {
               <div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: theme.text }}>{r.medicine_name}</div>
                 {!!r.dosage && <div style={{ fontSize: 12, color: theme.textMuted }}>{r.dosage}</div>}
+                {!r.is_own && r.on_behalf_of_name && (
+                  <div style={{ fontSize: 11, color: '#7c3aed', display: 'flex', alignItems: 'center', gap: 3, marginTop: 2 }}>
+                    <User size={10} /> {sw ? `Kwa ${r.on_behalf_of_name}` : `For ${r.on_behalf_of_name}`}
+                  </div>
+                )}
               </div>
             </div>
             <button onClick={() => remove(r.reminder_id)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
@@ -150,11 +178,6 @@ export default function MedicineSchedule({ lang }) {
               </span>
             ))}
           </div>
-          {r.sms_fallback && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#166534', marginTop: 6 }}>
-              <Bell size={11} /> {sw ? 'SMS imewashwa' : 'SMS reminders on'}
-            </div>
-          )}
         </div>
       ))}
     </div>
