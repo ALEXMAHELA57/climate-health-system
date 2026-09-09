@@ -128,6 +128,10 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
     { id: 'reports', label: sw ? 'Ripoti' : 'Reports', icon: '📢' },
     { id: 'outbreaks', label: sw ? 'Milipuko' : 'Outbreaks', icon: '🦠' },
     { id: 'broadcast', label: sw ? 'Tuma SMS' : 'Broadcast', icon: '📲' },
+    { id: 'doctors', label: sw ? 'Madaktari' : 'Doctors', icon: '🩺' },
+    { id: 'shop', label: sw ? 'Duka' : 'Shop', icon: '🛒' },
+    { id: 'lab', label: sw ? 'Maabara' : 'Lab', icon: '🧪' },
+    { id: 'climate', label: sw ? 'Hali ya Hewa' : 'Climate', icon: '🌍' },
   ];
 
   return (
@@ -272,6 +276,26 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
       {/* BROADCAST */}
       {tab === 'broadcast' && (
         <BroadcastPanel sw={sw} API={API} />
+      )}
+
+      {/* DOCTORS */}
+      {tab === 'doctors' && (
+        <DoctorsPanel sw={sw} API={API} />
+      )}
+
+      {/* SHOP */}
+      {tab === 'shop' && (
+        <ShopPanel sw={sw} API={API} />
+      )}
+
+      {/* LAB */}
+      {tab === 'lab' && (
+        <LabPanel sw={sw} API={API} />
+      )}
+
+      {/* CLIMATE */}
+      {tab === 'climate' && (
+        <ClimatePanel sw={sw} API={API} />
       )}
     </div>
   );
@@ -755,6 +779,292 @@ function OutbreakQueuePanel({ sw, API }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ── DOCTORS: set login credentials + approve/reject price/availability changes ─
+function DoctorsPanel({ sw, API }) {
+  const [doctors, setDoctors] = useState([]);
+  const [selectedDoctor, setSelectedDoctor] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [msg, setMsg] = useState('');
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const [dRes, rRes] = await Promise.all([
+        fetch(`${API}/api/consultation/doctors`),
+        fetch(`${API}/api/doctor/admin/change-requests/pending`, { headers: authHeaders() }),
+      ]);
+      const d = await dRes.json();
+      const r = await rRes.json();
+      setDoctors(d.doctors || []);
+      setRequests(r.requests || []);
+    } catch {}
+    setLoading(false);
+  }
+
+  async function setLogin() {
+    if (!selectedDoctor || !username.trim() || !password.trim()) return;
+    setMsg('');
+    try {
+      const res = await fetch(`${API}/api/doctor/admin/set-login?doctor_id=${selectedDoctor}`, {
+        method: 'POST', headers: authHeaders(), body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      setMsg(data.success ? (sw ? '✓ Imefanikiwa' : '✓ Login set successfully') : (data.error || 'Failed'));
+      if (data.success) { setUsername(''); setPassword(''); }
+    } catch { setMsg(sw ? 'Hitilafu' : 'Connection error'); }
+  }
+
+  async function respond(id, approve) {
+    try {
+      await fetch(`${API}/api/doctor/admin/change-requests/${id}/${approve ? 'approve' : 'reject'}`, { method: 'POST', headers: authHeaders() });
+      load();
+    } catch {}
+  }
+
+  const inputSt = { width: '100%', padding: 9, marginBottom: 8, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13, boxSizing: 'border-box' };
+
+  return (
+    <div>
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{sw ? 'Weka Ingizo la Daktari' : 'Set Doctor Login'}</div>
+        <select value={selectedDoctor} onChange={e => setSelectedDoctor(e.target.value)} style={inputSt}>
+          <option value="">{sw ? 'Chagua daktari' : 'Select a doctor'}</option>
+          {doctors.map(d => <option key={d.id} value={d.id}>{d.name} — {d.specialty_label}</option>)}
+        </select>
+        <input value={username} onChange={e => setUsername(e.target.value)} placeholder={sw ? 'Jina la mtumiaji' : 'Username'} style={inputSt} />
+        <input value={password} onChange={e => setPassword(e.target.value)} placeholder={sw ? 'Nywila' : 'Password'} style={inputSt} />
+        {!!msg && <div style={{ fontSize: 12, color: msg.startsWith('✓') ? '#166534' : '#ef4444', marginBottom: 8 }}>{msg}</div>}
+        <button onClick={setLogin} style={{ width: '100%', padding: 10, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          {sw ? 'Hifadhi' : 'Save Login'}
+        </button>
+      </div>
+
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{sw ? 'Maombi ya Mabadiliko' : 'Pending Change Requests'}</div>
+      {loading && <div style={{ fontSize: 12, color: '#9ca3af' }}>{sw ? 'Inapakia...' : 'Loading...'}</div>}
+      {!loading && requests.length === 0 && <div style={{ fontSize: 12, color: '#9ca3af' }}>{sw ? 'Hakuna maombi' : 'No pending requests'}</div>}
+      {requests.map(r => (
+        <div key={r.id} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 12, marginBottom: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 600 }}>{r.doctor_name}</div>
+          <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>{r.field}: {r.proposed_value}</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => respond(r.id, true)} style={{ flex: 1, padding: 7, background: '#166534', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>{sw ? 'Idhinisha' : 'Approve'}</button>
+            <button onClick={() => respond(r.id, false)} style={{ flex: 1, padding: 7, background: '#991b1b', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>{sw ? 'Kataa' : 'Reject'}</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── SHOP: vendors, products, and payouts ──────────────────────────────────
+function ShopPanel({ sw, API }) {
+  const [vendors, setVendors] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [balances, setBalances] = useState([]);
+  const [vendorForm, setVendorForm] = useState({ name: '', phone: '', payout_provider: 'Mpesa', payout_account: '' });
+  const [productForm, setProductForm] = useState({ vendor_id: '', name: '', category: '', price: '', stock: '' });
+  const [msg, setMsg] = useState('');
+  const [payoutAmount, setPayoutAmount] = useState({});
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    try {
+      const [vRes, cRes, bRes] = await Promise.all([
+        fetch(`${API}/api/shop/admin/vendors`, { headers: authHeaders() }),
+        fetch(`${API}/api/shop/categories`),
+        fetch(`${API}/api/shop/admin/vendor-balances`, { headers: authHeaders() }),
+      ]);
+      setVendors((await vRes.json()).vendors || []);
+      setCategories((await cRes.json()).categories || []);
+      setBalances((await bRes.json()).balances || []);
+    } catch {}
+  }
+
+  async function addVendor() {
+    if (!vendorForm.name.trim() || !vendorForm.phone.trim()) return;
+    try {
+      await fetch(`${API}/api/shop/admin/vendors`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(vendorForm) });
+      setVendorForm({ name: '', phone: '', payout_provider: 'Mpesa', payout_account: '' });
+      setMsg(sw ? '✓ Muuzaji ameongezwa' : '✓ Vendor added');
+      load();
+    } catch {}
+  }
+
+  async function addProduct() {
+    if (!productForm.vendor_id || !productForm.name.trim() || !productForm.category || !productForm.price) return;
+    try {
+      await fetch(`${API}/api/shop/admin/products`, {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ ...productForm, vendor_id: parseInt(productForm.vendor_id), price: parseFloat(productForm.price), stock: parseInt(productForm.stock || 0) }),
+      });
+      setProductForm({ vendor_id: '', name: '', category: '', price: '', stock: '' });
+      setMsg(sw ? '✓ Bidhaa imeongezwa' : '✓ Product added');
+    } catch {}
+  }
+
+  async function payout(vendorId) {
+    const amount = parseFloat(payoutAmount[vendorId] || 0);
+    if (!amount) return;
+    try {
+      await fetch(`${API}/api/shop/admin/payouts`, {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ vendor_id: vendorId, amount, commission: 0 }),
+      });
+      load();
+    } catch {}
+  }
+
+  const inputSt = { width: '100%', padding: 9, marginBottom: 8, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13, boxSizing: 'border-box' };
+
+  return (
+    <div>
+      {!!msg && <div style={{ fontSize: 12, color: '#166534', marginBottom: 10 }}>{msg}</div>}
+
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{sw ? 'Ongeza Muuzaji' : 'Add Vendor'}</div>
+        <input value={vendorForm.name} onChange={e => setVendorForm({ ...vendorForm, name: e.target.value })} placeholder={sw ? 'Jina' : 'Name'} style={inputSt} />
+        <input value={vendorForm.phone} onChange={e => setVendorForm({ ...vendorForm, phone: e.target.value })} placeholder={sw ? 'Simu' : 'Phone'} style={inputSt} />
+        <select value={vendorForm.payout_provider} onChange={e => setVendorForm({ ...vendorForm, payout_provider: e.target.value })} style={inputSt}>
+          <option value="Mpesa">M-Pesa</option><option value="Tigo">Tigo Pesa</option><option value="Airtel">Airtel Money</option><option value="Halopesa">HaloPesa</option><option value="Azampesa">AzamPesa</option>
+        </select>
+        <input value={vendorForm.payout_account} onChange={e => setVendorForm({ ...vendorForm, payout_account: e.target.value })} placeholder={sw ? 'Namba ya malipo' : 'Payout account number'} style={inputSt} />
+        <button onClick={addVendor} style={{ width: '100%', padding: 10, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{sw ? 'Ongeza' : 'Add Vendor'}</button>
+      </div>
+
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{sw ? 'Ongeza Bidhaa' : 'Add Product'}</div>
+        <select value={productForm.vendor_id} onChange={e => setProductForm({ ...productForm, vendor_id: e.target.value })} style={inputSt}>
+          <option value="">{sw ? 'Chagua muuzaji' : 'Select vendor'}</option>
+          {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+        </select>
+        <input value={productForm.name} onChange={e => setProductForm({ ...productForm, name: e.target.value })} placeholder={sw ? 'Jina la bidhaa' : 'Product name'} style={inputSt} />
+        <select value={productForm.category} onChange={e => setProductForm({ ...productForm, category: e.target.value })} style={inputSt}>
+          <option value="">{sw ? 'Chagua aina' : 'Select category'}</option>
+          {categories.map(c => <option key={c.id} value={c.id}>{sw ? c.sw : c.en}</option>)}
+        </select>
+        <input value={productForm.price} onChange={e => setProductForm({ ...productForm, price: e.target.value })} placeholder={sw ? 'Bei (TZS)' : 'Price (TZS)'} type="number" style={inputSt} />
+        <input value={productForm.stock} onChange={e => setProductForm({ ...productForm, stock: e.target.value })} placeholder={sw ? 'Idadi' : 'Stock quantity'} type="number" style={inputSt} />
+        <button onClick={addProduct} style={{ width: '100%', padding: 10, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{sw ? 'Ongeza' : 'Add Product'}</button>
+      </div>
+
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{sw ? 'Malipo ya Wauzaji' : 'Vendor Balances'}</div>
+      {balances.map(b => (
+        <div key={b.vendor_id} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 12, marginBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 600 }}>{b.vendor_name}</span>
+            <span style={{ fontSize: 12, color: '#6b7280' }}>{sw ? 'Anadaiwa' : 'Owed'}: TZS {b.owed.toLocaleString()}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input type="number" value={payoutAmount[b.vendor_id] || ''} onChange={e => setPayoutAmount({ ...payoutAmount, [b.vendor_id]: e.target.value })}
+              placeholder={sw ? 'Kiasi' : 'Amount'} style={{ flex: 1, padding: 7, borderRadius: 6, border: '1px solid #e5e7eb', fontSize: 12 }} />
+            <button onClick={() => payout(b.vendor_id)} style={{ padding: '7px 12px', background: '#166534', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>{sw ? 'Lipa' : 'Pay'}</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── LAB: upload a result for a booking ────────────────────────────────────
+function LabPanel({ sw, API }) {
+  const [bookingId, setBookingId] = useState('');
+  const [resultSummary, setResultSummary] = useState('');
+  const [msg, setMsg] = useState('');
+
+  async function submit() {
+    if (!bookingId.trim() || !resultSummary.trim()) return;
+    setMsg('');
+    try {
+      const res = await fetch(`${API}/api/lab/bookings/${bookingId}/result`, {
+        method: 'POST', headers: authHeaders(), body: JSON.stringify({ result_summary: resultSummary }),
+      });
+      const data = await res.json();
+      setMsg(data.success ? (sw ? '✓ Matokeo yamepakiwa' : '✓ Result uploaded') : (data.error || 'Failed'));
+      if (data.success) { setBookingId(''); setResultSummary(''); }
+    } catch { setMsg(sw ? 'Hitilafu' : 'Connection error'); }
+  }
+
+  const inputSt = { width: '100%', padding: 9, marginBottom: 8, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13, boxSizing: 'border-box' };
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 14 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{sw ? 'Pakia Matokeo ya Kipimo' : 'Upload Lab Result'}</div>
+      <input value={bookingId} onChange={e => setBookingId(e.target.value)} placeholder={sw ? 'Namba ya Miadi (mfano LAB...)' : 'Booking ID (e.g. LAB...)'} style={inputSt} />
+      <textarea value={resultSummary} onChange={e => setResultSummary(e.target.value)} placeholder={sw ? 'Muhtasari wa matokeo' : 'Result summary'} style={{ ...inputSt, minHeight: 80 }} />
+      {!!msg && <div style={{ fontSize: 12, color: msg.startsWith('✓') ? '#166534' : '#ef4444', marginBottom: 8 }}>{msg}</div>}
+      <button onClick={submit} style={{ width: '100%', padding: 10, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+        {sw ? 'Pakia' : 'Upload Result'}
+      </button>
+    </div>
+  );
+}
+
+// ── CLIMATE: seasonal alerts (Tier 2 early warning) ───────────────────────
+function ClimatePanel({ sw, API }) {
+  const [alerts, setAlerts] = useState([]);
+  const [form, setForm] = useState({ title_en: '', title_sw: '', message_en: '', message_sw: '' });
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    try {
+      const res = await fetch(`${API}/api/weather/seasonal-alerts/active`);
+      setAlerts((await res.json()).alerts || []);
+    } catch {}
+  }
+
+  async function submit() {
+    if (!form.title_en.trim() || !form.message_en.trim()) return;
+    try {
+      await fetch(`${API}/api/weather/seasonal-alerts`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(form) });
+      setForm({ title_en: '', title_sw: '', message_en: '', message_sw: '' });
+      setMsg(sw ? '✓ Imeongezwa' : '✓ Alert added');
+      load();
+    } catch {}
+  }
+
+  async function deactivate(id) {
+    try {
+      await fetch(`${API}/api/weather/seasonal-alerts/${id}`, { method: 'DELETE', headers: authHeaders() });
+      load();
+    } catch {}
+  }
+
+  const inputSt = { width: '100%', padding: 9, marginBottom: 8, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13, boxSizing: 'border-box' };
+
+  return (
+    <div>
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{sw ? 'Ongeza Tahadhari ya Msimu' : 'Add Seasonal Alert'}</div>
+        <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 8 }}>{sw ? 'Mfano: mtazamo wa El Nino' : 'e.g. an El Nino outlook from TMA'}</div>
+        <input value={form.title_en} onChange={e => setForm({ ...form, title_en: e.target.value })} placeholder="Title (English)" style={inputSt} />
+        <input value={form.title_sw} onChange={e => setForm({ ...form, title_sw: e.target.value })} placeholder="Kichwa (Kiswahili)" style={inputSt} />
+        <textarea value={form.message_en} onChange={e => setForm({ ...form, message_en: e.target.value })} placeholder="Message (English)" style={{ ...inputSt, minHeight: 60 }} />
+        <textarea value={form.message_sw} onChange={e => setForm({ ...form, message_sw: e.target.value })} placeholder="Ujumbe (Kiswahili)" style={{ ...inputSt, minHeight: 60 }} />
+        {!!msg && <div style={{ fontSize: 12, color: '#166534', marginBottom: 8 }}>{msg}</div>}
+        <button onClick={submit} style={{ width: '100%', padding: 10, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{sw ? 'Ongeza' : 'Publish Alert'}</button>
+      </div>
+
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{sw ? 'Tahadhari Zinazotumika' : 'Active Alerts'}</div>
+      {alerts.length === 0 && <div style={{ fontSize: 12, color: '#9ca3af' }}>{sw ? 'Hakuna' : 'None active'}</div>}
+      {alerts.map(a => (
+        <div key={a.id} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 12, marginBottom: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 600 }}>{sw ? a.title_sw : a.title_en}</div>
+          <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>{sw ? a.message_sw : a.message_en}</div>
+          <button onClick={() => deactivate(a.id)} style={{ width: '100%', padding: 7, background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>{sw ? 'Zima' : 'Deactivate'}</button>
+        </div>
+      ))}
     </div>
   );
 }
