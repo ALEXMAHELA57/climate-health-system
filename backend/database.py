@@ -290,18 +290,51 @@ class SystemSetting(Base):
 class Doctor(Base):
     """A doctor available for consultation through AfyaHewa. Specialty
     drives which category a doctor shows up under (general, reproductive
-    health, palliative care, mental health/psychology)."""
+    health, palliative care, mental health/psychology). Doctors don't
+    self-register - admin creates their login (login_username/password_hash).
+    prices is a JSON string keyed by consultation type, e.g.
+    '{"chat": 5000, "voice": 8000, "video": 12000}' (TZS)."""
     __tablename__ = "doctors"
     id                  = Column(Integer, primary_key=True, index=True)
     name                = Column(String(200))
     specialty           = Column(String(50), index=True)   # general | reproductive_health | palliative_care | mental_health
     bio                 = Column(Text, default="")
     phone               = Column(String(20))
+    photo_url           = Column(String(500), nullable=True)
+    prices              = Column(Text, default="{}")  # JSON string: {"chat": 5000, "voice": 8000, "video": 12000}
     consultation_types  = Column(String(100), default="chat")  # comma list: chat,voice,video
     available_days      = Column(String(100), default="Mon,Tue,Wed,Thu,Fri")
     available_hours     = Column(String(50), default="09:00-17:00")
+    login_username      = Column(String(100), unique=True, nullable=True)
+    password_hash       = Column(String(200), nullable=True)
     active              = Column(Boolean, default=True)
     created_at          = Column(DateTime, default=datetime.utcnow)
+
+class DoctorChangeRequest(Base):
+    """A doctor's proposed change to their own price or availability -
+    sits pending until admin approves it, so nothing changes live
+    without oversight."""
+    __tablename__ = "doctor_change_requests"
+    id             = Column(Integer, primary_key=True, index=True)
+    doctor_id      = Column(Integer, index=True)
+    field          = Column(String(30))   # prices | available_days | available_hours
+    proposed_value = Column(Text)
+    status         = Column(String(20), default="pending")  # pending | approved | rejected
+    created_at     = Column(DateTime, default=datetime.utcnow)
+    responded_at   = Column(DateTime, nullable=True)
+
+class ChatMessage(Base):
+    """A single message in a patient-doctor conversation, tied to a
+    specific appointment. Real-time delivery happens over WebSocket;
+    every message is also persisted here so nothing is lost if either
+    side is offline, and the recipient gets an SMS fallback notification
+    when they're not currently connected."""
+    __tablename__ = "chat_messages"
+    id             = Column(Integer, primary_key=True, index=True)
+    appointment_id = Column(String(20), index=True)
+    sender_type    = Column(String(10))  # patient | doctor
+    text           = Column(Text)
+    created_at     = Column(DateTime, default=datetime.utcnow)
 
 class Appointment(Base):
     """A patient's booked (or requested) consultation with a doctor."""
@@ -358,8 +391,40 @@ class ReminderLog(Base):
     sent_at        = Column(DateTime, default=datetime.utcnow)
 
 # ── Create all tables ─────────────────────────────────────────────────────────
+
+# create_all() only creates tables that don't exist yet - it never adds new
+# columns to a table that's already there. Any column added to a table that
+# already existed in production needs to be listed here explicitly, or the
+# app will crash with "column does not exist" the moment it's queried.
+_COLUMNS_ADDED_TO_EXISTING_TABLES = [
+    ("medicine_reminders", "family_profile_id", "INTEGER"),
+    ("medicine_reminders", "on_behalf_of_name", "VARCHAR(200)"),
+    ("doctors", "photo_url", "VARCHAR(500)"),
+    ("doctors", "prices", "TEXT DEFAULT '{}'"),
+    ("doctors", "login_username", "VARCHAR(100)"),
+    ("doctors", "password_hash", "VARCHAR(200)"),
+]
+
+def _run_lightweight_migrations():
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        for table, column, coltype in _COLUMNS_ADDED_TO_EXISTING_TABLES:
+            try:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {coltype}"))
+                conn.commit()
+            except Exception as e:
+                print(f"[migration] Could not add {table}.{column}: {e}")
+        # doctors.login_username needs a unique index, added separately since
+        # "ADD COLUMN IF NOT EXISTS" above can't also declare UNIQUE cleanly
+        try:
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_doctors_login_username ON doctors (login_username)"))
+            conn.commit()
+        except Exception as e:
+            print(f"[migration] Could not add unique index on doctors.login_username: {e}")
+
 def init_db():
     Base.metadata.create_all(bind=engine)
+    _run_lightweight_migrations()
 
 # ── Dependency for routes ─────────────────────────────────────────────────────
 def get_db():

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 import random
 import string
+import json
 from database import get_db, Doctor, Appointment
 
 router = APIRouter()
@@ -31,17 +32,17 @@ def gen_id(prefix: str) -> str:
 # doctors before this goes live to real patients - see the proposal's Health
 # Safety & Governance section regarding clinical review.
 SEED_DOCTORS = [
-    {"name": "Dr. Amina Juma",      "specialty": "general",             "bio": "General practitioner, 8 years experience.",              "phone": "", "consultation_types": "chat,voice"},
-    {"name": "Dr. Fatuma Ally",     "specialty": "mental_health",       "bio": "Clinical psychologist, counseling and mental health support.", "phone": "", "consultation_types": "chat,video"},
-    {"name": "Dr. John Mrema",      "specialty": "male_reproductive",   "bio": "Urologist, men's reproductive and sexual health.",        "phone": "", "consultation_types": "chat,voice"},
-    {"name": "Dr. Grace Mushi",     "specialty": "female_reproductive", "bio": "Gynecologist, women's reproductive health.",              "phone": "", "consultation_types": "chat,video"},
-    {"name": "Dr. Neema Kessy",     "specialty": "maternal_health",     "bio": "Obstetrician, pregnancy and maternal care.",              "phone": "", "consultation_types": "chat,video"},
-    {"name": "Dr. Grace Mushi",     "specialty": "menstrual_cycle",     "bio": "Gynecologist, menstrual health and cycle-related concerns.", "phone": "", "consultation_types": "chat"},
-    {"name": "Dr. Hassan Kibwana",  "specialty": "dental",              "bio": "Dentist, general and restorative dental care.",           "phone": "", "consultation_types": "chat,voice"},
-    {"name": "Dr. Edward Lyimo",    "specialty": "cardiology",          "bio": "Cardiologist, heart health and hypertension management.", "phone": "", "consultation_types": "chat,voice"},
-    {"name": "Dr. Rehema Chuma",    "specialty": "dermatology",         "bio": "Dermatologist, skin, hair, and nail conditions.",         "phone": "", "consultation_types": "chat,video"},
-    {"name": "Dr. Baraka Ndosi",    "specialty": "nutrition",           "bio": "Nutritionist, diet and nutrition counseling.",            "phone": "", "consultation_types": "chat"},
-    {"name": "Dr. Peter Massawe",   "specialty": "palliative_care",     "bio": "Palliative and supportive care specialist.",              "phone": "", "consultation_types": "chat,voice"},
+    {"name": "Dr. Amina Juma",      "specialty": "general",             "bio": "General practitioner, 8 years experience.",              "phone": "", "consultation_types": "chat,voice", "prices": '{"chat": 5000, "voice": 8000}'},
+    {"name": "Dr. Fatuma Ally",     "specialty": "mental_health",       "bio": "Clinical psychologist, counseling and mental health support.", "phone": "", "consultation_types": "chat,video", "prices": '{"chat": 6000, "video": 12000}'},
+    {"name": "Dr. John Mrema",      "specialty": "male_reproductive",   "bio": "Urologist, men's reproductive and sexual health.",        "phone": "", "consultation_types": "chat,voice", "prices": '{"chat": 6000, "voice": 9000}'},
+    {"name": "Dr. Grace Mushi",     "specialty": "female_reproductive", "bio": "Gynecologist, women's reproductive health.",              "phone": "", "consultation_types": "chat,video", "prices": '{"chat": 6000, "video": 12000}'},
+    {"name": "Dr. Neema Kessy",     "specialty": "maternal_health",     "bio": "Obstetrician, pregnancy and maternal care.",              "phone": "", "consultation_types": "chat,video", "prices": '{"chat": 6000, "video": 12000}'},
+    {"name": "Dr. Grace Mushi",     "specialty": "menstrual_cycle",     "bio": "Gynecologist, menstrual health and cycle-related concerns.", "phone": "", "consultation_types": "chat", "prices": '{"chat": 5000}'},
+    {"name": "Dr. Hassan Kibwana",  "specialty": "dental",              "bio": "Dentist, general and restorative dental care.",           "phone": "", "consultation_types": "chat,voice", "prices": '{"chat": 5000, "voice": 8000}'},
+    {"name": "Dr. Edward Lyimo",    "specialty": "cardiology",          "bio": "Cardiologist, heart health and hypertension management.", "phone": "", "consultation_types": "chat,voice", "prices": '{"chat": 7000, "voice": 10000}'},
+    {"name": "Dr. Rehema Chuma",    "specialty": "dermatology",         "bio": "Dermatologist, skin, hair, and nail conditions.",         "phone": "", "consultation_types": "chat,video", "prices": '{"chat": 6000, "video": 11000}'},
+    {"name": "Dr. Baraka Ndosi",    "specialty": "nutrition",           "bio": "Nutritionist, diet and nutrition counseling.",            "phone": "", "consultation_types": "chat", "prices": '{"chat": 4000}'},
+    {"name": "Dr. Peter Massawe",   "specialty": "palliative_care",     "bio": "Palliative and supportive care specialist.",              "phone": "", "consultation_types": "chat,voice", "prices": '{"chat": 6000, "voice": 9000}'},
 ]
 
 def ensure_seed_doctors(db: Session):
@@ -80,6 +81,7 @@ def list_doctors(specialty: Optional[str] = None, db: Session = Depends(get_db))
         "id": d.id, "name": d.name, "specialty": d.specialty,
         "specialty_label": SPECIALTIES.get(d.specialty, {}).get("en", d.specialty),
         "bio": d.bio, "consultation_types": d.consultation_types.split(","),
+        "photo_url": d.photo_url, "prices": json.loads(d.prices or "{}"),
         "available_days": d.available_days.split(","), "available_hours": d.available_hours,
     } for d in doctors]}
 

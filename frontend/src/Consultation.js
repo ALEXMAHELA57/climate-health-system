@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Stethoscope, Brain, UserRound, Users, Baby, CalendarHeart, Smile, HeartPulse, Sparkles, Apple, HandHeart, Calendar, Clock, MessageCircle, Video, Phone, ChevronRight, CheckCircle2, XCircle } from 'lucide-react';
 import { API } from './constants';
 import { useTheme } from './ThemeContext';
+import Chat from './Chat';
 
 const SPECIALTY_ICON = {
   general: Stethoscope,
@@ -48,6 +49,7 @@ export default function Consultation({ lang, initialSpecialty }) {
 
   const [myPhone, setMyPhone] = useState('');
   const [myAppointments, setMyAppointments] = useState(null);
+  const [activeChat, setActiveChat] = useState(null);
 
   useEffect(() => { fetch(`${API}/api/consultation/specialties`).then(r => r.json()).then(d => setSpecialties(d.specialties || [])).catch(() => {}); }, []);
   useEffect(() => { if (initialSpecialty) loadDoctors(initialSpecialty); }, [initialSpecialty]);
@@ -105,6 +107,16 @@ export default function Consultation({ lang, initialSpecialty }) {
     completed: { color: '#166534', bg: '#f0fdf4', label: sw ? 'Imekamilika' : 'Completed' },
     cancelled: { color: '#991b1b', bg: '#fef2f2', label: sw ? 'Imeghairiwa' : 'Cancelled' },
   };
+
+  if (activeChat) {
+    const token = localStorage.getItem('afya_token');
+    return (
+      <div style={{ padding: 16 }}>
+        <button onClick={() => setActiveChat(null)} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 12 }}>‹ {sw ? 'Rudi' : 'Back'}</button>
+        <Chat lang={lang} appointmentId={activeChat} token={token} senderType="patient" />
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: 16 }}>
@@ -247,6 +259,12 @@ export default function Consultation({ lang, initialSpecialty }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: theme.textMuted, marginTop: 8 }}>
                   <Calendar size={12} /> {a.requested_date} <Clock size={12} style={{ marginLeft: 6 }} /> {a.requested_time}
                 </div>
+                {a.status !== 'cancelled' && (
+                  <button onClick={() => setActiveChat(a.appointment_id)}
+                    style={{ width: '100%', marginTop: 10, padding: 8, background: '#eff6ff', color: '#1d4ed8', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                    <MessageCircle size={13} /> {sw ? 'Ongea na Daktari' : 'Chat with Doctor'}
+                  </button>
+                )}
               </div>
             );
           })}
