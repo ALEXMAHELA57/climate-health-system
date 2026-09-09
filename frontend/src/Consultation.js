@@ -54,6 +54,7 @@ export default function Consultation({ lang, initialSpecialty }) {
   const [myPhone, setMyPhone] = useState('');
   const [myAppointments, setMyAppointments] = useState(null);
   const [activeChat, setActiveChat] = useState(null);
+  const [negotiations, setNegotiations] = useState([]);
   const [ratingAppointment, setRatingAppointment] = useState(null);
   const [ratingStars, setRatingStars] = useState(0);
   const [ratedAppointments, setRatedAppointments] = useState({});
@@ -139,8 +140,20 @@ export default function Consultation({ lang, initialSpecialty }) {
       const res = await fetch(`${API}/api/consultation/appointments/${myPhone}`);
       const data = await res.json();
       setMyAppointments(data.appointments || []);
+      const negRes = await fetch(`${API}/api/consultation/negotiate/mine/${myPhone}`);
+      const negData = await negRes.json();
+      setNegotiations(negData.negotiations || []);
     } catch { setMyAppointments([]); }
     setLoading(false);
+  }
+
+  async function respondToCounter(negotiationId, action) {
+    try {
+      await fetch(`${API}/api/consultation/negotiate/${negotiationId}/respond`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }),
+      });
+      loadMyAppointments();
+    } catch { /* silent */ }
   }
 
   const statusStyle = {
@@ -341,6 +354,29 @@ export default function Consultation({ lang, initialSpecialty }) {
             </button>
           </div>
           {loading && <div style={{ textAlign: 'center', padding: 20, color: theme.textFaint, fontSize: 13 }}>{sw ? 'Inapakia...' : 'Loading...'}</div>}
+
+          {negotiations.filter(n => n.status === 'countered').length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: theme.textMuted, marginBottom: 8 }}>{sw ? 'OFA ZA BEI' : 'FEE COUNTER-OFFERS'}</p>
+              {negotiations.filter(n => n.status === 'countered').map(n => (
+                <div key={n.negotiation_id} style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: 12, marginBottom: 8 }}>
+                  <div style={{ fontSize: 12, color: '#92400e', marginBottom: 8 }}>
+                    {sw ? `${n.doctor_name} amependekeza TZS ${n.counter_price?.toLocaleString()} badala ya TZS ${n.proposed_price.toLocaleString()} ulizopendekeza`
+                        : `${n.doctor_name} countered with TZS ${n.counter_price?.toLocaleString()} (you proposed TZS ${n.proposed_price.toLocaleString()})`}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => respondToCounter(n.negotiation_id, 'accept')} style={{ flex: 1, padding: 8, background: '#166534', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                      {sw ? 'Kubali' : 'Accept'}
+                    </button>
+                    <button onClick={() => respondToCounter(n.negotiation_id, 'decline')} style={{ flex: 1, padding: 8, background: '#991b1b', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                      {sw ? 'Kataa' : 'Decline'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {myAppointments && myAppointments.length === 0 && <div style={{ textAlign: 'center', padding: 24, color: theme.textFaint, fontSize: 13 }}>{sw ? 'Hakuna miadi bado' : 'No appointments yet'}</div>}
           {myAppointments && myAppointments.map(a => {
             const s = statusStyle[a.status] || statusStyle.pending;
