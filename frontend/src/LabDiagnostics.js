@@ -10,7 +10,7 @@ function authHeaders() {
 
 const CATEGORY_ICON = { blood: Droplet, diabetes: FlaskConical, hiv_sti: TestTube, pregnancy: Baby, cholesterol: HeartPulse, kidney_liver: FlaskConical, other: FlaskConical };
 
-export default function LabDiagnostics({ lang }) {
+export default function LabDiagnostics({ lang, setPage, setAfyaTopic }) {
   const { theme } = useTheme();
   const sw = lang === 'sw';
   const user = JSON.parse(localStorage.getItem('afya_user') || 'null');
@@ -80,6 +80,13 @@ export default function LabDiagnostics({ lang }) {
       setBookings(data.bookings || []);
     } catch { setBookings([]); }
     setLoading(false);
+  }
+
+  function explainResult(b) {
+    setAfyaTopic(sw
+      ? `Kueleza matokeo ya kipimo cha "${b.test_name}": "${b.result_summary}"`
+      : `Explaining the "${b.test_name}" lab result: "${b.result_summary}"`);
+    setPage('symptoms');
   }
 
   const inputStyle = { width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.card, color: theme.text, fontSize: 14 };
@@ -206,6 +213,10 @@ export default function LabDiagnostics({ lang }) {
                 {b.result_ready && (
                   <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${theme.border}` }}>
                     <div style={{ fontSize: 12, color: theme.text, marginBottom: 8 }}>{b.result_summary}</div>
+                    <button onClick={() => explainResult(b)}
+                      style={{ width: '100%', padding: 8, background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: b.sensitive ? 8 : 0 }}>
+                      <MessageCircle size={13} /> {sw ? 'Eleza kwa Afya AI' : 'Explain with Afya AI'}
+                    </button>
                     {b.sensitive && (
                       <div style={{ background: '#eff6ff', borderRadius: 8, padding: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
                         <MessageCircle size={14} color="#2563eb" />

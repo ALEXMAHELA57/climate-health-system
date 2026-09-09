@@ -1,13 +1,19 @@
 import React, { useState } from 'react';
 import {
   Stethoscope, Brain, UserRound, Users, Baby, CalendarHeart,
-  Smile, HeartPulse, Sparkles, Apple, HandHeart, MessageCircle, UserSearch, ArrowLeft, Building2, FlaskConical,
+  Smile, HeartPulse, Sparkles, Apple, HandHeart, MessageCircle, UserSearch, ArrowLeft, Building2, FlaskConical, ClipboardList,
 } from 'lucide-react';
 import { useTheme } from './ThemeContext';
+import Assessment from './Assessment';
+
+const ASSESSMENT_NAMES = {
+  phq9: { en: 'PHQ-9 (Depression Screening)', sw: 'PHQ-9 (Uchunguzi wa Msongo wa Mawazo)' },
+  gad7: { en: 'GAD-7 (Anxiety Screening)', sw: 'GAD-7 (Uchunguzi wa Wasiwasi)' },
+};
 
 const DOMAINS = [
   { id: 'general', specialty: 'general', Icon: Stethoscope, en: 'General Health', sw: 'Afya ya Jumla', color: '#2563eb', bg: '#eff6ff' },
-  { id: 'mental_health', specialty: 'mental_health', Icon: Brain, en: 'Mental Health', sw: 'Afya ya Akili', color: '#0d9488', bg: '#f0fdfa' },
+  { id: 'mental_health', specialty: 'mental_health', Icon: Brain, en: 'Mental Health', sw: 'Afya ya Akili', color: '#0d9488', bg: '#f0fdfa', assessments: ['phq9', 'gad7'] },
   { id: 'male_reproductive', specialty: 'male_reproductive', Icon: UserRound, en: "Men's Reproductive Health", sw: 'Afya ya Uzazi wa Mwanaume', color: '#0369a1', bg: '#f0f9ff', showFor: 'male' },
   { id: 'female_reproductive', specialty: 'female_reproductive', Icon: Users, en: "Women's Reproductive Health", sw: 'Afya ya Uzazi wa Mwanamke', color: '#db2777', bg: '#fdf2f8', showFor: 'female' },
   { id: 'menstrual_cycle', specialty: 'menstrual_cycle', Icon: CalendarHeart, en: 'Menstrual Cycle', sw: 'Mzunguko wa Hedhi', color: '#e11d48', bg: '#fff1f2', showFor: 'female' },
@@ -51,6 +57,19 @@ export default function Health({ lang, user, setPage, setCareFilter, setAfyaTopi
     setPage('lab');
   }
 
+  const [activeAssessment, setActiveAssessment] = useState(null);
+
+  if (activeAssessment) {
+    return (
+      <Assessment
+        lang={lang} assessmentId={activeAssessment}
+        onBack={() => setActiveAssessment(null)}
+        setPage={setPage} setAfyaTopic={setAfyaTopic}
+        setCareFilter={setCareFilter} setCareView={setCareView}
+      />
+    );
+  }
+
   if (selected) {
     const d = selected;
     return (
@@ -73,6 +92,17 @@ export default function Health({ lang, user, setPage, setCareFilter, setAfyaTopi
             <div style={{ fontSize: 12, color: theme.textMuted }}>{sw ? 'Jifunze na uulize maswali' : 'Learn and ask questions'}</div>
           </div>
         </button>
+
+        {d.assessments && d.assessments.map(aid => (
+          <button key={aid} onClick={() => setActiveAssessment(aid)}
+            style={{ width: '100%', background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 16, textAlign: 'left', cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <ClipboardList size={22} color={d.color} />
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: theme.text }}>{sw ? ASSESSMENT_NAMES[aid]?.sw : ASSESSMENT_NAMES[aid]?.en}</div>
+              <div style={{ fontSize: 12, color: theme.textMuted }}>{sw ? 'Chukua tathmini fupi' : 'Take a short screening'}</div>
+            </div>
+          </button>
+        ))}
 
         <button onClick={() => findExpert(d)}
           style={{ width: '100%', background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 16, textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>

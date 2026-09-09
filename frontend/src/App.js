@@ -204,7 +204,7 @@ function AppShell() {
             {page==='profile'   && <UserProfile lang={lang} onLangChange={handleLangChange} onDistrictChange={handleDistrictChange} setPage={setPage} />}
             {page==='family'    && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Afya ya Familia':'Family Health'}><FamilyHealth lang={lang} /></SubPage>}
             {page==='myhealth'  && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Afya Yangu':'My Health'}><MyHealth lang={lang} /></SubPage>}
-            {page==='lab'       && <SubPage lang={lang} setPage={()=>setPage('health')} title={lang==='sw'?'Vipimo vya Maabara':'Lab & Diagnostics'}><LabDiagnostics lang={lang} /></SubPage>}
+            {page==='lab'       && <SubPage lang={lang} setPage={()=>setPage('health')} title={lang==='sw'?'Vipimo vya Maabara':'Lab & Diagnostics'}><LabDiagnostics lang={lang} setPage={setPage} setAfyaTopic={setAfyaTopic} /></SubPage>}
             {page==='shop'      && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Duka la Afya':'Health Shop'}><HealthShop lang={lang} /></SubPage>}
             {page==='report'    && <CommunityReport lang={lang} />}
             {page==='emergency' && <EmergencyPage lang={lang} setPage={setPage} />}
