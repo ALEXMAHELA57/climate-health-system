@@ -9,57 +9,57 @@ export default function Onboarding({ lang = 'en', onFinish }) {
       icon: '🌍',
       title: sw ? 'Karibu AfyaHewa' : 'Welcome to AfyaHewa',
       text: sw
-        ? 'Mfumo wa tahadhari wa mapema kuhusu hali ya hewa na afya kwa Tanzania. Tunakusaidia kujiandaa kabla hatari zinatokea.'
-        : "Tanzania's early warning system for climate and health risks. We help you prepare before danger arrives.",
+        ? 'Mfumo unaounganisha hali ya hewa, afya, na huduma za kiafya kwa Tanzania — wote mahali pamoja.'
+        : "Tanzania's connected platform for climate, health guidance, and care — all in one place.",
       color: '#2563eb',
     },
     {
-      icon: '🌤️',
-      title: sw ? 'Hali ya Hewa na Taarifa za Afya' : 'Weather & Health Alerts',
+      icon: '🏠',
+      title: sw ? 'Nyumbani' : 'Home',
       text: sw
-        ? 'Tazama hali ya hewa ya sasa, utabiri wa siku 15, na taarifa za hatari za malaria, kipindupindu na zaidi — kulingana na mkoa wako.'
-        : 'See current weather, 15-day forecasts, and alerts for malaria, cholera, and other climate-related health risks — tailored to your region.',
+        ? 'Ona hali ya hewa, ubora wa hewa, taarifa za afya, na tahadhari za mapema — kila kitu kikiwa maalum kwa mkoa wako.'
+        : 'See weather, air quality, health alerts, and early warnings — all tailored to your district.',
       color: '#0ea5e9',
     },
     {
-      icon: '🤒',
-      title: sw ? 'Zungumza na Afya' : 'Chat with Afya',
+      icon: '🌤️',
+      title: sw ? 'Hali ya Hewa' : 'Climate',
       text: sw
-        ? 'Afya ni msaidizi wa AI anayeweza kukusaidia kuelewa dalili zako na kukushauri hatua za kuchukua, kwa Kiswahili au Kiingereza.'
-        : 'Afya is an AI assistant that helps you understand your symptoms and what to do next, in English or Swahili.',
-      color: '#f59e0b',
-    },
-    {
-      icon: '🗺️',
-      title: sw ? 'Ramani ya Hatari' : 'Climate Risk Map',
-      text: sw
-        ? 'Angalia hatari za malaria, mafuriko, ukame na milipuko ya magonjwa kwa kila mkoa wa Tanzania kwa wakati halisi.'
-        : 'View malaria, flood, drought, and disease outbreak risk levels for every region in Tanzania, updated in real time.',
+        ? 'Utabiri wa siku 15, Ramani ya Hatari kwa kila mkoa, na uwezo wa kuripoti matatizo kama mafuriko au maji machafu.'
+        : '15-day forecasts, a Risk Map for every region, and the ability to report hazards like flooding or unsafe water.',
       color: '#8b5cf6',
     },
     {
-      icon: '🏥',
-      title: sw ? 'Pata Kliniki za Karibu' : 'Find Nearby Clinics',
+      icon: '🩺',
+      title: sw ? 'Afya' : 'Health',
       text: sw
-        ? 'Tafuta hospitali na vituo vya afya karibu nawe, ukiwa na nambari za simu, umbali halisi na muda wa kufika kwa miguu au gari.'
-        : 'Find hospitals and health centres near you, with phone numbers, real distance, and travel time on foot or by car.',
-      color: '#22c55e',
+        ? 'Chagua eneo — Afya ya Akili, Uzazi, Moyo, na zaidi. Ongea na Afya AI, chukua tathmini, au tafuta daktari, kliniki, na maabara.'
+        : 'Choose an area — Mental Health, Reproductive Health, Cardiology, and more. Chat with Afya AI, take a screening, or find a doctor, clinic, or lab.',
+      color: '#0d9488',
     },
     {
-      icon: '📢',
-      title: sw ? 'Ripoti Matatizo' : 'Report Issues',
+      icon: '💊',
+      title: sw ? 'Afya Yangu na Familia' : 'My Health & Family',
       text: sw
-        ? 'Ripoti matatizo kama mafuriko, magonjwa, au maji machafu katika eneo lako. Timu yetu itapitia na kujibu ripoti yako.'
-        : 'Report problems like flooding, illness, or unsafe water in your area. Our team reviews and responds to your reports.',
-      color: '#ec4899',
+        ? 'Weka ukumbusho wa dawa na vipimo, fuatilia historia yako ya afya, na simamia afya ya familia yako yote — kutoka Wasifu.'
+        : 'Set medicine and measurement reminders, track your health history, and manage your whole family\u2019s care — all from Profile.',
+      color: '#7c3aed',
     },
     {
-      icon: '👤',
-      title: sw ? 'Wasifu Wako' : 'Your Profile',
+      icon: '🛒',
+      title: sw ? 'Duka la Afya' : 'Health Shop',
       text: sw
-        ? 'Hifadhi mkoa wako, lugha, na mapendeleo ya taarifa. Pia unaweza kujiandikisha kupokea arifa za SMS na kuona historia yako.'
-        : 'Save your region, language, and alert preferences. You can also subscribe to SMS alerts and view your history.',
-      color: '#0891b2',
+        ? 'Nunua vifaa vya tiba, huduma ya kwanza, na bidhaa nyingine za afya, zikiletwa moja kwa moja kwako.'
+        : 'Order medical supplies, first-aid items, and other health products, delivered straight to you.',
+      color: '#db2777',
+    },
+    {
+      icon: '🚨',
+      title: sw ? 'Dharura' : 'Emergency',
+      text: sw
+        ? 'Piga 112 kwa mguso mmoja, wakati wowote. Ongeza watu wa dharura ili wajulishwe eneo lako ukiwa na tatizo.'
+        : 'Call 112 with one tap, anytime. Add emergency contacts who get notified with your location if you ever need help.',
+      color: '#ef4444',
     },
   ];
 
