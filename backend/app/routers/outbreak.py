@@ -264,7 +264,7 @@ async def get_active_alerts(db: Session = Depends(get_db)):
 # ── Admin endpoints ──────────────────────────────────────────────────────────
 
 @router.get("/queue")
-async def get_review_queue(db: Session = Depends(get_db)):
+async def get_review_queue(admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     """Admin review queue — shows:
     - pending: awaiting first decision
     - approved: can be reverted back to pending anytime
@@ -348,7 +348,7 @@ async def unapprove_alert(alert_id: int, admin: Admin = Depends(get_current_admi
 
 
 @router.post("/alert/{alert_id}/reject")
-async def reject_alert(alert_id: int, action: ReviewAction, db: Session = Depends(get_db)):
+async def reject_alert(alert_id: int, action: ReviewAction, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     alert = db.query(OutbreakAlert).filter(OutbreakAlert.id == alert_id).first()
     if not alert:
         return {"success": False, "error": "Alert not found"}
@@ -360,7 +360,7 @@ async def reject_alert(alert_id: int, action: ReviewAction, db: Session = Depend
 
 
 @router.post("/alert/{alert_id}/unreject")
-async def unreject_alert(alert_id: int, db: Session = Depends(get_db)):
+async def unreject_alert(alert_id: int, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     """Admin made a mistake rejecting — revert back to pending.
     Only allowed within the 3-day visibility window; after that the
     alert is locked and this will fail."""
@@ -380,7 +380,7 @@ async def unreject_alert(alert_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/settings")
-async def get_settings(db: Session = Depends(get_db)):
+async def get_settings(admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     return {"auto_publish_outbreaks": is_auto_publish_enabled(db)}
 
 
@@ -389,7 +389,7 @@ class SettingUpdate(BaseModel):
 
 
 @router.post("/settings")
-async def update_settings(update: SettingUpdate, db: Session = Depends(get_db)):
+async def update_settings(update: SettingUpdate, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     setting = db.query(SystemSetting).filter(SystemSetting.key == SETTING_KEY).first()
     value = "true" if update.auto_publish_outbreaks else "false"
     if setting:

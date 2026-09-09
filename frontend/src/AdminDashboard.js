@@ -10,11 +10,15 @@ const ALL_REGIONS = [
   'Zanzibar North','Zanzibar South','Zanzibar West','Pemba North','Pemba South'
 ];
 
-const ADMIN_PASSWORD = 'AfyaHewa2024!';
+function authHeaders() {
+  const token = localStorage.getItem('afya_admin_token');
+  return token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+}
 
 export default function AdminDashboard({ lang = 'en', onClose }) {
   const sw = lang === 'sw';
-  const [authed, setAuthed] = useState(() => sessionStorage.getItem('afya_admin') === 'true');
+  const [authed, setAuthed] = useState(() => !!localStorage.getItem('afya_admin_token'));
+  const [username, setUsername] = useState('');
   const [pw, setPw] = useState('');
   const [pwError, setPwError] = useState('');
   const [tab, setTab] = useState('overview');
@@ -31,7 +35,7 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
     setLoading(true);
     try {
       if (tab === 'overview' || tab === 'subscribers') {
-        const r = await fetch(`${API}/api/admin/stats`);
+        const r = await fetch(`${API}/api/admin/stats`, { headers: authHeaders() });
         const d = await r.json();
         setStats(d);
         setSubscribers(d.subscribers || []);
@@ -42,7 +46,7 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
         setReports(d.reports || []);
       }
       if (tab === 'urgent') {
-        const r = await fetch(`${API}/api/symptoms/severe`);
+        const r = await fetch(`${API}/api/symptoms/severe`, { headers: authHeaders() });
         const d = await r.json();
         setSevereReports(d.reports || []);
       }
@@ -52,7 +56,7 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
 
   async function dismissSevere(reportId) {
     try {
-      await fetch(`${API}/api/symptoms/${reportId}/dismiss`, { method: 'POST' });
+      await fetch(`${API}/api/symptoms/${reportId}/dismiss`, { method: 'POST', headers: authHeaders() });
       setSevereReports(prev => prev.filter(r => r.id !== reportId));
     } catch {}
   }
@@ -60,22 +64,32 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
   async function deleteSymptomReport(reportId) {
     if (!window.confirm(sw ? 'Una uhakika unataka kufuta ripoti hii?' : 'Are you sure you want to delete this report?')) return;
     try {
-      await fetch(`${API}/api/symptoms/${reportId}`, { method: 'DELETE' });
+      await fetch(`${API}/api/symptoms/${reportId}`, { method: 'DELETE', headers: authHeaders() });
       setSevereReports(prev => prev.filter(r => r.id !== reportId));
     } catch {}
   }
 
-  function login() {
-    if (pw === ADMIN_PASSWORD) {
-      sessionStorage.setItem('afya_admin', 'true');
-      setAuthed(true);
-    } else {
-      setPwError(sw ? 'Nywila si sahihi' : 'Incorrect password');
+  async function login() {
+    setPwError('');
+    try {
+      const res = await fetch(`${API}/api/admin-auth/login`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password: pw }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        localStorage.setItem('afya_admin_token', data.token);
+        setAuthed(true);
+      } else {
+        setPwError(data.error || (sw ? 'Nywila si sahihi' : 'Incorrect username or password'));
+      }
+    } catch {
+      setPwError(sw ? 'Hitilafu ya muunganisho' : 'Connection error');
     }
   }
 
   function logout() {
-    sessionStorage.removeItem('afya_admin');
+    localStorage.removeItem('afya_admin_token');
     setAuthed(false);
     if (onClose) onClose();
   }
@@ -90,11 +104,14 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
       </div>
       <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 20 }}>
         <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 16 }}>
-          {sw ? 'Weka nywila ya msimamizi' : 'Enter admin password to access the dashboard'}
+          {sw ? 'Ingia kama msimamizi' : 'Log in with your admin credentials'}
         </div>
+        <input value={username} onChange={e => setUsername(e.target.value)}
+          placeholder={sw ? 'Jina la mtumiaji' : 'Username'}
+          style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14, boxSizing: 'border-box', marginBottom: 8 }} />
         <input type="password" value={pw} onChange={e => setPw(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && login()}
-          placeholder="Password"
+          placeholder={sw ? 'Nywila' : 'Password'}
           style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: `1px solid ${pwError ? '#ef4444' : '#e5e7eb'}`, fontSize: 14, boxSizing: 'border-box', marginBottom: 4 }} />
         {pwError && <div style={{ fontSize: 11, color: '#ef4444', marginBottom: 8 }}>{pwError}</div>}
         <button onClick={login} style={{ width: '100%', padding: 12, background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer', marginTop: 8 }}>
@@ -288,7 +305,7 @@ function BroadcastPanel({ sw, API }) {
   async function fetchLogs() {
     setLoadingLogs(true);
     try {
-      const res  = await fetch(`${API}/api/sms/logs`);
+      const res  = await fetch(`${API}/api/sms/logs`, { headers: authHeaders() });
       const data = await res.json();
       setLogs(data.logs || []);
     } catch {}
@@ -302,7 +319,7 @@ function BroadcastPanel({ sw, API }) {
     try {
       const res  = await fetch(`${API}/api/sms/broadcast`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({ message: msg, region, language: lang }),
       });
       const data = await res.json();
@@ -419,7 +436,7 @@ function ReportsPanel({ reports, sw, API, onRefresh }) {
     try {
       await fetch(`${API}/api/community/update-status`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({ report_id: reportId, status, admin_note: adminNote || '' })
       });
       setLocalStatus(p => ({ ...p, [reportId]: { status, admin_note: adminNote || '' } }));
@@ -432,7 +449,7 @@ function ReportsPanel({ reports, sw, API, onRefresh }) {
     if (!window.confirm(sw ? 'Una uhakika unataka kufuta ripoti hii kabisa? Hatua hii haiwezi kutenduliwa.' : 'Permanently delete this report? This cannot be undone.')) return;
     setUpdating(p => ({ ...p, [reportId]: true }));
     try {
-      await fetch(`${API}/api/community/report/${reportId}`, { method: 'DELETE' });
+      await fetch(`${API}/api/community/report/${reportId}`, { method: 'DELETE', headers: authHeaders() });
       setDeleted(p => ({ ...p, [reportId]: true }));
     } catch { alert('Failed to delete. Check connection.'); }
     setUpdating(p => ({ ...p, [reportId]: false }));
@@ -578,8 +595,8 @@ function OutbreakQueuePanel({ sw, API }) {
     setLoading(true);
     try {
       const [settingsRes, queueRes] = await Promise.all([
-        fetch(`${API}/api/outbreak/settings`),
-        fetch(`${API}/api/outbreak/queue`),
+        fetch(`${API}/api/outbreak/settings`, { headers: authHeaders() }),
+        fetch(`${API}/api/outbreak/queue`, { headers: authHeaders() }),
       ]);
       const settings = await settingsRes.json();
       const queue = await queueRes.json();
@@ -597,7 +614,7 @@ function OutbreakQueuePanel({ sw, API }) {
     try {
       await fetch(`${API}/api/outbreak/settings`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({ auto_publish_outbreaks: newValue }),
       });
       setAutoPublish(newValue);
@@ -609,7 +626,7 @@ function OutbreakQueuePanel({ sw, API }) {
     setActioning(p => ({ ...p, [id]: true }));
     try {
       const res = await fetch(`${API}/api/outbreak/alert/${id}/${endpoint}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
+        method: 'POST', headers: authHeaders(), body: JSON.stringify({}),
       });
       const data = await res.json();
       if (!data.success) {

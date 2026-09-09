@@ -3,7 +3,8 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 from sqlalchemy.orm import Session
-from database import get_db, Subscriber, SMSLog
+from database import get_db, Subscriber, SMSLog, Admin
+from app.routers.admin_auth import get_current_admin
 import httpx
 import os
 import base64
@@ -136,7 +137,7 @@ async def unsubscribe(data: SubscribeIn, db: Session = Depends(get_db)):
     return {"success": True}
 
 @router.get("/subscribers")
-async def get_subscribers(db: Session = Depends(get_db)):
+async def get_subscribers(admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     subs = db.query(Subscriber).filter(Subscriber.active == True)\
         .order_by(Subscriber.subscribed_at.desc()).all()
     return {
@@ -158,7 +159,7 @@ class AlertIn(BaseModel):
     message_sw: str
 
 @router.post("/send-alert")
-async def send_alert(data: AlertIn, db: Session = Depends(get_db)):
+async def send_alert(data: AlertIn, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     """Send a health/weather alert to all subscribers in a region."""
     # Get active subscribers for this region
     subscribers = db.query(Subscriber).filter(
@@ -215,7 +216,7 @@ class BroadcastIn(BaseModel):
     language: Optional[str] = "both"
 
 @router.post("/broadcast")
-async def broadcast(data: BroadcastIn, db: Session = Depends(get_db)):
+async def broadcast(data: BroadcastIn, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     """Admin broadcast — send a custom message to subscribers."""
     query = db.query(Subscriber).filter(Subscriber.active == True)
     if data.region and data.region != "ALL":
@@ -246,7 +247,7 @@ async def broadcast(data: BroadcastIn, db: Session = Depends(get_db)):
     return {"success": result["success"], "sent": result["sent"], "failed": result["failed"]}
 
 @router.get("/logs")
-async def get_sms_logs(db: Session = Depends(get_db)):
+async def get_sms_logs(admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     """Recent SMS send history for admin visibility."""
     logs = db.query(SMSLog).order_by(SMSLog.sent_at.desc()).limit(50).all()
     return {

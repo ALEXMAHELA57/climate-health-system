@@ -5,7 +5,8 @@ import anthropic
 import os
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
-from database import get_db, SymptomReport
+from database import get_db, SymptomReport, Admin
+from app.routers.admin_auth import get_current_admin
 from datetime import datetime
 
 load_dotenv()
@@ -98,7 +99,7 @@ async def ping():
     return {"status": "ok"}
 
 @router.get("/severe")
-async def get_severe_reports(db: Session = Depends(get_db)):
+async def get_severe_reports(admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     """Returns recent symptom reports flagged as needing urgent human review."""
     reports = db.query(SymptomReport).filter(
         SymptomReport.flagged_severe == True
@@ -116,7 +117,7 @@ async def get_severe_reports(db: Session = Depends(get_db)):
     }
 
 @router.delete("/{report_id}")
-async def delete_symptom_report(report_id: int, db: Session = Depends(get_db)):
+async def delete_symptom_report(report_id: int, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     """Admin-only deletion of a symptom report — e.g. spam, duplicate, or false flag.
     Permanently removes it from outbreak detection calculations."""
     report = db.query(SymptomReport).filter(SymptomReport.id == report_id).first()
@@ -127,7 +128,7 @@ async def delete_symptom_report(report_id: int, db: Session = Depends(get_db)):
     return {"success": True}
 
 @router.post("/{report_id}/dismiss")
-async def dismiss_severe_flag(report_id: int, db: Session = Depends(get_db)):
+async def dismiss_severe_flag(report_id: int, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     """Admin reviewed the severe flag and determined it's not urgent —
     clears the flag but keeps the report for outbreak statistics."""
     report = db.query(SymptomReport).filter(SymptomReport.id == report_id).first()
