@@ -162,6 +162,42 @@ class FamilyLinkRequest(Base):
     created_at          = Column(DateTime, default=datetime.utcnow)
     responded_at        = Column(DateTime, nullable=True)
 
+class MedicalRecord(Base):
+    """A single medical record entry - a condition, diagnosis, prescription,
+    lab result, allergy, or document note. source distinguishes records
+    AfyaHewa itself generated (from a completed consultation or lab
+    result) from what the patient typed in themselves, so a doctor
+    viewing this later can tell what's clinically confirmed versus
+    self-reported. family_profile_id is null for the account holder's
+    own records, or set when this belongs to a managed family member."""
+    __tablename__ = "medical_records"
+    id                 = Column(Integer, primary_key=True, index=True)
+    owner_user_id      = Column(Integer, index=True)  # the account holder who can see/manage this
+    family_profile_id  = Column(Integer, nullable=True, index=True)  # null = the account holder's own record
+    record_type        = Column(String(30))   # condition | diagnosis | prescription | lab_result | allergy | document
+    title              = Column(String(200))
+    description        = Column(Text, default="")
+    source             = Column(String(20), default="self_reported")  # self_reported | verified_afyahewa
+    date_recorded      = Column(String(20), nullable=True)  # "YYYY-MM-DD", when this happened/was noted
+    created_at         = Column(DateTime, default=datetime.utcnow)
+
+class HealthMeasurement(Base):
+    """A single health measurement reading (blood pressure, glucose,
+    weight, heart rate, temperature, oxygen saturation). value_secondary
+    is only used for readings with two numbers (blood pressure's
+    systolic/diastolic)."""
+    __tablename__ = "health_measurements"
+    id                 = Column(Integer, primary_key=True, index=True)
+    owner_user_id      = Column(Integer, index=True)
+    family_profile_id  = Column(Integer, nullable=True, index=True)
+    metric_type        = Column(String(30))   # blood_pressure | blood_glucose | weight | heart_rate | temperature | spo2
+    value_primary       = Column(Float)
+    value_secondary      = Column(Float, nullable=True)  # diastolic, when metric_type is blood_pressure
+    unit               = Column(String(20), default="")
+    context            = Column(String(30), nullable=True)  # fasting | after_meal | morning | evening | random
+    note               = Column(String(300), default="")
+    recorded_at        = Column(DateTime, default=datetime.utcnow)
+
 class SystemSetting(Base):
     """Simple key-value store for admin-configurable system settings,
     e.g. whether outbreak alerts auto-publish or require approval."""

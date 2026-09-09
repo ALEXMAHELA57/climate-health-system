@@ -141,14 +141,24 @@ export default function UserProfile({ lang = 'en', onLangChange, onDistrictChang
       <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>👤 {t.profile}</div>
 
       {setPage && (
-        <button onClick={() => setPage('family')}
-          style={{ width: '100%', ...card, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', textAlign: 'left' }}>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>👨‍👩‍👧 {lang === 'sw' ? 'Afya ya Familia' : 'Family Health'}</div>
-            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{lang === 'sw' ? 'Simamia wanafamilia' : 'Manage family members'}</div>
-          </div>
-          <span style={{ color: '#9ca3af' }}>›</span>
-        </button>
+        <>
+          <button onClick={() => setPage('myhealth')}
+            style={{ width: '100%', ...card, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', textAlign: 'left', marginBottom: 10 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>💊 {lang === 'sw' ? 'Afya Yangu' : 'My Health'}</div>
+              <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{lang === 'sw' ? 'Kumbukumbu, vipimo, ripoti' : 'Records, measurements, reports'}</div>
+            </div>
+            <span style={{ color: '#9ca3af' }}>›</span>
+          </button>
+          <button onClick={() => setPage('family')}
+            style={{ width: '100%', ...card, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', textAlign: 'left' }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>👨‍👩‍👧 {lang === 'sw' ? 'Afya ya Familia' : 'Family Health'}</div>
+              <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{lang === 'sw' ? 'Simamia wanafamilia' : 'Manage family members'}</div>
+            </div>
+            <span style={{ color: '#9ca3af' }}>›</span>
+          </button>
+        </>
       )}
 
       {/* District & Language */}
