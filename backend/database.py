@@ -309,6 +309,33 @@ class VendorPayout(Base):
     status         = Column(String(20), default="pending")  # pending | sent | failed
     created_at     = Column(DateTime, default=datetime.utcnow)
 
+class MenstrualPeriod(Base):
+    """A logged period start (and optionally end) date. Cycle length and
+    predictions are calculated from the history of these entries, not
+    stored directly - so predictions improve automatically as more
+    periods are logged."""
+    __tablename__ = "menstrual_periods"
+    id                 = Column(Integer, primary_key=True, index=True)
+    owner_user_id      = Column(Integer, index=True)
+    family_profile_id  = Column(Integer, nullable=True, index=True)
+    start_date         = Column(String(20))  # "YYYY-MM-DD"
+    end_date           = Column(String(20), nullable=True)
+    created_at         = Column(DateTime, default=datetime.utcnow)
+
+class MenstrualLog(Base):
+    """An optional daily symptom entry - flow intensity, cramps, mood -
+    logged independently of period start/end dates."""
+    __tablename__ = "menstrual_logs"
+    id                 = Column(Integer, primary_key=True, index=True)
+    owner_user_id      = Column(Integer, index=True)
+    family_profile_id  = Column(Integer, nullable=True, index=True)
+    date               = Column(String(20))
+    flow               = Column(String(20), nullable=True)   # light | medium | heavy | spotting
+    cramps             = Column(String(20), nullable=True)   # none | mild | moderate | severe
+    mood               = Column(String(20), nullable=True)   # good | irritable | low | anxious
+    notes              = Column(String(300), default="")
+    created_at         = Column(DateTime, default=datetime.utcnow)
+
 class Lab(Base):
     """A partner laboratory offering diagnostic tests. Placeholder
     entries until real partner labs are onboarded - same caution as

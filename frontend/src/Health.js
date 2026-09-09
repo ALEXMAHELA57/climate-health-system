@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from './ThemeContext';
 import Assessment from './Assessment';
+import MenstrualCycle from './MenstrualCycle';
 
 const ASSESSMENT_NAMES = {
   phq9: { en: 'PHQ-9 (Depression Screening)', sw: 'PHQ-9 (Uchunguzi wa Msongo wa Mawazo)' },
@@ -58,6 +59,20 @@ export default function Health({ lang, user, setPage, setCareFilter, setAfyaTopi
   }
 
   const [activeAssessment, setActiveAssessment] = useState(null);
+  const [showCycleTracker, setShowCycleTracker] = useState(false);
+
+  if (showCycleTracker) {
+    return (
+      <div>
+        <div style={{ padding: '16px 16px 0' }}>
+          <button onClick={() => setShowCycleTracker(false)} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 13, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <ArrowLeft size={14} /> {sw ? 'Rudi' : 'Back'}
+          </button>
+        </div>
+        <MenstrualCycle lang={lang} />
+      </div>
+    );
+  }
 
   if (activeAssessment) {
     return (
@@ -92,6 +107,17 @@ export default function Health({ lang, user, setPage, setCareFilter, setAfyaTopi
             <div style={{ fontSize: 12, color: theme.textMuted }}>{sw ? 'Jifunze na uulize maswali' : 'Learn and ask questions'}</div>
           </div>
         </button>
+
+        {d.id === 'menstrual_cycle' && (
+          <button onClick={() => setShowCycleTracker(true)}
+            style={{ width: '100%', background: '#fdf2f8', border: '1px solid #fbcfe8', borderRadius: 12, padding: 16, textAlign: 'left', cursor: 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <ClipboardList size={22} color="#db2777" />
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: theme.text }}>{sw ? 'Fuatilia Mzunguko Wangu' : 'Track My Cycle'}</div>
+              <div style={{ fontSize: 12, color: theme.textMuted }}>{sw ? 'Siku, utabiri, na dalili' : 'Cycle day, predictions, and symptoms'}</div>
+            </div>
+          </button>
+        )}
 
         {d.assessments && d.assessments.map(aid => (
           <button key={aid} onClick={() => setActiveAssessment(aid)}
