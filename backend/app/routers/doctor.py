@@ -7,8 +7,9 @@ import json
 import jwt
 from passlib.context import CryptContext
 
-from database import get_db, Doctor, Appointment, DoctorChangeRequest
+from database import get_db, Doctor, Appointment, DoctorChangeRequest, Admin
 from app.routers.auth import JWT_SECRET, JWT_ALGO
+from app.routers.admin_auth import get_current_admin
 
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -104,7 +105,7 @@ def list_my_change_requests(doctor: Doctor = Depends(get_current_doctor), db: Se
 # gated behind admin auth. Add that before this is used for real.
 
 @router.get("/admin/change-requests/pending")
-def list_pending_change_requests(db: Session = Depends(get_db)):
+def list_pending_change_requests(admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     reqs = db.query(DoctorChangeRequest).filter(DoctorChangeRequest.status == "pending").all()
     result = []
     for r in reqs:
@@ -113,7 +114,7 @@ def list_pending_change_requests(db: Session = Depends(get_db)):
     return {"requests": result}
 
 @router.post("/admin/change-requests/{request_id}/approve")
-def approve_change_request(request_id: int, db: Session = Depends(get_db)):
+def approve_change_request(request_id: int, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     req = db.query(DoctorChangeRequest).filter(DoctorChangeRequest.id == request_id, DoctorChangeRequest.status == "pending").first()
     if not req:
         return {"success": False, "error": "Request not found"}
@@ -126,7 +127,7 @@ def approve_change_request(request_id: int, db: Session = Depends(get_db)):
     return {"success": True}
 
 @router.post("/admin/change-requests/{request_id}/reject")
-def reject_change_request(request_id: int, db: Session = Depends(get_db)):
+def reject_change_request(request_id: int, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     req = db.query(DoctorChangeRequest).filter(DoctorChangeRequest.id == request_id, DoctorChangeRequest.status == "pending").first()
     if not req:
         return {"success": False, "error": "Request not found"}
@@ -140,7 +141,7 @@ class AdminDoctorLoginIn(BaseModel):
     password: str
 
 @router.post("/admin/set-login")
-def admin_set_doctor_login(doctor_id: int, data: AdminDoctorLoginIn, db: Session = Depends(get_db)):
+def admin_set_doctor_login(doctor_id: int, data: AdminDoctorLoginIn, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     """Admin creates/resets a doctor's login credentials - doctors never self-register."""
     doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
     if not doctor:

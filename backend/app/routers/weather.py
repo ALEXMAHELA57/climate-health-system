@@ -3,7 +3,8 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
 import httpx
-from database import get_db, SeasonalAlert
+from database import get_db, SeasonalAlert, Admin
+from app.routers.admin_auth import get_current_admin
 
 router = APIRouter()
 
@@ -137,9 +138,7 @@ def get_active_seasonal_alerts(db: Session = Depends(get_db)):
     } for a in alerts]}
 
 @router.post("/seasonal-alerts")
-def create_seasonal_alert(data: SeasonalAlertIn, db: Session = Depends(get_db)):
-    # NOTE: admin-only in intent (matches TMA seasonal outlook announcements) -
-    # not yet gated behind an admin-auth check; add one before this is exposed publicly.
+def create_seasonal_alert(data: SeasonalAlertIn, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     alert = SeasonalAlert(title_en=data.title_en, title_sw=data.title_sw, message_en=data.message_en, message_sw=data.message_sw, active=True)
     db.add(alert)
     db.commit()
@@ -147,7 +146,7 @@ def create_seasonal_alert(data: SeasonalAlertIn, db: Session = Depends(get_db)):
     return {"success": True, "alert_id": alert.id}
 
 @router.delete("/seasonal-alerts/{alert_id}")
-def deactivate_seasonal_alert(alert_id: int, db: Session = Depends(get_db)):
+def deactivate_seasonal_alert(alert_id: int, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     alert = db.query(SeasonalAlert).filter(SeasonalAlert.id == alert_id).first()
     if not alert:
         return {"success": False, "error": "Alert not found"}

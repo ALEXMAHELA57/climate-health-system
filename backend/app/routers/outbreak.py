@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from database import get_db, SymptomReport, OutbreakAlert, SystemSetting
+from database import get_db, SymptomReport, OutbreakAlert, SystemSetting, Admin
+from app.routers.admin_auth import get_current_admin
 from datetime import datetime, timedelta
 from collections import Counter, defaultdict
 from typing import Optional
@@ -321,7 +322,7 @@ class ReviewAction(BaseModel):
 
 
 @router.post("/alert/{alert_id}/approve")
-async def approve_alert(alert_id: int, action: ReviewAction, db: Session = Depends(get_db)):
+async def approve_alert(alert_id: int, action: ReviewAction, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     alert = db.query(OutbreakAlert).filter(OutbreakAlert.id == alert_id).first()
     if not alert:
         return {"success": False, "error": "Alert not found"}
@@ -333,7 +334,7 @@ async def approve_alert(alert_id: int, action: ReviewAction, db: Session = Depen
 
 
 @router.post("/alert/{alert_id}/unapprove")
-async def unapprove_alert(alert_id: int, db: Session = Depends(get_db)):
+async def unapprove_alert(alert_id: int, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     """Admin made a mistake approving — revert back to pending. No time limit."""
     alert = db.query(OutbreakAlert).filter(OutbreakAlert.id == alert_id).first()
     if not alert:

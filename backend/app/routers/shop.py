@@ -7,8 +7,9 @@ import json
 import random
 import string
 
-from database import get_db, User, Vendor, Product, ShopOrder, SubOrder, VendorPayout
+from database import get_db, User, Vendor, Product, ShopOrder, SubOrder, VendorPayout, Admin
 from app.routers.auth import get_current_user
+from app.routers.admin_auth import get_current_admin
 import azampay
 
 router = APIRouter()
@@ -186,7 +187,7 @@ def payment_callback(data: CallbackIn, db: Session = Depends(get_db)):
 # gated behind admin auth.
 
 @router.post("/admin/vendors")
-def create_vendor(data: VendorIn, db: Session = Depends(get_db)):
+def create_vendor(data: VendorIn, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     vendor = Vendor(name=data.name, phone=data.phone, payout_provider=data.payout_provider, payout_account=data.payout_account, verified=False, active=True)
     db.add(vendor)
     db.commit()
@@ -194,12 +195,12 @@ def create_vendor(data: VendorIn, db: Session = Depends(get_db)):
     return {"success": True, "vendor_id": vendor.id}
 
 @router.get("/admin/vendors")
-def list_vendors(db: Session = Depends(get_db)):
+def list_vendors(admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     vendors = db.query(Vendor).all()
     return {"vendors": [{"id": v.id, "name": v.name, "phone": v.phone, "verified": v.verified, "active": v.active} for v in vendors]}
 
 @router.post("/admin/products")
-def create_product(data: ProductIn, db: Session = Depends(get_db)):
+def create_product(data: ProductIn, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     product = Product(**data.dict(), active=True)
     db.add(product)
     db.commit()
@@ -207,7 +208,7 @@ def create_product(data: ProductIn, db: Session = Depends(get_db)):
     return {"success": True, "product_id": product.id}
 
 @router.get("/admin/vendor-balances")
-def vendor_balances(db: Session = Depends(get_db)):
+def vendor_balances(admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     """What's owed to each vendor from completed (delivered) sub-orders
     that haven't been paid out yet."""
     vendors = db.query(Vendor).filter(Vendor.active == True).all()
@@ -225,7 +226,7 @@ class PayoutIn(BaseModel):
     commission: float
 
 @router.post("/admin/payouts")
-async def trigger_payout(data: PayoutIn, db: Session = Depends(get_db)):
+async def trigger_payout(data: PayoutIn, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     vendor = db.query(Vendor).filter(Vendor.id == data.vendor_id).first()
     if not vendor or not vendor.payout_account:
         return {"success": False, "error": "Vendor payout details not on file"}

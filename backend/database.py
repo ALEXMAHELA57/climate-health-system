@@ -376,6 +376,18 @@ class EmergencyAlert(Base):
     contacts_notified = Column(Integer, default=0)
     created_at     = Column(DateTime, default=datetime.utcnow)
 
+class Admin(Base):
+    """A real admin account - bootstrapped once via a secret-protected
+    setup endpoint, then logs in normally. Every admin-only action across
+    the platform should require this, not be left open."""
+    __tablename__ = "admins"
+    id             = Column(Integer, primary_key=True, index=True)
+    login_username = Column(String(100), unique=True, index=True)
+    password_hash  = Column(String(200))
+    name           = Column(String(200), default="Admin")
+    active         = Column(Boolean, default=True)
+    created_at     = Column(DateTime, default=datetime.utcnow)
+
 class SystemSetting(Base):
     """Simple key-value store for admin-configurable system settings,
     e.g. whether outbreak alerts auto-publish or require approval."""

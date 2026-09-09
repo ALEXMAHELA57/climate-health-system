@@ -6,8 +6,9 @@ from datetime import datetime
 import random
 import string
 
-from database import get_db, User, Lab, LabTest, LabBooking, FamilyProfile
+from database import get_db, User, Lab, LabTest, LabBooking, FamilyProfile, Admin
 from app.routers.auth import get_current_user
+from app.routers.admin_auth import get_current_admin
 
 router = APIRouter()
 
@@ -132,10 +133,8 @@ def update_status(booking_id: str, data: StatusIn, db: Session = Depends(get_db)
     return {"success": True}
 
 @router.post("/bookings/{booking_id}/result")
-def upload_result(booking_id: str, data: ResultIn, db: Session = Depends(get_db)):
-    # NOTE: intended for lab staff/admin use - not yet gated behind an admin
-    # auth check, matching the same pre-existing gap noted in weather.py's
-    # seasonal alerts. Add proper admin auth before this is used with real results.
+def upload_result(booking_id: str, data: ResultIn, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
+    # Intended for lab staff/admin use.
     booking = db.query(LabBooking).filter(LabBooking.booking_id == booking_id).first()
     if not booking:
         return {"success": False, "error": "Booking not found"}

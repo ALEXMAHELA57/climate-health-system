@@ -1,14 +1,15 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from database import get_db, Subscriber, CommunityReport, SymptomReport, OutbreakAlert
+from database import get_db, Subscriber, CommunityReport, SymptomReport, OutbreakAlert, Admin
+from app.routers.admin_auth import get_current_admin
 from datetime import datetime, timedelta
 from collections import Counter
 
 router = APIRouter()
 
 @router.get("/stats")
-async def get_stats(db: Session = Depends(get_db)):
+async def get_stats(admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     now = datetime.utcnow()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     week_ago = now - timedelta(days=7)

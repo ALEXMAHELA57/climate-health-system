@@ -3,7 +3,8 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 from sqlalchemy.orm import Session
-from database import get_db, CommunityReport
+from database import get_db, CommunityReport, Admin
+from app.routers.admin_auth import get_current_admin
 import uuid
 
 router = APIRouter()
@@ -63,7 +64,7 @@ async def get_status(report_id: str, db: Session = Depends(get_db)):
     }
 
 @router.post("/update-status")
-async def update_status(update: StatusUpdate, db: Session = Depends(get_db)):
+async def update_status(update: StatusUpdate, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     report = db.query(CommunityReport).filter(CommunityReport.report_id == update.report_id).first()
     if not report:
         return {"success": False, "error": "Report not found"}
@@ -76,7 +77,7 @@ async def update_status(update: StatusUpdate, db: Session = Depends(get_db)):
     return {"success": True}
 
 @router.delete("/report/{report_id}")
-async def delete_report(report_id: str, db: Session = Depends(get_db)):
+async def delete_report(report_id: str, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     """Admin-only — permanently delete a community report (spam, duplicate, test entry)."""
     report = db.query(CommunityReport).filter(CommunityReport.report_id == report_id).first()
     if not report:
