@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Stethoscope, Brain, UserRound, Users, Baby, CalendarHeart, Smile, HeartPulse, Sparkles, Apple, HandHeart, Calendar, Clock, MessageCircle, Video, Phone, ChevronRight, CheckCircle2, XCircle } from 'lucide-react';
+import { Stethoscope, Brain, UserRound, Users, Baby, CalendarHeart, Smile, HeartPulse, Sparkles, Apple, HandHeart, Calendar, Clock, MessageCircle, Video, Phone, ChevronRight, CheckCircle2, XCircle, Star, HandCoins, HeartHandshake } from 'lucide-react';
 import { API } from './constants';
 import { useTheme } from './ThemeContext';
 import Chat from './Chat';
@@ -41,6 +41,10 @@ export default function Consultation({ lang, initialSpecialty }) {
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
+  const [affordableOnly, setAffordableOnly] = useState(false);
+  const [negotiatingDoctor, setNegotiatingDoctor] = useState(null);
+  const [negotiationForm, setNegotiationForm] = useState({ consultation_type: '', proposed_price: '', patient_name: '', patient_phone: '' });
+  const [negotiationMsg, setNegotiationMsg] = useState('');
 
   const [form, setForm] = useState({ patient_name: '', patient_phone: '', reason: '', requested_date: '', requested_time: '', consultation_type: 'chat' });
   const [submitting, setSubmitting] = useState(false);
@@ -50,19 +54,57 @@ export default function Consultation({ lang, initialSpecialty }) {
   const [myPhone, setMyPhone] = useState('');
   const [myAppointments, setMyAppointments] = useState(null);
   const [activeChat, setActiveChat] = useState(null);
+  const [ratingAppointment, setRatingAppointment] = useState(null);
+  const [ratingStars, setRatingStars] = useState(0);
+  const [ratedAppointments, setRatedAppointments] = useState({});
 
   useEffect(() => { fetch(`${API}/api/consultation/specialties`).then(r => r.json()).then(d => setSpecialties(d.specialties || [])).catch(() => {}); }, []);
   useEffect(() => { if (initialSpecialty) loadDoctors(initialSpecialty); }, [initialSpecialty]);
+  useEffect(() => { if (activeSpecialty) loadDoctors(activeSpecialty); }, [affordableOnly]);
 
   async function loadDoctors(specId) {
     setActiveSpecialty(specId);
     setLoading(true);
     try {
-      const res = await fetch(`${API}/api/consultation/doctors?specialty=${specId}`);
+      const res = await fetch(`${API}/api/consultation/doctors?specialty=${specId}${affordableOnly ? '&affordable_only=true' : ''}`);
       const data = await res.json();
       setDoctors(data.doctors || []);
     } catch { setDoctors([]); }
     setLoading(false);
+  }
+
+  async function submitRating(appointmentId) {
+    if (ratingStars === 0) return;
+    const token = localStorage.getItem('afya_token');
+    try {
+      const res = await fetch(`${API}/api/consultation/appointments/${appointmentId}/rate`, {
+        method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stars: ratingStars }),
+      });
+      const data = await res.json();
+      if (data.success) { setRatedAppointments(prev => ({ ...prev, [appointmentId]: ratingStars })); setRatingAppointment(null); setRatingStars(0); }
+    } catch { /* silent */ }
+  }
+
+  function startNegotiation(doctor) {
+    setNegotiatingDoctor(doctor);
+    setNegotiationForm({ consultation_type: doctor.consultation_types[0] || 'chat', proposed_price: '', patient_name: '', patient_phone: '' });
+    setNegotiationMsg('');
+  }
+
+  async function submitNegotiation() {
+    if (!negotiationForm.patient_name.trim() || !negotiationForm.patient_phone.trim() || !negotiationForm.proposed_price) {
+      setNegotiationMsg(sw ? 'Jaza sehemu zote' : 'Fill in all fields'); return;
+    }
+    try {
+      const res = await fetch(`${API}/api/consultation/negotiate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ doctor_id: negotiatingDoctor.id, ...negotiationForm, proposed_price: parseFloat(negotiationForm.proposed_price) }),
+      });
+      const data = await res.json();
+      if (data.success) { setNegotiationMsg(sw ? '✓ Ombi limetumwa' : '✓ Request sent'); }
+      else setNegotiationMsg(data.error || (sw ? 'Imeshindwa' : 'Failed'));
+    } catch { setNegotiationMsg(sw ? 'Hitilafu' : 'Connection error'); }
   }
 
   function startBooking(doctor) {
@@ -118,6 +160,34 @@ export default function Consultation({ lang, initialSpecialty }) {
     );
   }
 
+  if (negotiatingDoctor) {
+    const d = negotiatingDoctor;
+    const listedPrice = d.prices?.[negotiationForm.consultation_type] || 0;
+    return (
+      <div style={{ padding: 16 }}>
+        <button onClick={() => setNegotiatingDoctor(null)} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 12 }}>‹ {sw ? 'Rudi' : 'Back'}</button>
+        <div style={{ background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: theme.text }}>{d.name}</div>
+          <div style={{ fontSize: 12, color: theme.textMuted }}>{sw ? 'Bei ya sasa' : 'Listed price'}: TZS {listedPrice.toLocaleString()}</div>
+        </div>
+        <select value={negotiationForm.consultation_type} onChange={e => setNegotiationForm({ ...negotiationForm, consultation_type: e.target.value })}
+          style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.card, color: theme.text, fontSize: 14 }}>
+          {d.consultation_types.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <input placeholder={sw ? 'Jina lako' : 'Your name'} value={negotiationForm.patient_name} onChange={e => setNegotiationForm({ ...negotiationForm, patient_name: e.target.value })}
+          style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.card, color: theme.text, fontSize: 14 }} />
+        <input placeholder={sw ? 'Nambari ya simu' : 'Phone number'} value={negotiationForm.patient_phone} onChange={e => setNegotiationForm({ ...negotiationForm, patient_phone: e.target.value })}
+          style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.card, color: theme.text, fontSize: 14 }} />
+        <input type="number" placeholder={sw ? 'Unapendekeza bei gani? (TZS)' : 'What price would you propose? (TZS)'} value={negotiationForm.proposed_price} onChange={e => setNegotiationForm({ ...negotiationForm, proposed_price: e.target.value })}
+          style={{ width: '100%', padding: 10, marginBottom: 10, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.card, color: theme.text, fontSize: 14 }} />
+        {!!negotiationMsg && <p style={{ fontSize: 12, color: negotiationMsg.startsWith('✓') ? '#166534' : '#ef4444', marginBottom: 10 }}>{negotiationMsg}</p>}
+        <button onClick={submitNegotiation} style={{ width: '100%', padding: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+          {sw ? 'Tuma Ombi' : 'Send Request'}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: 16 }}>
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
@@ -135,6 +205,11 @@ export default function Consultation({ lang, initialSpecialty }) {
 
       {view === 'browse' && (
         <>
+          <button onClick={() => setAffordableOnly(v => !v)}
+            style={{ width: '100%', padding: 10, marginBottom: 10, borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              background: affordableOnly ? '#f0fdf4' : theme.card, border: `1px solid ${affordableOnly ? '#bbf7d0' : theme.border}`, color: affordableOnly ? '#166534' : theme.textMuted, fontSize: 12, fontWeight: 600 }}>
+            <HeartHandshake size={14} /> {sw ? 'Onyesha Huduma Nafuu Tu' : 'Show Affordable Care Only'}
+          </button>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
             {specialties.map(s => {
               const Icon = SPECIALTY_ICON[s.id] || Stethoscope;
@@ -161,23 +236,45 @@ export default function Consultation({ lang, initialSpecialty }) {
             const c = SPECIALTY_COLOR[d.specialty] || SPECIALTY_COLOR.general;
             return (
               <div key={d.id} style={{ background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 14, marginBottom: 10 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: theme.text }}>{d.name}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: theme.text }}>{d.name}</div>
+                  {d.affordable_care && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: '#166534', background: '#f0fdf4', padding: '2px 8px', borderRadius: 99 }}>
+                      <HeartHandshake size={10} /> {sw ? 'Nafuu' : 'Affordable'}
+                    </span>
+                  )}
+                </div>
                 <div style={{ fontSize: 12, color: c.fg, fontWeight: 600, margin: '3px 0' }}>{d.specialty_label}</div>
+                {d.avg_rating != null && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                    <Star size={12} color="#f59e0b" fill="#f59e0b" />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: theme.text }}>{d.avg_rating}</span>
+                    <span style={{ fontSize: 11, color: theme.textFaint }}>({d.rating_count})</span>
+                  </div>
+                )}
                 <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 8 }}>{d.bio}</div>
                 <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
                   {d.consultation_types.map(t => {
                     const TIcon = TYPE_ICON[t] || MessageCircle;
                     return (
                       <span key={t} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, background: '#f3f4f6', padding: '3px 8px', borderRadius: 99, color: '#374151' }}>
-                        <TIcon size={11} /> {t}
+                        <TIcon size={11} /> {t} {d.prices?.[t] ? `· TZS ${d.prices[t].toLocaleString()}` : ''}
                       </span>
                     );
                   })}
                 </div>
-                <button onClick={() => startBooking(d)}
-                  style={{ width: '100%', padding: 9, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                  {sw ? 'Weka Miadi' : 'Book Appointment'} <ChevronRight size={14} />
-                </button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {d.open_to_negotiation && (
+                    <button onClick={() => startNegotiation(d)}
+                      style={{ padding: '9px 12px', background: theme.bg, border: `1px solid ${theme.border}`, borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', color: theme.textMuted, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <HandCoins size={13} /> {sw ? 'Jadili' : 'Discuss Fee'}
+                    </button>
+                  )}
+                  <button onClick={() => startBooking(d)}
+                    style={{ flex: 1, padding: 9, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                    {sw ? 'Weka Miadi' : 'Book Appointment'} <ChevronRight size={14} />
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -264,6 +361,30 @@ export default function Consultation({ lang, initialSpecialty }) {
                     style={{ width: '100%', marginTop: 10, padding: 8, background: '#eff6ff', color: '#1d4ed8', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
                     <MessageCircle size={13} /> {sw ? 'Ongea na Daktari' : 'Chat with Doctor'}
                   </button>
+                )}
+                {a.status === 'completed' && !ratedAppointments[a.appointment_id] && (
+                  ratingAppointment === a.appointment_id ? (
+                    <div style={{ marginTop: 10, padding: 10, background: theme.bg, borderRadius: 8 }}>
+                      <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginBottom: 8 }}>
+                        {[1, 2, 3, 4, 5].map(n => (
+                          <button key={n} onClick={() => setRatingStars(n)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                            <Star size={22} color="#f59e0b" fill={n <= ratingStars ? '#f59e0b' : 'none'} />
+                          </button>
+                        ))}
+                      </div>
+                      <button onClick={() => submitRating(a.appointment_id)} style={{ width: '100%', padding: 8, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                        {sw ? 'Tuma' : 'Submit'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={() => { setRatingAppointment(a.appointment_id); setRatingStars(0); }}
+                      style={{ width: '100%', marginTop: 8, padding: 8, background: 'none', border: `1px solid ${theme.border}`, borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', color: theme.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                      <Star size={13} /> {sw ? 'Kadiria Daktari' : 'Rate this Doctor'}
+                    </button>
+                  )
+                )}
+                {ratedAppointments[a.appointment_id] && (
+                  <div style={{ marginTop: 8, fontSize: 12, color: '#166534', textAlign: 'center' }}>✓ {sw ? 'Umekadiria' : 'Rated'} {ratedAppointments[a.appointment_id]}★</div>
                 )}
               </div>
             );

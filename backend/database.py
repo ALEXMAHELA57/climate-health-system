@@ -443,8 +443,41 @@ class Doctor(Base):
     available_hours     = Column(String(50), default="09:00-17:00")
     login_username      = Column(String(100), unique=True, nullable=True)
     password_hash       = Column(String(200), nullable=True)
+    open_to_negotiation = Column(Boolean, default=False)  # doctor allows patients to propose a lower fee
+    affordable_care     = Column(Boolean, default=False)  # doctor offers discounted/free-first-consultation rates
     active              = Column(Boolean, default=True)
     created_at          = Column(DateTime, default=datetime.utcnow)
+
+class DoctorRating(Base):
+    """A patient's rating of a doctor after a completed appointment - one
+    rating per appointment, feeds the doctor's average rating shown in
+    the directory."""
+    __tablename__ = "doctor_ratings"
+    id              = Column(Integer, primary_key=True, index=True)
+    doctor_id       = Column(Integer, index=True)
+    appointment_id  = Column(String(20), unique=True, index=True)  # one rating per appointment
+    patient_phone   = Column(String(20))
+    stars           = Column(Integer)  # 1-5
+    comment         = Column(String(500), default="")
+    created_at      = Column(DateTime, default=datetime.utcnow)
+
+class FeeNegotiation(Base):
+    """A structured (not open-ended) fee discussion - patient proposes once,
+    doctor accepts/declines/counters once, patient accepts/declines the
+    counter. Matches the 'Discuss Fee' design, not free-form haggling."""
+    __tablename__ = "fee_negotiations"
+    id                  = Column(Integer, primary_key=True, index=True)
+    negotiation_id      = Column(String(20), unique=True, index=True)
+    doctor_id           = Column(Integer, index=True)
+    patient_name        = Column(String(200))
+    patient_phone       = Column(String(20), index=True)
+    consultation_type   = Column(String(20))
+    original_price      = Column(Float)
+    proposed_price      = Column(Float)
+    counter_price       = Column(Float, nullable=True)
+    status              = Column(String(20), default="pending")  # pending | countered | accepted | declined
+    created_at          = Column(DateTime, default=datetime.utcnow)
+    responded_at        = Column(DateTime, nullable=True)
 
 class DoctorChangeRequest(Base):
     """A doctor's proposed change to their own price or availability -
@@ -539,6 +572,8 @@ _COLUMNS_ADDED_TO_EXISTING_TABLES = [
     ("doctors", "prices", "TEXT DEFAULT '{}'"),
     ("doctors", "login_username", "VARCHAR(100)"),
     ("doctors", "password_hash", "VARCHAR(200)"),
+    ("doctors", "open_to_negotiation", "BOOLEAN DEFAULT FALSE"),
+    ("doctors", "affordable_care", "BOOLEAN DEFAULT FALSE"),
 ]
 
 def _run_lightweight_migrations():

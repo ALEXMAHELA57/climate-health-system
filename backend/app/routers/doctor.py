@@ -7,7 +7,7 @@ import json
 import jwt
 from passlib.context import CryptContext
 
-from database import get_db, Doctor, Appointment, DoctorChangeRequest, Admin
+from database import get_db, Doctor, Appointment, DoctorChangeRequest, Admin, FeeNegotiation
 from app.routers.auth import JWT_SECRET, JWT_ALGO
 from app.routers.admin_auth import get_current_admin
 
@@ -151,5 +151,39 @@ def admin_set_doctor_login(doctor_id: int, data: AdminDoctorLoginIn, admin: Admi
         return {"success": False, "error": "That username is already taken"}
     doctor.login_username = data.username
     doctor.password_hash = pwd_context.hash(data.password)
+    db.commit()
+    return {"success": True}
+
+# ── Fee negotiations - doctor's side ──────────────────────────────────────
+
+class NegotiationRespondIn(BaseModel):
+    action: str  # accept | decline | counter
+    counter_price: Optional[float] = None
+
+@router.get("/negotiations")
+def list_my_negotiations(doctor: Doctor = Depends(get_current_doctor), db: Session = Depends(get_db)):
+    negs = db.query(FeeNegotiation).filter(FeeNegotiation.doctor_id == doctor.id, FeeNegotiation.status == "pending").all()
+    return {"negotiations": [{
+        "negotiation_id": n.negotiation_id, "patient_name": n.patient_name, "consultation_type": n.consultation_type,
+        "original_price": n.original_price, "proposed_price": n.proposed_price,
+    } for n in negs]}
+
+@router.post("/negotiations/{negotiation_id}/respond")
+def respond_negotiation(negotiation_id: str, data: NegotiationRespondIn, doctor: Doctor = Depends(get_current_doctor), db: Session = Depends(get_db)):
+    neg = db.query(FeeNegotiation).filter(FeeNegotiation.negotiation_id == negotiation_id, FeeNegotiation.doctor_id == doctor.id, FeeNegotiation.status == "pending").first()
+    if not neg:
+        return {"success": False, "error": "Negotiation not found or already responded to"}
+    if data.action == "accept":
+        neg.status = "accepted"
+    elif data.action == "decline":
+        neg.status = "declined"
+    elif data.action == "counter":
+        if not data.counter_price:
+            return {"success": False, "error": "Provide a counter price"}
+        neg.status = "countered"
+        neg.counter_price = data.counter_price
+    else:
+        return {"success": False, "error": "Invalid action"}
+    neg.responded_at = datetime.utcnow()
     db.commit()
     return {"success": True}

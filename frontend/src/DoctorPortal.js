@@ -19,6 +19,8 @@ export default function DoctorPortal() {
   const [view, setView] = useState('appointments'); // appointments | settings
   const [changeRequests, setChangeRequests] = useState([]);
   const [proposedPrices, setProposedPrices] = useState('');
+  const [negotiations, setNegotiations] = useState([]);
+  const [counterPrice, setCounterPrice] = useState({});
 
   useEffect(() => { if (token) loadAppointments(); }, [token]);
 
@@ -70,7 +72,25 @@ export default function DoctorPortal() {
     } catch { /* silent */ }
   }
 
-  useEffect(() => { if (view === 'settings') loadChangeRequests(); }, [view]);
+  useEffect(() => { if (view === 'settings') { loadChangeRequests(); loadNegotiations(); } }, [view]);
+
+  async function loadNegotiations() {
+    try {
+      const res = await fetch(`${API}/api/doctor/negotiations`, { headers: authHeaders(token) });
+      const data = await res.json();
+      setNegotiations(data.negotiations || []);
+    } catch { /* silent */ }
+  }
+
+  async function respondNegotiation(id, action) {
+    try {
+      await fetch(`${API}/api/doctor/negotiations/${id}/respond`, {
+        method: 'POST', headers: authHeaders(token),
+        body: JSON.stringify({ action, counter_price: counterPrice[id] ? parseFloat(counterPrice[id]) : null }),
+      });
+      loadNegotiations();
+    } catch { /* silent */ }
+  }
 
   if (!token) {
     return (
@@ -157,6 +177,26 @@ export default function DoctorPortal() {
               style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13 }} />
             <button onClick={submitPriceChange} style={{ width: '100%', padding: 10, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Submit for Approval</button>
           </div>
+
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 8 }}>FEE NEGOTIATION REQUESTS</div>
+          {negotiations.length === 0 && <p style={{ fontSize: 12, color: '#9ca3af', marginBottom: 14 }}>No pending requests</p>}
+          {negotiations.map(n => (
+            <div key={n.negotiation_id} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 10, marginBottom: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 600 }}>{n.patient_name}</div>
+              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>
+                {n.consultation_type}: proposed TZS {n.proposed_price.toLocaleString()} (listed TZS {n.original_price.toLocaleString()})
+              </div>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+                <button onClick={() => respondNegotiation(n.negotiation_id, 'accept')} style={{ flex: 1, padding: 7, background: '#166534', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>Accept</button>
+                <button onClick={() => respondNegotiation(n.negotiation_id, 'decline')} style={{ flex: 1, padding: 7, background: '#991b1b', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>Decline</button>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input type="number" placeholder="Counter price" value={counterPrice[n.negotiation_id] || ''} onChange={e => setCounterPrice({ ...counterPrice, [n.negotiation_id]: e.target.value })}
+                  style={{ flex: 1, padding: 7, borderRadius: 6, border: '1px solid #e5e7eb', fontSize: 12 }} />
+                <button onClick={() => respondNegotiation(n.negotiation_id, 'counter')} style={{ padding: '7px 12px', background: '#d97706', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>Counter</button>
+              </div>
+            </div>
+          ))}
 
           <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 8 }}>MY REQUESTS</div>
           {changeRequests.length === 0 && <p style={{ fontSize: 12, color: '#9ca3af' }}>No requests yet</p>}
