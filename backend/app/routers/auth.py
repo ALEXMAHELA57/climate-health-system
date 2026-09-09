@@ -84,7 +84,7 @@ async def send_verification_email(email: str, token: str, lang: str = "en"):
         res = await client.post(
             "https://api.resend.com/emails",
             headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
-            json={"from": "AfyaHewa <onboarding@resend.dev>", "to": [email], "subject": subject, "text": body},
+            json={"from": "AfyaHewa <noreply@afyahewa.com>", "to": [email], "subject": subject, "text": body},
         )
     print(f"[auth] Resend response status={res.status_code} body={res.text[:300]}")
 
