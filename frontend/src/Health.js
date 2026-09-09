@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Stethoscope, Brain, UserRound, Users, Baby, CalendarHeart,
-  Smile, HeartPulse, Sparkles, Apple, HandHeart, MessageCircle, UserSearch, ArrowLeft, Building2,
+  Smile, HeartPulse, Sparkles, Apple, HandHeart, MessageCircle, UserSearch, ArrowLeft, Building2, FlaskConical,
 } from 'lucide-react';
 import { useTheme } from './ThemeContext';
 
@@ -47,6 +47,10 @@ export default function Health({ lang, user, setPage, setCareFilter, setAfyaTopi
     setPage('care');
   }
 
+  function findLab() {
+    setPage('lab');
+  }
+
   if (selected) {
     const d = selected;
     return (
@@ -85,11 +89,20 @@ export default function Health({ lang, user, setPage, setCareFilter, setAfyaTopi
   return (
     <div style={{ padding: 16 }}>
       <button onClick={findFacility}
-        style={{ width: '100%', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, padding: 14, textAlign: 'left', cursor: 'pointer', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+        style={{ width: '100%', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, padding: 14, textAlign: 'left', cursor: 'pointer', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
         <Building2 size={22} color="#2563eb" />
         <div>
           <div style={{ fontSize: 14, fontWeight: 600, color: theme.text }}>{sw ? 'Tafuta Hospitali au Kliniki' : 'Find a Hospital or Clinic'}</div>
           <div style={{ fontSize: 12, color: theme.textMuted }}>{sw ? 'Umbali, mawasiliano, saa za kazi' : 'Distance, contact, opening hours'}</div>
+        </div>
+      </button>
+
+      <button onClick={findLab}
+        style={{ width: '100%', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: 14, textAlign: 'left', cursor: 'pointer', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <FlaskConical size={22} color="#16a34a" />
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: theme.text }}>{sw ? 'Weka Miadi ya Vipimo' : 'Book a Lab Test'}</div>
+          <div style={{ fontSize: 12, color: theme.textMuted }}>{sw ? 'Damu, kisukari, ujauzito, na zaidi' : 'Blood work, diabetes, pregnancy, and more'}</div>
         </div>
       </button>
 

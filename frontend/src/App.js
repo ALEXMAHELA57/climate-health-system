@@ -19,6 +19,7 @@ const Health   = lazy(() => import('./Health'));
 const Care     = lazy(() => import('./Care'));
 const FamilyHealth = lazy(() => import('./FamilyHealth'));
 const MyHealth = lazy(() => import('./MyHealth'));
+const LabDiagnostics = lazy(() => import('./LabDiagnostics'));
 const Consultation = lazy(() => import('./Consultation'));
 const MedicineSchedule = lazy(() => import('./MedicineSchedule'));
 const AdminDashboard = lazy(() => import('./AdminDashboard'));
@@ -120,7 +121,7 @@ function AppShell() {
     return <Onboarding lang={lang} onFinish={()=>setShowOnboarding(false)} />;
   }
 
-  const onlineRequiredPages = ['climate', 'weather', 'symptoms', 'map', 'clinics', 'report', 'profile', 'consultation', 'medicine', 'health', 'care', 'family', 'myhealth'];
+  const onlineRequiredPages = ['climate', 'weather', 'symptoms', 'map', 'clinics', 'report', 'profile', 'consultation', 'medicine', 'health', 'care', 'family', 'myhealth', 'lab'];
   const showOfflineFallback = !isOnline && onlineRequiredPages.includes(page);
 
   const tabs = [
@@ -194,6 +195,7 @@ function AppShell() {
             {page==='profile'   && <UserProfile lang={lang} onLangChange={handleLangChange} onDistrictChange={handleDistrictChange} setPage={setPage} />}
             {page==='family'    && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Afya ya Familia':'Family Health'}><FamilyHealth lang={lang} /></SubPage>}
             {page==='myhealth'  && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Afya Yangu':'My Health'}><MyHealth lang={lang} /></SubPage>}
+            {page==='lab'       && <SubPage lang={lang} setPage={()=>setPage('health')} title={lang==='sw'?'Vipimo vya Maabara':'Lab & Diagnostics'}><LabDiagnostics lang={lang} /></SubPage>}
             {page==='report'    && <CommunityReport lang={lang} />}
             {page==='emergency' && <EmergencyPage lang={lang} setPage={setPage} />}
           </Suspense>

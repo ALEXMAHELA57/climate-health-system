@@ -212,6 +212,49 @@ class SeasonalAlert(Base):
     active       = Column(Boolean, default=True)
     created_at   = Column(DateTime, default=datetime.utcnow)
 
+class Lab(Base):
+    """A partner laboratory offering diagnostic tests. Placeholder
+    entries until real partner labs are onboarded - same caution as
+    the placeholder doctors."""
+    __tablename__ = "labs"
+    id           = Column(Integer, primary_key=True, index=True)
+    name         = Column(String(200))
+    address      = Column(String(300), default="")
+    phone        = Column(String(20), default="")
+    district     = Column(String(100), default="")
+    active       = Column(Boolean, default=True)
+    created_at   = Column(DateTime, default=datetime.utcnow)
+
+class LabTest(Base):
+    """A specific test a lab offers, and its price."""
+    __tablename__ = "lab_tests"
+    id           = Column(Integer, primary_key=True, index=True)
+    lab_id       = Column(Integer, index=True)
+    name         = Column(String(200))     # e.g. "Full Blood Count", "HIV Test"
+    category     = Column(String(50))      # blood | diabetes | hiv_sti | pregnancy | cholesterol | kidney_liver | other
+    price        = Column(Float, default=0)
+    sensitive    = Column(Boolean, default=False)  # true for HIV/STI - triggers the informed-consent step and post-result support prompt
+    active       = Column(Boolean, default=True)
+
+class LabBooking(Base):
+    """A patient's booked test. Results are entered by an admin/lab staff
+    for now (result_text/result_summary) - real lab system integration
+    is a future step."""
+    __tablename__ = "lab_bookings"
+    id                = Column(Integer, primary_key=True, index=True)
+    booking_id        = Column(String(20), unique=True, index=True)
+    owner_user_id     = Column(Integer, index=True)
+    family_profile_id = Column(Integer, nullable=True)
+    lab_id            = Column(Integer, index=True)
+    test_id           = Column(Integer, index=True)
+    patient_name      = Column(String(200))
+    patient_phone     = Column(String(20))
+    scheduled_date    = Column(String(20))  # "YYYY-MM-DD"
+    status            = Column(String(20), default="booked")  # booked | sample_collected | results_ready | cancelled
+    result_summary    = Column(Text, nullable=True)
+    result_ready_at   = Column(DateTime, nullable=True)
+    created_at        = Column(DateTime, default=datetime.utcnow)
+
 class EmergencyContact(Base):
     """A personal contact who gets an automatic SMS with the user's
     location when they trigger an emergency alert. Distinct from the
