@@ -198,6 +198,30 @@ class HealthMeasurement(Base):
     note               = Column(String(300), default="")
     recorded_at        = Column(DateTime, default=datetime.utcnow)
 
+class EmergencyContact(Base):
+    """A personal contact who gets an automatic SMS with the user's
+    location when they trigger an emergency alert. Distinct from the
+    static 112/emergency-services numbers - these are real people."""
+    __tablename__ = "emergency_contacts"
+    id             = Column(Integer, primary_key=True, index=True)
+    owner_user_id  = Column(Integer, index=True)
+    name           = Column(String(200))
+    phone          = Column(String(20))
+    relationship_type = Column(String(30), default="other")
+    created_at     = Column(DateTime, default=datetime.utcnow)
+
+class EmergencyAlert(Base):
+    """A record of each time a user actually triggered an emergency alert -
+    kept so the user (and the person who triggered it) can see it happened,
+    and to prevent abuse/spam of the same alert firing repeatedly."""
+    __tablename__ = "emergency_alerts"
+    id             = Column(Integer, primary_key=True, index=True)
+    owner_user_id  = Column(Integer, index=True)
+    latitude       = Column(Float, nullable=True)
+    longitude      = Column(Float, nullable=True)
+    contacts_notified = Column(Integer, default=0)
+    created_at     = Column(DateTime, default=datetime.utcnow)
+
 class SystemSetting(Base):
     """Simple key-value store for admin-configurable system settings,
     e.g. whether outbreak alerts auto-publish or require approval."""

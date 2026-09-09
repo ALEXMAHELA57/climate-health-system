@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import weather, clinics, symptoms, outbreak, community, admin, sms, consultation, medicine, auth, family, my_health
+from app.routers import weather, clinics, symptoms, outbreak, community, admin, sms, consultation, medicine, auth, family, my_health, emergency_contacts
 from database import init_db
 from scheduler import create_scheduler
 
@@ -38,6 +38,7 @@ app.include_router(medicine.router,  prefix="/api/medicine",  tags=["Medicine Re
 app.include_router(auth.router,      prefix="/api/auth",      tags=["Authentication"])
 app.include_router(family.router,    prefix="/api/family",    tags=["Family Health"])
 app.include_router(my_health.router, prefix="/api/my-health", tags=["My Health"])
+app.include_router(emergency_contacts.router, prefix="/api/emergency-contacts", tags=["Emergency Contacts"])
 
 @app.get("/")
 def root():

@@ -7,6 +7,7 @@ import CommunityReport from './CommunityReport';
 import Onboarding from './Onboarding';
 import Auth from './Auth';
 import OfflineEmergency from './OfflineEmergency';
+import EmergencyContacts from './EmergencyContacts';
 
 const Home     = lazy(() => import('./Home'));
 const Weather  = lazy(() => import('./Weather'));
@@ -39,6 +40,9 @@ function EmergencyPage({ lang, setPage }) {
           style={{ background:'none', border:'none', color:'#2563eb', fontSize:13, cursor:'pointer', padding:0, fontWeight:500 }}>
           ‹ {sw?'Rudi Nyumbani':'Back to Home'}
         </button>
+      </div>
+      <div style={{ padding: '12px 16px 0' }}>
+        <EmergencyContacts lang={lang} />
       </div>
       <OfflineEmergency lang={lang} />
     </div>
