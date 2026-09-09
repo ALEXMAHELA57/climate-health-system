@@ -69,7 +69,7 @@ const DISTRICTS = [
   'Zanzibar North','Zanzibar South','Zanzibar West','Pemba North','Pemba South'
 ];
 
-export default function UserProfile({ lang = 'en', onLangChange, onDistrictChange, onAdminClick }) {
+export default function UserProfile({ lang = 'en', onLangChange, onDistrictChange, onAdminClick, setPage }) {
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
 
   const [district, setDistrict] = useState(() => localStorage.getItem('afya_district') || 'Dar es Salaam');
@@ -139,6 +139,17 @@ export default function UserProfile({ lang = 'en', onLangChange, onDistrictChang
   return (
     <div style={{ padding: 16 }}>
       <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>👤 {t.profile}</div>
+
+      {setPage && (
+        <button onClick={() => setPage('family')}
+          style={{ width: '100%', ...card, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', textAlign: 'left' }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>👨‍👩‍👧 {lang === 'sw' ? 'Afya ya Familia' : 'Family Health'}</div>
+            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{lang === 'sw' ? 'Simamia wanafamilia' : 'Manage family members'}</div>
+          </div>
+          <span style={{ color: '#9ca3af' }}>›</span>
+        </button>
+      )}
 
       {/* District & Language */}
       <div style={card}>

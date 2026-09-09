@@ -125,6 +125,43 @@ class EmailVerificationToken(Base):
     used        = Column(Boolean, default=False)
     created_at  = Column(DateTime, default=datetime.utcnow)
 
+class FamilyProfile(Base):
+    """A family member managed under a primary account holder. Children
+    (under 18) are always pure sub-profiles with no login of their own.
+    Adults can also be added this way if they don't want their own
+    account, but require an explicit consent confirmation at creation
+    time. An adult who *does* want their own account instead gets
+    linked via FamilyLinkRequest, and linked_user_id is set here once
+    that's accepted - at that point this becomes a visibility link
+    rather than a managed profile."""
+    __tablename__ = "family_profiles"
+    id                 = Column(Integer, primary_key=True, index=True)
+    managed_by_user_id = Column(Integer, index=True)  # the account holder managing this profile
+    relationship_type  = Column(String(30))  # child | parent | spouse | dependent | other
+    name               = Column(String(200))
+    date_of_birth      = Column(String(10))   # "YYYY-MM-DD", exact per our accounts design
+    gender             = Column(String(20), nullable=True)
+    phone              = Column(String(20), nullable=True)  # for SMS reminders even without a full account
+    consent_confirmed  = Column(Boolean, default=False)     # required for adult managed profiles, not needed for children
+    linked_user_id     = Column(Integer, nullable=True)     # set once this becomes a linked (not managed) adult account
+    active             = Column(Boolean, default=True)
+    created_at         = Column(DateTime, default=datetime.utcnow)
+
+class FamilyLinkRequest(Base):
+    """An invitation for an adult with their own AfyaHewa account to be
+    linked (not managed) under another account holder's Family Health,
+    e.g. a spouse or a parent who wants to use the app independently
+    but still be visible to a family member for support."""
+    __tablename__ = "family_link_requests"
+    id                  = Column(Integer, primary_key=True, index=True)
+    requested_by_user_id = Column(Integer, index=True)
+    target_phone        = Column(String(20), nullable=True)
+    target_email        = Column(String(200), nullable=True)
+    relationship_type   = Column(String(30))
+    status              = Column(String(20), default="pending")  # pending | accepted | declined
+    created_at          = Column(DateTime, default=datetime.utcnow)
+    responded_at        = Column(DateTime, nullable=True)
+
 class SystemSetting(Base):
     """Simple key-value store for admin-configurable system settings,
     e.g. whether outbreak alerts auto-publish or require approval."""

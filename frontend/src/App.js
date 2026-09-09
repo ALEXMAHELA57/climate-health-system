@@ -16,6 +16,7 @@ const RiskMap  = lazy(() => import('./RiskMap'));
 const Climate  = lazy(() => import('./Climate'));
 const Health   = lazy(() => import('./Health'));
 const Care     = lazy(() => import('./Care'));
+const FamilyHealth = lazy(() => import('./FamilyHealth'));
 const Consultation = lazy(() => import('./Consultation'));
 const MedicineSchedule = lazy(() => import('./MedicineSchedule'));
 const AdminDashboard = lazy(() => import('./AdminDashboard'));
@@ -113,7 +114,7 @@ function AppShell() {
     return <Onboarding lang={lang} onFinish={()=>setShowOnboarding(false)} />;
   }
 
-  const onlineRequiredPages = ['climate', 'weather', 'symptoms', 'map', 'clinics', 'report', 'profile', 'consultation', 'medicine', 'health', 'care'];
+  const onlineRequiredPages = ['climate', 'weather', 'symptoms', 'map', 'clinics', 'report', 'profile', 'consultation', 'medicine', 'health', 'care', 'family'];
   const showOfflineFallback = !isOnline && onlineRequiredPages.includes(page);
 
   const tabs = [
@@ -185,7 +186,8 @@ function AppShell() {
             {page==='map'       && <RiskMap  t={t} lang={lang} />}
             {page==='consultation' && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Ushauri wa Daktari':'Doctor Consultation'}><Consultation lang={lang} /></SubPage>}
             {page==='medicine'  && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Ratiba ya Dawa':'Medicine Schedule'}><MedicineSchedule lang={lang} /></SubPage>}
-            {page==='profile'   && <UserProfile lang={lang} onLangChange={handleLangChange} onDistrictChange={handleDistrictChange} />}
+            {page==='profile'   && <UserProfile lang={lang} onLangChange={handleLangChange} onDistrictChange={handleDistrictChange} setPage={setPage} />}
+            {page==='family'    && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Afya ya Familia':'Family Health'}><FamilyHealth lang={lang} /></SubPage>}
             {page==='report'    && <CommunityReport lang={lang} />}
             {page==='emergency' && <EmergencyPage lang={lang} setPage={setPage} />}
           </Suspense>
