@@ -212,6 +212,75 @@ class SeasonalAlert(Base):
     active       = Column(Boolean, default=True)
     created_at   = Column(DateTime, default=datetime.utcnow)
 
+class Vendor(Base):
+    """A partner pharmacy/supplier in the Health Shop marketplace.
+    Payout details (mobile money number + provider) are used when
+    admin triggers a payout via AzamPay's disbursement API."""
+    __tablename__ = "vendors"
+    id                  = Column(Integer, primary_key=True, index=True)
+    name                = Column(String(200))
+    phone               = Column(String(20))
+    payout_provider     = Column(String(30), default="")  # Mpesa | Tigo | Airtel | Halopesa | Azampesa
+    payout_account      = Column(String(30), default="")  # mobile money number to pay out to
+    verified            = Column(Boolean, default=False)
+    active              = Column(Boolean, default=True)
+    created_at          = Column(DateTime, default=datetime.utcnow)
+
+class Product(Base):
+    """A single product listed by a vendor. Prescription medicines are
+    deliberately excluded from the categories offered until pharmacy
+    licensing is sorted - see the proposal's discussion of this."""
+    __tablename__ = "products"
+    id           = Column(Integer, primary_key=True, index=True)
+    vendor_id    = Column(Integer, index=True)
+    name         = Column(String(200))
+    category     = Column(String(50))  # medical_equipment | first_aid | maternal_baby | reproductive_health | personal_hygiene | diabetes_supplies | water_purification | mosquito_protection | heat_protection
+    description  = Column(Text, default="")
+    price        = Column(Float)       # TZS
+    stock        = Column(Integer, default=0)
+    image_url    = Column(String(500), nullable=True)
+    active       = Column(Boolean, default=True)
+    created_at   = Column(DateTime, default=datetime.utcnow)
+
+class ShopOrder(Base):
+    """One checkout, as the customer experiences it - one payment,
+    possibly split across several vendors behind the scenes via SubOrder."""
+    __tablename__ = "shop_orders"
+    id              = Column(Integer, primary_key=True, index=True)
+    order_id        = Column(String(20), unique=True, index=True)
+    owner_user_id   = Column(Integer, index=True)
+    total_amount    = Column(Float)
+    payment_status  = Column(String(20), default="pending")  # pending | paid | failed
+    azampay_ref     = Column(String(100), nullable=True)  # AzamPay's externalId/transaction reference
+    delivery_name   = Column(String(200))
+    delivery_phone  = Column(String(20))
+    delivery_address = Column(String(300))
+    created_at      = Column(DateTime, default=datetime.utcnow)
+
+class SubOrder(Base):
+    """One vendor's slice of a ShopOrder - what that vendor actually
+    sees and fulfills. items is a JSON string list of {product_id, name, price, qty}."""
+    __tablename__ = "sub_orders"
+    id           = Column(Integer, primary_key=True, index=True)
+    order_id     = Column(String(20), index=True)
+    vendor_id    = Column(Integer, index=True)
+    items        = Column(Text)  # JSON list
+    subtotal     = Column(Float)
+    status       = Column(String(20), default="pending")  # pending | processing | shipped | delivered
+    created_at   = Column(DateTime, default=datetime.utcnow)
+
+class VendorPayout(Base):
+    """A record of an admin-triggered payout to a vendor via AzamPay's
+    disbursement API - covers one or more completed sub-orders."""
+    __tablename__ = "vendor_payouts"
+    id             = Column(Integer, primary_key=True, index=True)
+    vendor_id      = Column(Integer, index=True)
+    amount         = Column(Float)
+    commission     = Column(Float)  # what AfyaHewa kept
+    azampay_ref    = Column(String(100), nullable=True)
+    status         = Column(String(20), default="pending")  # pending | sent | failed
+    created_at     = Column(DateTime, default=datetime.utcnow)
+
 class Lab(Base):
     """A partner laboratory offering diagnostic tests. Placeholder
     entries until real partner labs are onboarded - same caution as

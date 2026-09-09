@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   MapPin, Navigation, AlertTriangle, CheckCircle2, Bell,
-  Stethoscope, Users, Pill, HeartPulse,
+  Stethoscope, Users, Pill, HeartPulse, ShoppingCart,
   Ambulance, ChevronRight, Siren, MessageCircle, Wind,
   CloudLightning, CloudRain, CloudDrizzle, Sun as SunIcon,
   Bug, Droplets, Thermometer, Sun, Calendar, Clock,
@@ -303,6 +303,7 @@ export default function Home({ t, lang, district, onDistrictChange, setPage }) {
           { Icon: MessageCircle, title:sw?'Uliza Afya AI':'Ask Afya AI', sub:sw?'Zungumza sasa':'Chat now', page:'symptoms', color:'#fffbeb', border:'#fde68a' },
           { Icon: Pill, title:sw?'Ratiba ya Dawa':'Medicine Schedule', sub:sw?'Weka ukumbusho':'Set reminders', page:'medicine', color:'#fff7ed', border:'#fed7aa' },
           { Icon: Users, title:sw?'Afya ya Familia':'Family Health', sub:sw?'Simamia wanafamilia':'Manage family members', page:'family', color:'#f0fdf4', border:'#bbf7d0' },
+          { Icon: ShoppingCart, title:sw?'Duka la Afya':'Health Shop', sub:sw?'Nunua dawa na vifaa':'Medicines & supplies', page:'shop', color:'#fdf4ff', border:'#f5d0fe' },
         ].map((item,i)=>(
           <button key={i} onClick={()=>setPage(item.page)}
             style={{ background:item.color, border:`1px solid ${item.border}`, borderRadius:12, padding:'12px 10px', textAlign:'left', cursor:'pointer' }}>
