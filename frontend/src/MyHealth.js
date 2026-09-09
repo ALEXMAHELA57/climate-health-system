@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Activity, ClipboardList, Plus, Trash2, AlertTriangle, CheckCircle2, User, Bell } from 'lucide-react';
+import { FileText, Activity, ClipboardList, Plus, Trash2, AlertTriangle, CheckCircle2, User, Bell, Download } from 'lucide-react';
 import { API } from './constants';
 import { useTheme } from './ThemeContext';
 
@@ -146,6 +146,19 @@ export default function MyHealth({ lang }) {
   async function removeReminder(id) {
     await fetch(`${API}/api/my-health/measurement-reminders/${id}`, { method: 'DELETE', headers: authHeaders() }).catch(() => {});
     loadReminders();
+  }
+
+  async function downloadPdf() {
+    const qs = forProfile ? `?family_profile_id=${forProfile}` : '';
+    try {
+      const res = await fetch(`${API}/api/my-health/report/pdf${qs}`, { headers: authHeaders() });
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'AfyaHewa_Health_Report.pdf';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch { /* silent */ }
   }
 
   async function removeRecord(id) {
@@ -320,7 +333,11 @@ export default function MyHealth({ lang }) {
       {/* REPORT */}
       {!loading && view === 'report' && report && (
         <div>
-          <p style={{ fontSize: 12, color: theme.textMuted, marginBottom: 14 }}>{sw ? `Muhtasari wa siku ${report.period_days} zilizopita` : `Summary of the last ${report.period_days} days`}</p>
+          <p style={{ fontSize: 12, color: theme.textMuted, marginBottom: 10 }}>{sw ? `Muhtasari wa siku ${report.period_days} zilizopita` : `Summary of the last ${report.period_days} days`}</p>
+
+          <button onClick={downloadPdf} style={{ width: '100%', padding: 10, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, marginBottom: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#1d4ed8' }}>
+            <Download size={13} /> {sw ? 'Pakua Ripoti (PDF)' : 'Download Report (PDF)'}
+          </button>
 
           <p style={{ fontSize: 12, fontWeight: 700, color: theme.textMuted, marginBottom: 6 }}>{sw ? 'VIPIMO' : 'MEASUREMENTS'}</p>
           {Object.keys(report.measurements_by_metric || {}).length === 0 && <p style={{ fontSize: 12, color: theme.textFaint, marginBottom: 14 }}>{sw ? 'Hakuna vipimo' : 'None logged'}</p>}

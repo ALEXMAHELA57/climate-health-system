@@ -1,8 +1,15 @@
 from fastapi import APIRouter, Depends
+from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
+from io import BytesIO
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import mm
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 from database import get_db, User, FamilyProfile, MedicalRecord, HealthMeasurement, MedicineReminder, Appointment, MeasurementReminder
 from app.routers.auth import get_current_user
@@ -141,13 +148,7 @@ def list_measurements(family_profile_id: Optional[int] = None, metric_type: Opti
 
 # ── Combined Report ──────────────────────────────────────────────────────
 
-@router.get("/report")
-def get_report(family_profile_id: Optional[int] = None, days: int = 30,
-                user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """A combined summary for a period - measurements, active medications,
-    and appointments - the kind of thing worth bringing to a doctor visit."""
-    if not verify_family_access(family_profile_id, user, db):
-        return {"success": False, "error": "You don't manage this family profile"}
+def _build_report_data(family_profile_id: Optional[int], days: int, user: User, db: Session):
     since = datetime.utcnow() - timedelta(days=days)
 
     m_q = db.query(HealthMeasurement).filter(HealthMeasurement.owner_user_id == user.id, HealthMeasurement.recorded_at >= since)
@@ -174,12 +175,90 @@ def get_report(family_profile_id: Optional[int] = None, days: int = 30,
     appointments = db.query(Appointment).filter(Appointment.patient_phone == phone_for_appts).filter(Appointment.created_at >= since).all() if phone_for_appts else []
 
     return {
-        "success": True,
         "period_days": days,
         "measurements_by_metric": by_metric,
         "active_medications": [{"medicine_name": r.medicine_name, "dosage": r.dosage, "times": r.times.split(",")} for r in reminders],
         "appointments": [{"specialty": a.specialty, "status": a.status, "requested_date": a.requested_date} for a in appointments],
     }
+
+@router.get("/report")
+def get_report(family_profile_id: Optional[int] = None, days: int = 30,
+                user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """A combined summary for a period - measurements, active medications,
+    and appointments - the kind of thing worth bringing to a doctor visit."""
+    if not verify_family_access(family_profile_id, user, db):
+        return {"success": False, "error": "You don't manage this family profile"}
+    return {"success": True, **_build_report_data(family_profile_id, days, user, db)}
+
+@router.get("/report/pdf")
+def get_report_pdf(family_profile_id: Optional[int] = None, days: int = 30,
+                    user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Same report, rendered as a downloadable PDF - meant to be brought
+    to a doctor visit."""
+    if not verify_family_access(family_profile_id, user, db):
+        return Response(content="Not authorized", status_code=403)
+    data = _build_report_data(family_profile_id, days, user, db)
+
+    subject_name = user.name or "AfyaHewa User"
+    if family_profile_id:
+        profile = db.query(FamilyProfile).filter(FamilyProfile.id == family_profile_id).first()
+        subject_name = profile.name if profile else subject_name
+
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=20*mm, bottomMargin=20*mm)
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('TitleX', parent=styles['Title'], textColor=colors.HexColor('#1e3a8a'))
+    heading_style = ParagraphStyle('HeadingX', parent=styles['Heading2'], textColor=colors.HexColor('#2563eb'), spaceBefore=14, spaceAfter=6)
+
+    elements = [
+        Paragraph("AfyaHewa Health Report", title_style),
+        Paragraph(f"{subject_name} — last {data['period_days']} days — generated {datetime.utcnow().strftime('%Y-%m-%d')}", styles['Normal']),
+        Spacer(1, 10*mm),
+    ]
+
+    elements.append(Paragraph("Measurements", heading_style))
+    if not data["measurements_by_metric"]:
+        elements.append(Paragraph("No measurements logged in this period.", styles['Normal']))
+    else:
+        for metric, readings in data["measurements_by_metric"].items():
+            rows = [["Date", "Reading", "Flag"]]
+            for r in readings[:15]:
+                val = f"{r['value_primary']}/{r['value_secondary']}" if r['value_secondary'] else str(r['value_primary'])
+                rows.append([r['recorded_at'][:10], val, r['flag'] or "-"])
+            elements.append(Paragraph(metric.replace('_', ' ').title(), styles['Heading3']))
+            t = Table(rows, colWidths=[50*mm, 50*mm, 30*mm])
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#eff6ff')),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e5e7eb')),
+                ('FONTSIZE', (0,0), (-1,-1), 9),
+            ]))
+            elements.append(t)
+            elements.append(Spacer(1, 4*mm))
+
+    elements.append(Paragraph("Active Medications", heading_style))
+    if not data["active_medications"]:
+        elements.append(Paragraph("None on file.", styles['Normal']))
+    else:
+        for m in data["active_medications"]:
+            dosage_txt = f" ({m['dosage']})" if m['dosage'] else ""
+            elements.append(Paragraph(f"• {m['medicine_name']}{dosage_txt} — {', '.join(m['times'])}", styles['Normal']))
+
+    elements.append(Paragraph("Appointments", heading_style))
+    if not data["appointments"]:
+        elements.append(Paragraph("None in this period.", styles['Normal']))
+    else:
+        for a in data["appointments"]:
+            elements.append(Paragraph(f"• {a['specialty']} — {a['status']} ({a['requested_date']})", styles['Normal']))
+
+    doc.build(elements)
+    pdf_bytes = buf.getvalue()
+    buf.close()
+
+    filename = f"AfyaHewa_Health_Report_{datetime.utcnow().strftime('%Y%m%d')}.pdf"
+    return Response(
+        content=pdf_bytes, media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 # ── Measurement Reminders - same pattern as Medicine Reminders ───────────────
 
