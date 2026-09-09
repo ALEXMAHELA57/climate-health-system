@@ -207,7 +207,51 @@ function AppShell() {
   );
 }
 
+function VerifyEmail({ lang, token, onDone }) {
+  const [status, setStatus] = useState('verifying'); // verifying | success | error
+  const sw = lang === 'sw';
+
+  useEffect(() => {
+    fetch(`${API}/api/auth/email/verify?token=${encodeURIComponent(token)}`)
+      .then(r => r.json())
+      .then(d => setStatus(d.success ? 'success' : 'error'))
+      .catch(() => setStatus('error'));
+  }, [token]);
+
+  return (
+    <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:24, textAlign:'center' }}>
+      <div style={{ fontSize:22, fontWeight:700, marginBottom:20 }}>AfyaHewa</div>
+      {status === 'verifying' && <p>{sw ? 'Inathibitisha barua pepe yako...' : 'Verifying your email...'}</p>}
+      {status === 'success' && (
+        <>
+          <p style={{ fontWeight:600, marginBottom:10 }}>{sw ? 'Barua pepe imethibitishwa!' : 'Email verified!'}</p>
+          <button onClick={onDone} style={{ padding:'10px 20px', background:'#2563eb', color:'#fff', border:'none', borderRadius:8, fontSize:14, fontWeight:600, cursor:'pointer' }}>
+            {sw ? 'Ingia' : 'Log In'}
+          </button>
+        </>
+      )}
+      {status === 'error' && <p>{sw ? 'Kiungo si sahihi au kimeisha muda. Jaribu kujisajili tena.' : 'This link is invalid or expired. Please try registering again.'}</p>}
+    </div>
+  );
+}
+
 export default function App() {
+  const params = new URLSearchParams(window.location.search);
+  const verifyToken = window.location.pathname === '/verify-email' ? params.get('token') : null;
+  const [verified, setVerified] = useState(false);
+
+  if (verifyToken && !verified) {
+    return (
+      <ThemeProvider>
+        <VerifyEmail
+          lang={localStorage.getItem('afya_lang') || 'en'}
+          token={verifyToken}
+          onDone={() => { window.history.replaceState({}, '', '/'); setVerified(true); }}
+        />
+      </ThemeProvider>
+    );
+  }
+
   return (
     <ThemeProvider>
       <AppShell />
