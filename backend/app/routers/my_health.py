@@ -4,8 +4,13 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 
-from database import get_db, User, FamilyProfile, MedicalRecord, HealthMeasurement, MedicineReminder, Appointment
+from database import get_db, User, FamilyProfile, MedicalRecord, HealthMeasurement, MedicineReminder, Appointment, MeasurementReminder
 from app.routers.auth import get_current_user
+import random
+import string
+
+def gen_id(prefix: str) -> str:
+    return prefix + "".join(random.choices(string.ascii_uppercase + string.digits, k=8))
 
 router = APIRouter()
 
@@ -51,6 +56,15 @@ class MeasurementIn(BaseModel):
     unit: Optional[str] = ""
     context: Optional[str] = None
     note: Optional[str] = ""
+
+class MeasurementReminderIn(BaseModel):
+    family_profile_id: Optional[int] = None
+    metric_type: str
+    times: list[str]
+    start_date: str
+    end_date: Optional[str] = None
+    sms_fallback: Optional[bool] = True
+    language: Optional[str] = "en"
 
 # ── Medical Records ──────────────────────────────────────────────────────
 
@@ -166,3 +180,44 @@ def get_report(family_profile_id: Optional[int] = None, days: int = 30,
         "active_medications": [{"medicine_name": r.medicine_name, "dosage": r.dosage, "times": r.times.split(",")} for r in reminders],
         "appointments": [{"specialty": a.specialty, "status": a.status, "requested_date": a.requested_date} for a in appointments],
     }
+
+# ── Measurement Reminders - same pattern as Medicine Reminders ───────────────
+
+@router.post("/measurement-reminders")
+def create_measurement_reminder(data: MeasurementReminderIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not verify_family_access(data.family_profile_id, user, db):
+        return {"success": False, "error": "You don't manage this family profile"}
+    on_behalf_of_name = None
+    if data.family_profile_id:
+        profile = db.query(FamilyProfile).filter(FamilyProfile.id == data.family_profile_id).first()
+        on_behalf_of_name = profile.name if profile else None
+
+    rid = gen_id("MSR")
+    reminder = MeasurementReminder(
+        reminder_id=rid, patient_phone=user.phone or "", family_profile_id=data.family_profile_id,
+        on_behalf_of_name=on_behalf_of_name, metric_type=data.metric_type, times=",".join(data.times),
+        start_date=data.start_date, end_date=data.end_date, sms_fallback=data.sms_fallback,
+        language=data.language, active=True,
+    )
+    db.add(reminder)
+    db.commit()
+    return {"success": True, "reminder_id": rid}
+
+@router.get("/measurement-reminders")
+def list_measurement_reminders(family_profile_id: Optional[int] = None, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    q = db.query(MeasurementReminder).filter(MeasurementReminder.patient_phone == user.phone, MeasurementReminder.active == True)
+    q = q.filter(MeasurementReminder.family_profile_id == family_profile_id) if family_profile_id else q.filter(MeasurementReminder.family_profile_id.is_(None))
+    reminders = q.all()
+    return {"reminders": [{
+        "reminder_id": r.reminder_id, "metric_type": r.metric_type, "times": r.times.split(","),
+        "start_date": r.start_date, "end_date": r.end_date, "on_behalf_of_name": r.on_behalf_of_name,
+    } for r in reminders]}
+
+@router.delete("/measurement-reminders/{reminder_id}")
+def delete_measurement_reminder(reminder_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    reminder = db.query(MeasurementReminder).filter(MeasurementReminder.reminder_id == reminder_id, MeasurementReminder.patient_phone == user.phone).first()
+    if not reminder:
+        return {"success": False, "error": "Reminder not found"}
+    reminder.active = False
+    db.commit()
+    return {"success": True}

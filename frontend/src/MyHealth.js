@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Activity, ClipboardList, Plus, Trash2, AlertTriangle, CheckCircle2, User } from 'lucide-react';
+import { FileText, Activity, ClipboardList, Plus, Trash2, AlertTriangle, CheckCircle2, User, Bell } from 'lucide-react';
 import { API } from './constants';
 import { useTheme } from './ThemeContext';
 
@@ -42,6 +42,9 @@ export default function MyHealth({ lang }) {
   const [recordForm, setRecordForm] = useState({ record_type: 'condition', title: '', description: '', date_recorded: new Date().toISOString().slice(0, 10) });
 
   const [showMeasureForm, setShowMeasureForm] = useState(false);
+  const [showReminderForm, setShowReminderForm] = useState(false);
+  const [reminders, setReminders] = useState([]);
+  const [reminderForm, setReminderForm] = useState({ metric_type: 'blood_pressure', times: ['08:00', '20:00'], start_date: new Date().toISOString().slice(0, 10) });
   const [measureForm, setMeasureForm] = useState({ metric_type: 'blood_pressure', value_primary: '', value_secondary: '', context: 'morning', note: '' });
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -69,6 +72,7 @@ export default function MyHealth({ lang }) {
         const res = await fetch(`${API}/api/my-health/measurements${qs}`, { headers: authHeaders() });
         const data = await res.json();
         setMeasurements(data.measurements || []);
+        loadReminders();
       } else if (view === 'report') {
         const res = await fetch(`${API}/api/my-health/report${qs}`, { headers: authHeaders() });
         const data = await res.json();
@@ -116,6 +120,34 @@ export default function MyHealth({ lang }) {
     setSubmitting(false);
   }
 
+  async function loadReminders() {
+    const qs = forProfile ? `?family_profile_id=${forProfile}` : '';
+    try {
+      const res = await fetch(`${API}/api/my-health/measurement-reminders${qs}`, { headers: authHeaders() });
+      const data = await res.json();
+      setReminders(data.reminders || []);
+    } catch { setReminders([]); }
+  }
+
+  async function submitReminder() {
+    setSubmitting(true); setError('');
+    try {
+      const res = await fetch(`${API}/api/my-health/measurement-reminders`, {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ ...reminderForm, family_profile_id: forProfile || null }),
+      });
+      const data = await res.json();
+      if (data.success) { setShowReminderForm(false); loadReminders(); }
+      else setError(data.error || (sw ? 'Hitilafu' : 'Something went wrong'));
+    } catch { setError(sw ? 'Hitilafu ya muunganisho' : 'Connection error'); }
+    setSubmitting(false);
+  }
+
+  async function removeReminder(id) {
+    await fetch(`${API}/api/my-health/measurement-reminders/${id}`, { method: 'DELETE', headers: authHeaders() }).catch(() => {});
+    loadReminders();
+  }
+
   async function removeRecord(id) {
     await fetch(`${API}/api/my-health/records/${id}`, { method: 'DELETE', headers: authHeaders() }).catch(() => {});
     loadData();
@@ -152,10 +184,48 @@ export default function MyHealth({ lang }) {
       {!loading && view === 'measurements' && (
         <>
           <button onClick={() => setShowMeasureForm(s => !s)}
-            style={{ width: '100%', padding: 11, background: showMeasureForm ? theme.card : '#f0fdf4', border: `1px solid ${showMeasureForm ? theme.border : '#bbf7d0'}`, borderRadius: 10, marginBottom: 14, cursor: 'pointer',
+            style={{ width: '100%', padding: 11, background: showMeasureForm ? theme.card : '#f0fdf4', border: `1px solid ${showMeasureForm ? theme.border : '#bbf7d0'}`, borderRadius: 10, marginBottom: 8, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: showMeasureForm ? theme.textMuted : '#166534' }}>
             <Plus size={15} /> {showMeasureForm ? (sw ? 'Ghairi' : 'Cancel') : (sw ? 'Ongeza Kipimo' : 'Log a Reading')}
           </button>
+
+          <button onClick={() => { setShowReminderForm(s => !s); if (!showReminderForm) loadReminders(); }}
+            style={{ width: '100%', padding: 11, background: showReminderForm ? theme.card : '#eff6ff', border: `1px solid ${showReminderForm ? theme.border : '#bfdbfe'}`, borderRadius: 10, marginBottom: 14, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: showReminderForm ? theme.textMuted : '#1d4ed8' }}>
+            <Bell size={14} /> {showReminderForm ? (sw ? 'Ghairi' : 'Cancel') : (sw ? 'Weka Ukumbusho' : 'Set a Reminder')}
+          </button>
+
+          {showReminderForm && (
+            <div style={{ background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
+              <select value={reminderForm.metric_type} onChange={e => setReminderForm({ ...reminderForm, metric_type: e.target.value })} style={inputStyle}>
+                {METRICS.map(m => <option key={m.id} value={m.id}>{sw ? m.sw : m.en}</option>)}
+              </select>
+              <div style={{ fontSize: 11, color: theme.textFaint, marginBottom: 6 }}>{sw ? 'Nyakati' : 'Times'}</div>
+              {reminderForm.times.map((time, i) => (
+                <input key={i} type="time" value={time} onChange={e => {
+                  const t = [...reminderForm.times]; t[i] = e.target.value; setReminderForm({ ...reminderForm, times: t });
+                }} style={{ ...inputStyle, marginBottom: 6 }} />
+              ))}
+              {!!error && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{error}</p>}
+              <button onClick={submitReminder} disabled={submitting} style={{ width: '100%', padding: 11, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                {submitting ? (sw ? 'Inahifadhi...' : 'Saving...') : (sw ? 'Washa Ukumbusho' : 'Save Reminder')}
+              </button>
+
+              {reminders.length > 0 && (
+                <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${theme.border}` }}>
+                  {reminders.map(r => {
+                    const metric = METRICS.find(x => x.id === r.metric_type);
+                    return (
+                      <div key={r.reminder_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <span style={{ fontSize: 12, color: theme.text }}>{sw ? metric?.sw : metric?.en} — {r.times.join(', ')}</span>
+                        <button onClick={() => removeReminder(r.reminder_id)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><Trash2 size={13} color="#ef4444" /></button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {showMeasureForm && (
             <div style={{ background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>

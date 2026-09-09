@@ -212,6 +212,34 @@ class SeasonalAlert(Base):
     active       = Column(Boolean, default=True)
     created_at   = Column(DateTime, default=datetime.utcnow)
 
+class MeasurementReminder(Base):
+    """A reminder to log a health measurement (BP, glucose, etc.) at
+    scheduled times - same alarm/SMS-fallback pattern as MedicineReminder,
+    just for measurements instead of medicine doses."""
+    __tablename__ = "measurement_reminders"
+    id                  = Column(Integer, primary_key=True, index=True)
+    reminder_id         = Column(String(20), unique=True, index=True)
+    patient_phone       = Column(String(20), index=True)
+    family_profile_id   = Column(Integer, nullable=True, index=True)
+    on_behalf_of_name   = Column(String(200), nullable=True)
+    metric_type         = Column(String(30))   # blood_pressure | blood_glucose | weight | heart_rate | temperature | spo2
+    times               = Column(String(200))  # "08:00,20:00"
+    start_date          = Column(String(20))
+    end_date            = Column(String(20), nullable=True)
+    active              = Column(Boolean, default=True)
+    sms_fallback        = Column(Boolean, default=True)
+    language            = Column(String(5), default="en")
+    created_at          = Column(DateTime, default=datetime.utcnow)
+
+class MeasurementReminderLog(Base):
+    """Same dedupe-guard pattern as ReminderLog, for measurement reminders."""
+    __tablename__ = "measurement_reminder_logs"
+    id             = Column(Integer, primary_key=True, index=True)
+    reminder_id    = Column(String(20), index=True)
+    date           = Column(String(20))
+    scheduled_time = Column(String(10))
+    sent_at        = Column(DateTime, default=datetime.utcnow)
+
 class Vendor(Base):
     """A partner pharmacy/supplier in the Health Shop marketplace.
     Payout details (mobile money number + provider) are used when

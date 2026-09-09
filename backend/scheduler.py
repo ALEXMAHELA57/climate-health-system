@@ -9,7 +9,7 @@ Called from main.py on startup via APScheduler (lightweight, no Redis needed).
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from database import SessionLocal, Subscriber, OutbreakAlert, SMSLog
+from database import SessionLocal, Subscriber, OutbreakAlert, SMSLog, MedicineReminder, ReminderLog, MeasurementReminder, MeasurementReminderLog
 import httpx
 import logging
 
@@ -216,6 +216,122 @@ async def run_outbreak_alerts():
     finally:
         db.close()
 
+MEDICINE_SMS_TEMPLATES = {
+    'en': "AfyaHewa reminder: time to take {medicine}{dosage}. Reply STOP to {reminder_id} to cancel this reminder.",
+    'sw': "Ukumbusho wa AfyaHewa: ni wakati wa kutumia {medicine}{dosage}. Jibu STOP {reminder_id} kusitisha ukumbusho huu.",
+}
+
+async def check_medicine_reminders():
+    """Runs every minute. For every active medicine reminder whose
+    schedule includes the current time (Tanzania time, UTC+3), sends an
+    SMS fallback reminder - so the reminder still reaches the patient
+    even if they don't have the app open, are offline, or don't have a
+    smartphone at all. The mobile app handles the on-device alarm
+    separately via local notifications; this is purely the SMS backstop."""
+    from sms import send_beem_sms  # import here to avoid circular import
+
+    now_tz = datetime.utcnow() + timedelta(hours=3)  # Tanzania time
+    today = now_tz.strftime('%Y-%m-%d')
+    now_hm = now_tz.strftime('%H:%M')
+
+    db = SessionLocal()
+    try:
+        reminders = db.query(MedicineReminder).filter(MedicineReminder.active == True).all()
+        for r in reminders:
+            if r.start_date and r.start_date > today:
+                continue
+            if r.end_date and r.end_date < today:
+                continue
+            if not r.sms_fallback:
+                continue
+            times = [t.strip() for t in (r.times or "").split(",") if t.strip()]
+            if now_hm not in times:
+                continue
+
+            already_sent = db.query(ReminderLog).filter(
+                ReminderLog.reminder_id == r.reminder_id,
+                ReminderLog.date == today,
+                ReminderLog.scheduled_time == now_hm,
+            ).first()
+            if already_sent:
+                continue
+
+            dosage_txt = f" ({r.dosage})" if r.dosage else ""
+            template = MEDICINE_SMS_TEMPLATES.get(r.language, MEDICINE_SMS_TEMPLATES['en'])
+            message = template.format(medicine=r.medicine_name, dosage=dosage_txt, reminder_id=r.reminder_id)[:160]
+
+            try:
+                await send_beem_sms([{"recipient_id": "1", "dest_addr": r.patient_phone}], message)
+            except Exception as e:
+                logger.error(f"Medicine reminder SMS failed for {r.reminder_id}: {e}")
+
+            db.add(ReminderLog(reminder_id=r.reminder_id, date=today, scheduled_time=now_hm))
+            db.commit()
+    except Exception as e:
+        logger.error(f"Medicine reminder check failed: {e}")
+    finally:
+        db.close()
+
+MEASUREMENT_LABELS = {
+    "blood_pressure": {"en": "blood pressure", "sw": "shinikizo la damu"},
+    "blood_glucose":  {"en": "blood glucose",  "sw": "kiwango cha sukari"},
+    "weight":         {"en": "weight",         "sw": "uzito"},
+    "heart_rate":     {"en": "heart rate",     "sw": "mapigo ya moyo"},
+    "temperature":    {"en": "temperature",    "sw": "joto la mwili"},
+    "spo2":           {"en": "oxygen level",   "sw": "kiwango cha oksijeni"},
+}
+MEASUREMENT_SMS_TEMPLATES = {
+    'en': "AfyaHewa reminder: time to log your {metric}. Open the app to record it.",
+    'sw': "Ukumbusho wa AfyaHewa: ni wakati wa kurekodi {metric}. Fungua programu kurekodi.",
+}
+
+async def check_measurement_reminders():
+    """Same pattern as check_medicine_reminders, for health measurement
+    logging reminders (e.g. morning/evening blood pressure checks)."""
+    from sms import send_beem_sms
+
+    now_tz = datetime.utcnow() + timedelta(hours=3)
+    today = now_tz.strftime('%Y-%m-%d')
+    now_hm = now_tz.strftime('%H:%M')
+
+    db = SessionLocal()
+    try:
+        reminders = db.query(MeasurementReminder).filter(MeasurementReminder.active == True).all()
+        for r in reminders:
+            if r.start_date and r.start_date > today:
+                continue
+            if r.end_date and r.end_date < today:
+                continue
+            if not r.sms_fallback or not r.patient_phone:
+                continue
+            times = [t.strip() for t in (r.times or "").split(",") if t.strip()]
+            if now_hm not in times:
+                continue
+
+            already_sent = db.query(MeasurementReminderLog).filter(
+                MeasurementReminderLog.reminder_id == r.reminder_id,
+                MeasurementReminderLog.date == today,
+                MeasurementReminderLog.scheduled_time == now_hm,
+            ).first()
+            if already_sent:
+                continue
+
+            metric_label = MEASUREMENT_LABELS.get(r.metric_type, {}).get(r.language, r.metric_type)
+            template = MEASUREMENT_SMS_TEMPLATES.get(r.language, MEASUREMENT_SMS_TEMPLATES['en'])
+            message = template.format(metric=metric_label)[:160]
+
+            try:
+                await send_beem_sms([{"recipient_id": "1", "dest_addr": r.patient_phone}], message)
+            except Exception as e:
+                logger.error(f"Measurement reminder SMS failed for {r.reminder_id}: {e}")
+
+            db.add(MeasurementReminderLog(reminder_id=r.reminder_id, date=today, scheduled_time=now_hm))
+            db.commit()
+    except Exception as e:
+        logger.error(f"Measurement reminder check failed: {e}")
+    finally:
+        db.close()
+
 def create_scheduler() -> AsyncIOScheduler:
     """Create and configure the APScheduler instance."""
     scheduler = AsyncIOScheduler()
@@ -236,6 +352,24 @@ def create_scheduler() -> AsyncIOScheduler:
         trigger='interval',
         hours=2,
         id='outbreak_alerts',
+        replace_existing=True,
+    )
+
+    # Medicine reminders: check every minute for due doses (SMS fallback)
+    scheduler.add_job(
+        check_medicine_reminders,
+        trigger='interval',
+        minutes=1,
+        id='medicine_reminders',
+        replace_existing=True,
+    )
+
+    # Measurement reminders: check every minute for due measurement logging (SMS fallback)
+    scheduler.add_job(
+        check_measurement_reminders,
+        trigger='interval',
+        minutes=1,
+        id='measurement_reminders',
         replace_existing=True,
     )
 
