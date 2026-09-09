@@ -21,6 +21,7 @@ const FamilyHealth = lazy(() => import('./FamilyHealth'));
 const MyHealth = lazy(() => import('./MyHealth'));
 const LabDiagnostics = lazy(() => import('./LabDiagnostics'));
 const DoctorPortal = lazy(() => import('./DoctorPortal'));
+const VendorPortal = lazy(() => import('./VendorPortal'));
 const HealthShop = lazy(() => import('./HealthShop'));
 const Consultation = lazy(() => import('./Consultation'));
 const MedicineSchedule = lazy(() => import('./MedicineSchedule'));
@@ -75,6 +76,7 @@ function AppShell() {
   const [district, setDistrict] = useState(()=>localStorage.getItem('afya_district')||'Dar es Salaam');
   const [showAdmin, setShowAdmin] = useState(()=>window.location.hash==='#admin');
   const [showDoctorPortal, setShowDoctorPortal] = useState(()=>window.location.hash==='#doctor');
+  const [showVendorPortal, setShowVendorPortal] = useState(()=>window.location.hash==='#vendor');
   const [showOnboarding, setShowOnboarding] = useState(()=>!localStorage.getItem('afya_onboarded'));
   const [user, setUser] = useState(()=>{
     const saved = localStorage.getItem('afya_user');
@@ -88,7 +90,7 @@ function AppShell() {
   const t = T[lang] || T.en;
 
   useEffect(()=>{
-    function onHash(){ setShowAdmin(window.location.hash==='#admin'); setShowDoctorPortal(window.location.hash==='#doctor'); }
+    function onHash(){ setShowAdmin(window.location.hash==='#admin'); setShowDoctorPortal(window.location.hash==='#doctor'); setShowVendorPortal(window.location.hash==='#vendor'); }
     window.addEventListener('hashchange', onHash);
     fetch(`${API}/`).catch(()=>{});
     const keepAlive = setInterval(()=>{
@@ -119,6 +121,12 @@ function AppShell() {
   if (showDoctorPortal) return (
     <Suspense fallback={<Loader />}>
       <DoctorPortal />
+    </Suspense>
+  );
+
+  if (showVendorPortal) return (
+    <Suspense fallback={<Loader />}>
+      <VendorPortal />
     </Suspense>
   );
 

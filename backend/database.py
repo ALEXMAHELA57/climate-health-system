@@ -243,13 +243,17 @@ class MeasurementReminderLog(Base):
 class Vendor(Base):
     """A partner pharmacy/supplier in the Health Shop marketplace.
     Payout details (mobile money number + provider) are used when
-    admin triggers a payout via AzamPay's disbursement API."""
+    admin triggers a payout via AzamPay's disbursement API. Vendors
+    don't self-register - admin creates their login, same pattern as
+    doctors."""
     __tablename__ = "vendors"
     id                  = Column(Integer, primary_key=True, index=True)
     name                = Column(String(200))
     phone               = Column(String(20))
     payout_provider     = Column(String(30), default="")  # Mpesa | Tigo | Airtel | Halopesa | Azampesa
     payout_account      = Column(String(30), default="")  # mobile money number to pay out to
+    login_username      = Column(String(100), unique=True, nullable=True)
+    password_hash       = Column(String(200), nullable=True)
     verified            = Column(Boolean, default=False)
     active              = Column(Boolean, default=True)
     created_at          = Column(DateTime, default=datetime.utcnow)
@@ -574,6 +578,8 @@ _COLUMNS_ADDED_TO_EXISTING_TABLES = [
     ("doctors", "password_hash", "VARCHAR(200)"),
     ("doctors", "open_to_negotiation", "BOOLEAN DEFAULT FALSE"),
     ("doctors", "affordable_care", "BOOLEAN DEFAULT FALSE"),
+    ("vendors", "login_username", "VARCHAR(100)"),
+    ("vendors", "password_hash", "VARCHAR(200)"),
 ]
 
 def _run_lightweight_migrations():
@@ -589,9 +595,10 @@ def _run_lightweight_migrations():
         # "ADD COLUMN IF NOT EXISTS" above can't also declare UNIQUE cleanly
         try:
             conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_doctors_login_username ON doctors (login_username)"))
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_vendors_login_username ON vendors (login_username)"))
             conn.commit()
         except Exception as e:
-            print(f"[migration] Could not add unique index on doctors.login_username: {e}")
+            print(f"[migration] Could not add unique index on login_username columns: {e}")
 
 def init_db():
     Base.metadata.create_all(bind=engine)

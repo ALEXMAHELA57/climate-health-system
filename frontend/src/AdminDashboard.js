@@ -874,6 +874,10 @@ function ShopPanel({ sw, API }) {
   const [productForm, setProductForm] = useState({ vendor_id: '', name: '', category: '', price: '', stock: '' });
   const [msg, setMsg] = useState('');
   const [payoutAmount, setPayoutAmount] = useState({});
+  const [loginVendorId, setLoginVendorId] = useState('');
+  const [vendorUsername, setVendorUsername] = useState('');
+  const [vendorPassword, setVendorPassword] = useState('');
+  const [loginMsg, setLoginMsg] = useState('');
 
   useEffect(() => { load(); }, []);
 
@@ -888,6 +892,19 @@ function ShopPanel({ sw, API }) {
       setCategories((await cRes.json()).categories || []);
       setBalances((await bRes.json()).balances || []);
     } catch {}
+  }
+
+  async function setVendorLogin() {
+    if (!loginVendorId || !vendorUsername.trim() || !vendorPassword.trim()) return;
+    setLoginMsg('');
+    try {
+      const res = await fetch(`${API}/api/shop/admin/vendors/${loginVendorId}/set-login`, {
+        method: 'POST', headers: authHeaders(), body: JSON.stringify({ username: vendorUsername, password: vendorPassword }),
+      });
+      const data = await res.json();
+      setLoginMsg(data.success ? (sw ? '✓ Imefanikiwa' : '✓ Login set successfully') : (data.error || 'Failed'));
+      if (data.success) { setVendorUsername(''); setVendorPassword(''); }
+    } catch { setLoginMsg(sw ? 'Hitilafu' : 'Connection error'); }
   }
 
   async function addVendor() {
@@ -939,6 +956,18 @@ function ShopPanel({ sw, API }) {
         </select>
         <input value={vendorForm.payout_account} onChange={e => setVendorForm({ ...vendorForm, payout_account: e.target.value })} placeholder={sw ? 'Namba ya malipo' : 'Payout account number'} style={inputSt} />
         <button onClick={addVendor} style={{ width: '100%', padding: 10, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{sw ? 'Ongeza' : 'Add Vendor'}</button>
+      </div>
+
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{sw ? 'Weka Ingizo la Muuzaji' : 'Set Vendor Login'}</div>
+        <select value={loginVendorId} onChange={e => setLoginVendorId(e.target.value)} style={{ width: '100%', padding: 9, marginBottom: 8, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13, boxSizing: 'border-box' }}>
+          <option value="">{sw ? 'Chagua muuzaji' : 'Select a vendor'}</option>
+          {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+        </select>
+        <input value={vendorUsername} onChange={e => setVendorUsername(e.target.value)} placeholder={sw ? 'Jina la mtumiaji' : 'Username'} style={{ width: '100%', padding: 9, marginBottom: 8, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13, boxSizing: 'border-box' }} />
+        <input value={vendorPassword} onChange={e => setVendorPassword(e.target.value)} placeholder={sw ? 'Nywila' : 'Password'} style={{ width: '100%', padding: 9, marginBottom: 8, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13, boxSizing: 'border-box' }} />
+        {!!loginMsg && <div style={{ fontSize: 12, color: loginMsg.startsWith('✓') ? '#166534' : '#ef4444', marginBottom: 8 }}>{loginMsg}</div>}
+        <button onClick={setVendorLogin} style={{ width: '100%', padding: 10, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{sw ? 'Hifadhi' : 'Save Login'}</button>
       </div>
 
       <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 14, marginBottom: 14 }}>

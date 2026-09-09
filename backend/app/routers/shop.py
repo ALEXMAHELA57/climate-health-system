@@ -1,18 +1,42 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel
 from typing import Optional, List
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import random
 import string
+import jwt
+from passlib.context import CryptContext
 
 from database import get_db, User, Vendor, Product, ShopOrder, SubOrder, VendorPayout, Admin
-from app.routers.auth import get_current_user
+from app.routers.auth import get_current_user, JWT_SECRET, JWT_ALGO
 from app.routers.admin_auth import get_current_admin
 import azampay
 
 router = APIRouter()
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def create_vendor_jwt(vendor_id: int) -> str:
+    payload = {"vendor_id": vendor_id, "type": "vendor", "exp": datetime.utcnow() + timedelta(days=90), "iat": datetime.utcnow()}
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
+
+def get_current_vendor(authorization: str = Header(None), db: Session = Depends(get_db)) -> Vendor:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Vendor login required")
+    token = authorization.split(" ", 1)[1]
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Session expired, please log in again")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid session")
+    if payload.get("type") != "vendor":
+        raise HTTPException(status_code=401, detail="Not a vendor session")
+    vendor = db.query(Vendor).filter(Vendor.id == payload["vendor_id"], Vendor.active == True).first()
+    if not vendor:
+        raise HTTPException(status_code=401, detail="Vendor account not found")
+    return vendor
 
 CATEGORIES = {
     "medical_equipment":   {"en": "Medical Equipment",       "sw": "Vifaa vya Tiba"},
@@ -245,3 +269,121 @@ async def trigger_payout(data: PayoutIn, admin: Admin = Depends(get_current_admi
     if not result.get("success"):
         return {"success": False, "error": result.get("error")}
     return {"success": True, "reference": result.get("reference")}
+
+# ── Vendor self-service ────────────────────────────────────────────────────
+# Vendors don't self-register - admin creates their login (below), then they
+# manage their own products, orders, and see their own payout history.
+
+class VendorLoginIn(BaseModel):
+    username: str
+    password: str
+
+class AdminVendorLoginIn(BaseModel):
+    username: str
+    password: str
+
+class VendorProductIn(BaseModel):
+    name: str
+    category: str
+    description: Optional[str] = ""
+    price: float
+    stock: int = 0
+    image_url: Optional[str] = None
+
+class VendorProductUpdateIn(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    stock: Optional[int] = None
+    active: Optional[bool] = None
+
+class SubOrderStatusIn(BaseModel):
+    status: str  # processing | shipped | delivered
+
+@router.post("/admin/vendors/{vendor_id}/set-login")
+def admin_set_vendor_login(vendor_id: int, data: AdminVendorLoginIn, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
+    vendor = db.query(Vendor).filter(Vendor.id == vendor_id).first()
+    if not vendor:
+        return {"success": False, "error": "Vendor not found"}
+    existing = db.query(Vendor).filter(Vendor.login_username == data.username, Vendor.id != vendor_id).first()
+    if existing:
+        return {"success": False, "error": "That username is already taken"}
+    vendor.login_username = data.username
+    vendor.password_hash = pwd_context.hash(data.password)
+    db.commit()
+    return {"success": True}
+
+@router.post("/vendor/login")
+def vendor_login(data: VendorLoginIn, db: Session = Depends(get_db)):
+    vendor = db.query(Vendor).filter(Vendor.login_username == data.username, Vendor.active == True).first()
+    if not vendor or not vendor.password_hash or not pwd_context.verify(data.password, vendor.password_hash):
+        return {"success": False, "error": "Incorrect username or password"}
+    return {"success": True, "token": create_vendor_jwt(vendor.id), "vendor": {"id": vendor.id, "name": vendor.name}}
+
+@router.get("/vendor/me")
+def vendor_me(vendor: Vendor = Depends(get_current_vendor)):
+    return {"vendor": {"id": vendor.id, "name": vendor.name, "phone": vendor.phone, "verified": vendor.verified,
+                        "payout_provider": vendor.payout_provider, "payout_account": vendor.payout_account}}
+
+@router.get("/vendor/products")
+def vendor_products(vendor: Vendor = Depends(get_current_vendor), db: Session = Depends(get_db)):
+    products = db.query(Product).filter(Product.vendor_id == vendor.id).all()
+    return {"products": [{
+        "id": p.id, "name": p.name, "category": p.category, "description": p.description,
+        "price": p.price, "stock": p.stock, "active": p.active,
+    } for p in products]}
+
+@router.post("/vendor/products")
+def vendor_add_product(data: VendorProductIn, vendor: Vendor = Depends(get_current_vendor), db: Session = Depends(get_db)):
+    product = Product(vendor_id=vendor.id, active=True, **data.dict())
+    db.add(product)
+    db.commit()
+    db.refresh(product)
+    return {"success": True, "product_id": product.id}
+
+@router.patch("/vendor/products/{product_id}")
+def vendor_update_product(product_id: int, data: VendorProductUpdateIn, vendor: Vendor = Depends(get_current_vendor), db: Session = Depends(get_db)):
+    product = db.query(Product).filter(Product.id == product_id, Product.vendor_id == vendor.id).first()
+    if not product:
+        return {"success": False, "error": "Product not found"}
+    for field, value in data.dict(exclude_unset=True).items():
+        setattr(product, field, value)
+    db.commit()
+    return {"success": True}
+
+@router.delete("/vendor/products/{product_id}")
+def vendor_delete_product(product_id: int, vendor: Vendor = Depends(get_current_vendor), db: Session = Depends(get_db)):
+    product = db.query(Product).filter(Product.id == product_id, Product.vendor_id == vendor.id).first()
+    if not product:
+        return {"success": False, "error": "Product not found"}
+    product.active = False
+    db.commit()
+    return {"success": True}
+
+@router.get("/vendor/orders")
+def vendor_orders(vendor: Vendor = Depends(get_current_vendor), db: Session = Depends(get_db)):
+    subs = db.query(SubOrder).filter(SubOrder.vendor_id == vendor.id).order_by(SubOrder.created_at.desc()).all()
+    result = []
+    for s in subs:
+        order = db.query(ShopOrder).filter(ShopOrder.order_id == s.order_id).first()
+        result.append({
+            "sub_order_id": s.id, "order_id": s.order_id, "items": json.loads(s.items), "subtotal": s.subtotal,
+            "status": s.status, "created_at": s.created_at.isoformat(),
+            "delivery_name": order.delivery_name if order else "", "delivery_phone": order.delivery_phone if order else "",
+            "delivery_address": order.delivery_address if order else "", "payment_status": order.payment_status if order else "unknown",
+        })
+    return {"orders": result}
+
+@router.patch("/vendor/orders/{sub_order_id}/status")
+def vendor_update_order_status(sub_order_id: int, data: SubOrderStatusIn, vendor: Vendor = Depends(get_current_vendor), db: Session = Depends(get_db)):
+    sub = db.query(SubOrder).filter(SubOrder.id == sub_order_id, SubOrder.vendor_id == vendor.id).first()
+    if not sub:
+        return {"success": False, "error": "Order not found"}
+    sub.status = data.status
+    db.commit()
+    return {"success": True}
+
+@router.get("/vendor/payouts")
+def vendor_payouts(vendor: Vendor = Depends(get_current_vendor), db: Session = Depends(get_db)):
+    payouts = db.query(VendorPayout).filter(VendorPayout.vendor_id == vendor.id).order_by(VendorPayout.created_at.desc()).all()
+    return {"payouts": [{"amount": p.amount, "status": p.status, "created_at": p.created_at.isoformat()} for p in payouts]}
