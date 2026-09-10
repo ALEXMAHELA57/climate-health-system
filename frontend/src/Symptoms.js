@@ -58,7 +58,7 @@ function mentionsClinicWithoutButton(text) {
   return mentionsClinic;
 }
 
-function renderMessage(text, setPage, lang) {
+function renderMessage(text, setPage, lang, setCareView) {
   const patterns = ['[OPEN CLINICS TAB]', '[FUNGUA KLINIKI]'];
   let parts = [text];
   let foundButton = false;
@@ -72,7 +72,7 @@ function renderMessage(text, setPage, lang) {
       return split.reduce((acc, seg, i) => {
         if (i > 0) acc.push(
           <button key={`${pattern}-${i}`}
-            onClick={() => setPage && setPage('clinics')}
+            onClick={() => { setCareView && setCareView('facility'); setPage && setPage('care'); }}
             style={{ display:'inline-flex', alignItems:'center', gap:4, background:'#2563eb', color:'#fff', border:'none', borderRadius:8, padding:'5px 12px', fontSize:13, fontWeight:600, cursor:'pointer', margin:'4px 0' }}>
             🏥 {pattern === '[FUNGUA KLINIKI]' ? 'Fungua Kliniki' : 'Open Clinics'}
           </button>
@@ -87,7 +87,7 @@ function renderMessage(text, setPage, lang) {
   if (!foundButton && mentionsClinicWithoutButton(text)) {
     parts.push(
       <div key="clinic-fallback-btn" style={{ marginTop: 8 }}>
-        <button onClick={() => setPage && setPage('clinics')}
+        <button onClick={() => { setCareView && setCareView('facility'); setPage && setPage('care'); }}
           style={{ display:'inline-flex', alignItems:'center', gap:4, background:'#2563eb', color:'#fff', border:'none', borderRadius:8, padding:'5px 12px', fontSize:13, fontWeight:600, cursor:'pointer' }}>
           🏥 {lang === 'sw' ? 'Fungua Kliniki' : 'Open Clinics'}
         </button>
@@ -211,7 +211,7 @@ async function askAfya(messages, district, onStatus, topic = '') {
   return backend;
 }
 
-export default function Symptoms({ t, lang, district, setPage, topic }) {
+export default function Symptoms({ t, lang, district, setPage, topic, setCareView }) {
   const [messages, setMessages]         = useState([{ role:'assistant', content: topic ? `${t.afyaGreet} ${lang==='sw' ? `Nipo hapa kuzungumza kuhusu ${topic}.` : `I'm here to talk about ${topic}.`}` : t.afyaGreet }]);
   const [input, setInput]               = useState('');
   const [loading, setLoading]           = useState(false);
@@ -354,7 +354,7 @@ export default function Symptoms({ t, lang, district, setPage, topic }) {
                 fontSize:14, lineHeight:1.55,
                 borderBottomRightRadius:m.role==='user'?4:16,
                 borderBottomLeftRadius:m.role==='assistant'?4:16 }}>
-                {m.role==='assistant' ? renderMessage(m.content, setPage, lang) : m.content}
+                {m.role==='assistant' ? renderMessage(m.content, setPage, lang, setCareView) : m.content}
               </div>
               {/* Retry button for failed messages */}
               {m._isError && m._retryMessages && (
