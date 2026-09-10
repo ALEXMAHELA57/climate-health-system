@@ -32,9 +32,16 @@ const SPECIALTY_COLOR = {
 };
 const TYPE_ICON = { chat: MessageCircle, voice: Phone, video: Video };
 
+function authHeaders() {
+  const token = localStorage.getItem('afya_token');
+  return token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+}
+
 export default function Consultation({ lang, initialSpecialty }) {
   const { theme } = useTheme();
   const sw = lang === 'sw';
+  const user = JSON.parse(localStorage.getItem('afya_user') || 'null');
+  const [familyProfiles, setFamilyProfiles] = useState([]);
   const [view, setView] = useState('browse'); // browse | book | my
   const [specialties, setSpecialties] = useState([]);
   const [activeSpecialty, setActiveSpecialty] = useState(null);
@@ -46,7 +53,7 @@ export default function Consultation({ lang, initialSpecialty }) {
   const [negotiationForm, setNegotiationForm] = useState({ consultation_type: '', proposed_price: '', patient_name: '', patient_phone: '' });
   const [negotiationMsg, setNegotiationMsg] = useState('');
 
-  const [form, setForm] = useState({ patient_name: '', patient_phone: '', reason: '', requested_date: '', requested_time: '', consultation_type: 'chat' });
+  const [form, setForm] = useState({ for_profile_id: '', patient_name: user?.name || '', patient_phone: user?.phone || '', reason: '', requested_date: '', requested_time: '', consultation_type: 'chat' });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [confirmedId, setConfirmedId] = useState('');
@@ -60,6 +67,7 @@ export default function Consultation({ lang, initialSpecialty }) {
   const [ratedAppointments, setRatedAppointments] = useState({});
 
   useEffect(() => { fetch(`${API}/api/consultation/specialties`).then(r => r.json()).then(d => setSpecialties(d.specialties || [])).catch(() => {}); }, []);
+  useEffect(() => { fetch(`${API}/api/family/profiles`, { headers: authHeaders() }).then(r => r.json()).then(d => setFamilyProfiles((d.profiles || []).filter(p => !p.is_linked))).catch(() => {}); }, []);
   useEffect(() => { if (initialSpecialty) loadDoctors(initialSpecialty); }, [initialSpecialty]);
   useEffect(() => { if (activeSpecialty) loadDoctors(activeSpecialty); }, [affordableOnly]);
 
@@ -110,7 +118,7 @@ export default function Consultation({ lang, initialSpecialty }) {
 
   function startBooking(doctor) {
     setSelectedDoctor(doctor);
-    setForm({ patient_name: '', patient_phone: '', reason: '', requested_date: '', requested_time: '', consultation_type: doctor.consultation_types[0] || 'chat' });
+    setForm({ for_profile_id: '', patient_name: user?.name || '', patient_phone: user?.phone || '', reason: '', requested_date: '', requested_time: '', consultation_type: doctor.consultation_types[0] || 'chat' });
     setError(''); setConfirmedId('');
     setView('book');
   }
@@ -123,8 +131,8 @@ export default function Consultation({ lang, initialSpecialty }) {
     setSubmitting(true); setError('');
     try {
       const res = await fetch(`${API}/api/consultation/appointments`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ doctor_id: selectedDoctor.id, specialty: activeSpecialty, language: lang, ...form }),
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ doctor_id: selectedDoctor.id, specialty: activeSpecialty, language: lang, ...form, family_profile_id: form.for_profile_id || null }),
       });
       const data = await res.json();
       if (data.success) { setConfirmedId(data.appointment_id); setMyPhone(form.patient_phone); }
@@ -316,6 +324,16 @@ export default function Consultation({ lang, initialSpecialty }) {
               <div style={{ fontSize: 15, fontWeight: 700, color: theme.text }}>{selectedDoctor.name}</div>
               <div style={{ fontSize: 12, color: theme.textMuted }}>{selectedDoctor.specialty_label}</div>
             </div>
+
+            {familyProfiles.length > 0 && (
+              <select value={form.for_profile_id} onChange={e => {
+                const fp = familyProfiles.find(p => String(p.id) === e.target.value);
+                setForm({ ...form, for_profile_id: e.target.value, patient_name: fp ? fp.name : (user?.name || ''), patient_phone: fp ? (fp.phone || '') : (user?.phone || '') });
+              }} style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.card, color: theme.text, fontSize: 14 }}>
+                <option value="">{sw ? 'Mimi mwenyewe' : 'Myself'}</option>
+                {familyProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            )}
 
             <input placeholder={sw ? 'Jina lako kamili' : 'Your full name'} value={form.patient_name} onChange={e => setForm({ ...form, patient_name: e.target.value })}
               style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.card, color: theme.text, fontSize: 14 }} />

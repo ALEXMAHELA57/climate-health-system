@@ -6,7 +6,7 @@ from datetime import datetime
 import random
 import string
 import json
-from database import get_db, Doctor, Appointment, DoctorRating, FeeNegotiation, User
+from database import get_db, Doctor, Appointment, DoctorRating, FeeNegotiation, User, FamilyProfile
 from app.routers.auth import get_current_user
 
 router = APIRouter()
@@ -63,6 +63,7 @@ class AppointmentIn(BaseModel):
     requested_time: str   # "HH:MM"
     consultation_type: Optional[str] = "chat"
     language: Optional[str] = "en"
+    family_profile_id: Optional[int] = None
 
 class StatusIn(BaseModel):
     status: str  # confirmed | completed | cancelled
@@ -97,14 +98,19 @@ def list_doctors(specialty: Optional[str] = None, affordable_only: bool = False,
     return {"doctors": result}
 
 @router.post("/appointments")
-def book_appointment(data: AppointmentIn, db: Session = Depends(get_db)):
+def book_appointment(data: AppointmentIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     doctor = db.query(Doctor).filter(Doctor.id == data.doctor_id, Doctor.active == True).first()
     if not doctor:
         return {"success": False, "error": "Doctor not found"}
 
+    if data.family_profile_id:
+        profile = db.query(FamilyProfile).filter(FamilyProfile.id == data.family_profile_id, FamilyProfile.managed_by_user_id == user.id, FamilyProfile.active == True).first()
+        if not profile:
+            return {"success": False, "error": "You don't manage this family profile"}
+
     appt_id = gen_id("APT")
     appt = Appointment(
-        appointment_id=appt_id, doctor_id=data.doctor_id,
+        appointment_id=appt_id, owner_user_id=user.id, family_profile_id=data.family_profile_id, doctor_id=data.doctor_id,
         patient_name=data.patient_name, patient_phone=data.patient_phone,
         specialty=data.specialty, reason=data.reason,
         requested_date=data.requested_date, requested_time=data.requested_time,

@@ -510,10 +510,16 @@ class ChatMessage(Base):
     created_at     = Column(DateTime, default=datetime.utcnow)
 
 class Appointment(Base):
-    """A patient's booked (or requested) consultation with a doctor."""
+    """A patient's booked (or requested) consultation with a doctor.
+    owner_user_id/family_profile_id follow the same pattern as
+    MedicineReminder etc: null family_profile_id means booked for the
+    account holder themselves, set means booked on behalf of a managed
+    family member."""
     __tablename__ = "appointments"
     id                  = Column(Integer, primary_key=True, index=True)
     appointment_id      = Column(String(20), unique=True, index=True)
+    owner_user_id       = Column(Integer, index=True, nullable=True)
+    family_profile_id   = Column(Integer, nullable=True, index=True)
     doctor_id           = Column(Integer, index=True)
     patient_name        = Column(String(200))
     patient_phone       = Column(String(20), index=True)
@@ -580,6 +586,8 @@ _COLUMNS_ADDED_TO_EXISTING_TABLES = [
     ("doctors", "affordable_care", "BOOLEAN DEFAULT FALSE"),
     ("vendors", "login_username", "VARCHAR(100)"),
     ("vendors", "password_hash", "VARCHAR(200)"),
+    ("appointments", "owner_user_id", "INTEGER"),
+    ("appointments", "family_profile_id", "INTEGER"),
 ]
 
 def _run_lightweight_migrations():
