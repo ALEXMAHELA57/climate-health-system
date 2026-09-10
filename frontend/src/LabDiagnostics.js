@@ -24,7 +24,8 @@ export default function LabDiagnostics({ lang, setPage, setAfyaTopic }) {
   const [bookings, setBookings] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const [form, setForm] = useState({ patient_name: user?.name || '', patient_phone: user?.phone || '', scheduled_date: '' });
+  const [familyProfiles, setFamilyProfiles] = useState([]);
+  const [form, setForm] = useState({ for_profile_id: '', patient_name: user?.name || '', patient_phone: user?.phone || '', scheduled_date: '' });
   const [confirmedId, setConfirmedId] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -35,6 +36,7 @@ export default function LabDiagnostics({ lang, setPage, setAfyaTopic }) {
       setLabs(d.labs || []);
       if (d.labs?.length) setSelectedLab(d.labs[0]);
     }).catch(() => {});
+    fetch(`${API}/api/family/profiles`, { headers: authHeaders() }).then(r => r.json()).then(d => setFamilyProfiles((d.profiles || []).filter(p => !p.is_linked))).catch(() => {});
   }, []);
 
   async function openCategory(catId) {
@@ -63,7 +65,7 @@ export default function LabDiagnostics({ lang, setPage, setAfyaTopic }) {
     try {
       const res = await fetch(`${API}/api/lab/bookings`, {
         method: 'POST', headers: authHeaders(),
-        body: JSON.stringify({ lab_id: selectedLab.id, test_id: selectedTest.id, ...form }),
+        body: JSON.stringify({ lab_id: selectedLab.id, test_id: selectedTest.id, ...form, family_profile_id: form.for_profile_id || null }),
       });
       const data = await res.json();
       if (data.success) { setConfirmedId(data.booking_id); setView('confirmed'); }
@@ -174,6 +176,15 @@ export default function LabDiagnostics({ lang, setPage, setAfyaTopic }) {
             <div style={{ fontSize: 15, fontWeight: 700, color: theme.text }}>{selectedTest.name}</div>
             <div style={{ fontSize: 12, color: theme.textMuted }}>{selectedLab?.name} · TZS {selectedTest.price.toLocaleString()}</div>
           </div>
+          {familyProfiles.length > 0 && (
+            <select value={form.for_profile_id} onChange={e => {
+              const fp = familyProfiles.find(p => String(p.id) === e.target.value);
+              setForm({ ...form, for_profile_id: e.target.value, patient_name: fp ? fp.name : (user?.name || ''), patient_phone: fp ? (fp.phone || '') : (user?.phone || '') });
+            }} style={inputStyle}>
+              <option value="">{sw ? 'Mimi mwenyewe' : 'Myself'}</option>
+              {familyProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          )}
           <input placeholder={sw ? 'Jina kamili' : 'Full name'} value={form.patient_name} onChange={e => setForm({ ...form, patient_name: e.target.value })} style={inputStyle} />
           <input placeholder={sw ? 'Nambari ya simu' : 'Phone number'} value={form.patient_phone} onChange={e => setForm({ ...form, patient_phone: e.target.value })} style={inputStyle} />
           <input type="date" value={form.scheduled_date} onChange={e => setForm({ ...form, scheduled_date: e.target.value })} style={inputStyle} />

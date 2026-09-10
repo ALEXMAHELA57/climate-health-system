@@ -17,18 +17,24 @@ export default function MenstrualCycle({ lang }) {
   const [loading, setLoading] = useState(true);
   const [showLogPeriod, setShowLogPeriod] = useState(false);
   const [periodDate, setPeriodDate] = useState(new Date().toISOString().slice(0, 10));
+  const [familyProfiles, setFamilyProfiles] = useState([]);
+  const [forProfile, setForProfile] = useState('');
 
   const [showLogSymptom, setShowLogSymptom] = useState(false);
   const [symptomForm, setSymptomForm] = useState({ date: new Date().toISOString().slice(0, 10), flow: '', cramps: '', mood: '', notes: '' });
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => {
+    fetch(`${API}/api/family/profiles`, { headers: authHeaders() }).then(r => r.json()).then(d => setFamilyProfiles((d.profiles || []).filter(p => !p.is_linked))).catch(() => {});
+  }, []);
+  useEffect(() => { loadAll(); }, [forProfile]);
 
   async function loadAll() {
     setLoading(true);
+    const qs = forProfile ? `?family_profile_id=${forProfile}` : '';
     try {
       const [sRes, pRes] = await Promise.all([
-        fetch(`${API}/api/menstrual/summary`, { headers: authHeaders() }),
-        fetch(`${API}/api/menstrual/periods`, { headers: authHeaders() }),
+        fetch(`${API}/api/menstrual/summary${qs}`, { headers: authHeaders() }),
+        fetch(`${API}/api/menstrual/periods${qs}`, { headers: authHeaders() }),
       ]);
       setSummary(await sRes.json());
       setPeriods((await pRes.json()).periods || []);
@@ -38,7 +44,7 @@ export default function MenstrualCycle({ lang }) {
 
   async function logPeriod() {
     try {
-      await fetch(`${API}/api/menstrual/periods`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ start_date: periodDate }) });
+      await fetch(`${API}/api/menstrual/periods`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ start_date: periodDate, family_profile_id: forProfile || null }) });
       setShowLogPeriod(false);
       loadAll();
     } catch { /* silent */ }
@@ -51,7 +57,7 @@ export default function MenstrualCycle({ lang }) {
 
   async function logSymptom() {
     try {
-      await fetch(`${API}/api/menstrual/logs`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(symptomForm) });
+      await fetch(`${API}/api/menstrual/logs`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ ...symptomForm, family_profile_id: forProfile || null }) });
       setShowLogSymptom(false);
       setSymptomForm({ date: new Date().toISOString().slice(0, 10), flow: '', cramps: '', mood: '', notes: '' });
     } catch { /* silent */ }
@@ -61,6 +67,12 @@ export default function MenstrualCycle({ lang }) {
 
   return (
     <div style={{ padding: 16 }}>
+      {familyProfiles.length > 0 && (
+        <select value={forProfile} onChange={e => setForProfile(e.target.value)} style={{ ...inputStyle, marginBottom: 12 }}>
+          <option value="">{sw ? 'Mimi mwenyewe' : 'Myself'}</option>
+          {familyProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      )}
       {loading && <p style={{ textAlign: 'center', color: theme.textFaint, fontSize: 13 }}>{sw ? 'Inapakia...' : 'Loading...'}</p>}
 
       {!loading && summary && !summary.has_data && (
