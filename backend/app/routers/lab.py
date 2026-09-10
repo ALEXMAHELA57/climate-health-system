@@ -124,7 +124,7 @@ def list_my_bookings(user: User = Depends(get_current_user), db: Session = Depen
     return {"bookings": result}
 
 @router.patch("/bookings/{booking_id}/status")
-def update_status(booking_id: str, data: StatusIn, db: Session = Depends(get_db)):
+def update_status(booking_id: str, data: StatusIn, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     booking = db.query(LabBooking).filter(LabBooking.booking_id == booking_id).first()
     if not booking:
         return {"success": False, "error": "Booking not found"}

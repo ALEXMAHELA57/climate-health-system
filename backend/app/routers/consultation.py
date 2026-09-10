@@ -192,7 +192,7 @@ class NegotiationRespondIn(BaseModel):
     counter_price: Optional[float] = None
 
 @router.post("/negotiate")
-def propose_negotiation(data: NegotiationIn, db: Session = Depends(get_db)):
+def propose_negotiation(data: NegotiationIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     doctor = db.query(Doctor).filter(Doctor.id == data.doctor_id, Doctor.active == True).first()
     if not doctor:
         return {"success": False, "error": "Doctor not found"}
@@ -228,12 +228,14 @@ def my_negotiations(phone: str, db: Session = Depends(get_db)):
     return {"negotiations": result}
 
 @router.post("/negotiate/{negotiation_id}/respond")
-def respond_to_offer(negotiation_id: str, data: NegotiationRespondIn, db: Session = Depends(get_db)):
+def respond_to_offer(negotiation_id: str, data: NegotiationRespondIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Patient's response to a doctor's counter-offer - can only accept or
     decline the counter, not propose a further counter (structured, not open-ended)."""
     neg = db.query(FeeNegotiation).filter(FeeNegotiation.negotiation_id == negotiation_id, FeeNegotiation.status == "countered").first()
     if not neg:
         return {"success": False, "error": "Negotiation not found or not awaiting your response"}
+    if neg.patient_phone != user.phone:
+        return {"success": False, "error": "This isn't your negotiation"}
     if data.action not in ("accept", "decline"):
         return {"success": False, "error": "Invalid action"}
     neg.status = "accepted" if data.action == "accept" else "declined"

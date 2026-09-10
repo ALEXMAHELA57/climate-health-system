@@ -115,7 +115,7 @@ export default function Consultation({ lang, initialSpecialty }) {
     }
     try {
       const res = await fetch(`${API}/api/consultation/negotiate`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: authHeaders(),
         body: JSON.stringify({ doctor_id: negotiatingDoctor.id, ...negotiationForm, proposed_price: parseFloat(negotiationForm.proposed_price) }),
       });
       const data = await res.json();
@@ -166,7 +166,7 @@ export default function Consultation({ lang, initialSpecialty }) {
   async function respondToCounter(negotiationId, action) {
     try {
       await fetch(`${API}/api/consultation/negotiate/${negotiationId}/respond`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }),
+        method: 'POST', headers: authHeaders(), body: JSON.stringify({ action }),
       });
       loadMyAppointments();
     } catch { /* silent */ }
