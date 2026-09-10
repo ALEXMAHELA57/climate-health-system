@@ -13,6 +13,12 @@ router = APIRouter()
 def gen_id(prefix: str) -> str:
     return prefix + "".join(random.choices(string.ascii_uppercase + string.digits, k=8))
 
+def verify_family_access(family_profile_id, user, db) -> bool:
+    if not family_profile_id:
+        return True
+    profile = db.query(FamilyProfile).filter(FamilyProfile.id == family_profile_id, FamilyProfile.managed_by_user_id == user.id, FamilyProfile.active == True).first()
+    return profile is not None
+
 class ReminderIn(BaseModel):
     patient_phone: str
     medicine_name: str
@@ -25,7 +31,10 @@ class ReminderIn(BaseModel):
     family_profile_id: Optional[int] = None  # set when creating this on behalf of a managed family member
 
 @router.post("")
-def create_reminder(data: ReminderIn, db: Session = Depends(get_db)):
+def create_reminder(data: ReminderIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not verify_family_access(data.family_profile_id, user, db):
+        return {"success": False, "error": "You don't manage this family profile"}
+
     rid = gen_id("MED")
     on_behalf_of_name = None
     patient_phone = data.patient_phone
@@ -59,7 +68,15 @@ def create_reminder(data: ReminderIn, db: Session = Depends(get_db)):
     return {"success": True, "reminder_id": rid}
 
 @router.get("/{phone}")
-def list_reminders(phone: str, db: Session = Depends(get_db)):
+def list_reminders(phone: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # NOTE: kept for backward compatibility with the mobile app, which
+    # doesn't have its own account system yet - but now requires being
+    # logged in, and only returns results if the requested phone actually
+    # matches the logged-in account's own phone. This closes the privacy
+    # gap (anyone could previously look up anyone else's medicine list by
+    # phone number alone) while mobile catches up to real per-user auth.
+    if not user.phone or phone != user.phone:
+        return {"reminders": []}
     reminders = db.query(MedicineReminder).filter(
         MedicineReminder.patient_phone == phone,
         MedicineReminder.active == True,
@@ -101,10 +118,14 @@ def list_my_reminders(user: User = Depends(get_current_user), db: Session = Depe
     } for r in combined]}
 
 @router.delete("/{reminder_id}")
-def delete_reminder(reminder_id: str, db: Session = Depends(get_db)):
+def delete_reminder(reminder_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     reminder = db.query(MedicineReminder).filter(MedicineReminder.reminder_id == reminder_id).first()
     if not reminder:
         return {"success": False, "error": "Reminder not found"}
+    owns_directly = user.phone and reminder.patient_phone == user.phone and not reminder.family_profile_id
+    owns_via_family = reminder.family_profile_id and verify_family_access(reminder.family_profile_id, user, db)
+    if not (owns_directly or owns_via_family):
+        return {"success": False, "error": "This isn't your reminder"}
     reminder.active = False
     db.commit()
     return {"success": True}
