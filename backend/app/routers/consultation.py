@@ -139,10 +139,14 @@ def get_appointments(phone: str, db: Session = Depends(get_db)):
     return {"appointments": result}
 
 @router.patch("/appointments/{appointment_id}/status")
-def update_status(appointment_id: str, data: StatusIn, db: Session = Depends(get_db)):
+def update_status(appointment_id: str, data: StatusIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     appt = db.query(Appointment).filter(Appointment.appointment_id == appointment_id).first()
     if not appt:
         return {"success": False, "error": "Appointment not found"}
+    if appt.owner_user_id != user.id:
+        return {"success": False, "error": "This isn't your appointment"}
+    if data.status != "cancelled":
+        return {"success": False, "error": "You can only cancel your own appointment - other status changes are made by the doctor"}
     appt.status = data.status
     appt.updated_at = datetime.utcnow()
     db.commit()

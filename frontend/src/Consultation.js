@@ -82,6 +82,14 @@ export default function Consultation({ lang, initialSpecialty }) {
     setLoading(false);
   }
 
+  async function cancelAppointment(appointmentId) {
+    if (!window.confirm(sw ? 'Una uhakika unataka kughairi miadi hii?' : 'Are you sure you want to cancel this appointment?')) return;
+    try {
+      await fetch(`${API}/api/consultation/appointments/${appointmentId}/status`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ status: 'cancelled' }) });
+      loadMyAppointments();
+    } catch { /* silent */ }
+  }
+
   async function submitRating(appointmentId) {
     if (ratingStars === 0) return;
     const token = localStorage.getItem('afya_token');
@@ -414,6 +422,12 @@ export default function Consultation({ lang, initialSpecialty }) {
                   <button onClick={() => setActiveChat(a.appointment_id)}
                     style={{ width: '100%', marginTop: 10, padding: 8, background: '#eff6ff', color: '#1d4ed8', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
                     <MessageCircle size={13} /> {sw ? 'Ongea na Daktari' : 'Chat with Doctor'}
+                  </button>
+                )}
+                {(a.status === 'pending' || a.status === 'confirmed') && (
+                  <button onClick={() => cancelAppointment(a.appointment_id)}
+                    style={{ width: '100%', marginTop: 6, padding: 8, background: 'none', border: `1px solid ${theme.border}`, borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#991b1b' }}>
+                    {sw ? 'Ghairi Miadi' : 'Cancel Appointment'}
                   </button>
                 )}
                 {a.status === 'completed' && !ratedAppointments[a.appointment_id] && (

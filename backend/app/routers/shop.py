@@ -160,19 +160,21 @@ async def checkout(data: CheckoutIn, user: User = Depends(get_current_user), db:
 
     db.commit()
 
-    # Reduce stock immediately to prevent overselling while payment is pending
-    for item in data.items:
-        product = db.query(Product).filter(Product.id == item.product_id).first()
-        if product:
-            product.stock -= item.quantity
-    db.commit()
-
     payment = await azampay.checkout_mno(total, data.delivery_phone, data.payment_provider, order_id, data.delivery_name)
+
     if payment.get("success"):
+        # Only reduce stock once the payment push has actually been sent -
+        # avoids permanently losing inventory on a failed/unconfigured payment attempt
+        for item in data.items:
+            product = db.query(Product).filter(Product.id == item.product_id).first()
+            if product:
+                product.stock -= item.quantity
         order.azampay_ref = payment.get("transaction_id")
         db.commit()
         return {"success": True, "order_id": order_id, "message": "Check your phone to approve the payment"}
     else:
+        order.payment_status = "failed"
+        db.commit()
         return {"success": True, "order_id": order_id, "payment_pending": True, "payment_error": payment.get("error"),
                 "message": "Order created, but payment could not be started automatically"}
 
