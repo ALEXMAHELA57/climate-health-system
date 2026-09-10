@@ -69,7 +69,7 @@ const DISTRICTS = [
   'Zanzibar North','Zanzibar South','Zanzibar West','Pemba North','Pemba South'
 ];
 
-export default function UserProfile({ lang = 'en', onLangChange, onDistrictChange, onAdminClick, setPage }) {
+export default function UserProfile({ lang = 'en', onLangChange, onDistrictChange, onAdminClick, setPage, user, onLogout }) {
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
 
   const [district, setDistrict] = useState(() => localStorage.getItem('afya_district') || 'Dar es Salaam');
@@ -78,7 +78,7 @@ export default function UserProfile({ lang = 'en', onLangChange, onDistrictChang
     try { return JSON.parse(localStorage.getItem('afya_alerts') || '["malaria","flood","cholera","heat","outbreak"]'); }
     catch { return ['malaria','flood','cholera','heat','outbreak']; }
   });
-  const [phone, setPhone] = useState(() => localStorage.getItem('afya_phone') || '');
+  const [phone, setPhone] = useState(() => localStorage.getItem('afya_phone') || user?.phone || '');
   const [subscribed, setSubscribed] = useState(() => localStorage.getItem('afya_subscribed') === 'true');
   const [history, setHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem('afya_symptom_history') || '[]'); }
@@ -140,6 +140,23 @@ export default function UserProfile({ lang = 'en', onLangChange, onDistrictChang
     <div style={{ padding: 16 }}>
       <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>👤 {t.profile}</div>
 
+      {user && (
+        <div style={card}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, color: '#2563eb', flexShrink: 0 }}>
+              {(user.name || user.phone || user.email || '?').charAt(0).toUpperCase()}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>{user.name || (lang === 'sw' ? 'Mtumiaji' : 'User')}</div>
+              <div style={{ fontSize: 12, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.phone || user.email}</div>
+            </div>
+          </div>
+          <button onClick={onLogout} style={{ ...dangerBtn, marginTop: 12 }}>
+            {lang === 'sw' ? 'Toka' : 'Log Out'}
+          </button>
+        </div>
+      )}
+
       {setPage && (
         <>
           <button onClick={() => setPage('myhealth')}
@@ -151,10 +168,18 @@ export default function UserProfile({ lang = 'en', onLangChange, onDistrictChang
             <span style={{ color: '#9ca3af' }}>›</span>
           </button>
           <button onClick={() => setPage('family')}
-            style={{ width: '100%', ...card, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', textAlign: 'left' }}>
+            style={{ width: '100%', ...card, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', textAlign: 'left', marginBottom: 10 }}>
             <div>
               <div style={{ fontSize: 14, fontWeight: 600 }}>👨‍👩‍👧 {lang === 'sw' ? 'Afya ya Familia' : 'Family Health'}</div>
               <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{lang === 'sw' ? 'Simamia wanafamilia' : 'Manage family members'}</div>
+            </div>
+            <span style={{ color: '#9ca3af' }}>›</span>
+          </button>
+          <button onClick={() => setPage('emergency')}
+            style={{ width: '100%', ...card, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', textAlign: 'left' }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>🚨 {lang === 'sw' ? 'Watu wa Dharura' : 'Emergency Contacts'}</div>
+              <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{lang === 'sw' ? 'Ongeza watu wa kujulishwa' : 'People to notify in an emergency'}</div>
             </div>
             <span style={{ color: '#9ca3af' }}>›</span>
           </button>

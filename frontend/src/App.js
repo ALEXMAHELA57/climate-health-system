@@ -82,6 +82,11 @@ function AppShell() {
     const saved = localStorage.getItem('afya_user');
     return saved ? JSON.parse(saved) : null;
   });
+  function handleLogout() {
+    localStorage.removeItem('afya_token');
+    localStorage.removeItem('afya_user');
+    setUser(null);
+  }
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [careFilter, setCareFilter] = useState(null);
   const [careView, setCareView] = useState('expert');
@@ -209,7 +214,7 @@ function AppShell() {
             {page==='map'       && <RiskMap  t={t} lang={lang} />}
             {page==='consultation' && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Ushauri wa Daktari':'Doctor Consultation'}><Consultation lang={lang} /></SubPage>}
             {page==='medicine'  && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Ratiba ya Dawa':'Medicine Schedule'}><MedicineSchedule lang={lang} /></SubPage>}
-            {page==='profile'   && <UserProfile lang={lang} onLangChange={handleLangChange} onDistrictChange={handleDistrictChange} setPage={setPage} />}
+            {page==='profile'   && <UserProfile lang={lang} onLangChange={handleLangChange} onDistrictChange={handleDistrictChange} setPage={setPage} user={user} onLogout={handleLogout} />}
             {page==='family'    && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Afya ya Familia':'Family Health'}><FamilyHealth lang={lang} /></SubPage>}
             {page==='myhealth'  && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Afya Yangu':'My Health'}><MyHealth lang={lang} /></SubPage>}
             {page==='lab'       && <SubPage lang={lang} setPage={()=>setPage('health')} title={lang==='sw'?'Vipimo vya Maabara':'Lab & Diagnostics'}><LabDiagnostics lang={lang} setPage={setPage} setAfyaTopic={setAfyaTopic} /></SubPage>}
