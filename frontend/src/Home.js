@@ -95,17 +95,15 @@ export default function Home({ t, lang, district, onDistrictChange, setPage }) {
       setNextMed(soonest);
     } catch { /* silent */ }
 
-    if (user.phone) {
-      try {
-        const apptRes = await fetch(`${API}/api/consultation/appointments/${user.phone}`);
-        const apptData = await apptRes.json();
-        const today = new Date().toISOString().slice(0, 10);
-        const upcoming = (apptData.appointments || [])
-          .filter(a => a.status !== 'cancelled' && a.status !== 'completed' && a.requested_date >= today)
-          .sort((a, b) => (a.requested_date + a.requested_time).localeCompare(b.requested_date + b.requested_time))[0];
-        setNextAppt(upcoming || null);
-      } catch { /* silent */ }
-    }
+    try {
+      const apptRes = await fetch(`${API}/api/consultation/appointments/mine`, { headers: authHeaders() });
+      const apptData = await apptRes.json();
+      const today = new Date().toISOString().slice(0, 10);
+      const upcoming = (apptData.appointments || [])
+        .filter(a => a.status !== 'cancelled' && a.status !== 'completed' && a.requested_date >= today)
+        .sort((a, b) => (a.requested_date + a.requested_time).localeCompare(b.requested_date + b.requested_time))[0];
+      setNextAppt(upcoming || null);
+    } catch { /* silent */ }
   }
 
   function detectLocation() {

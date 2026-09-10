@@ -58,7 +58,6 @@ export default function Consultation({ lang, initialSpecialty }) {
   const [error, setError] = useState('');
   const [confirmedId, setConfirmedId] = useState('');
 
-  const [myPhone, setMyPhone] = useState('');
   const [myAppointments, setMyAppointments] = useState(null);
   const [activeChat, setActiveChat] = useState(null);
   const [negotiations, setNegotiations] = useState([]);
@@ -150,13 +149,12 @@ export default function Consultation({ lang, initialSpecialty }) {
   }
 
   async function loadMyAppointments() {
-    if (!myPhone.trim()) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API}/api/consultation/appointments/${myPhone}`);
+      const res = await fetch(`${API}/api/consultation/appointments/mine`, { headers: authHeaders() });
       const data = await res.json();
       setMyAppointments(data.appointments || []);
-      const negRes = await fetch(`${API}/api/consultation/negotiate/mine/${myPhone}`);
+      const negRes = await fetch(`${API}/api/consultation/negotiate/mine`, { headers: authHeaders() });
       const negData = await negRes.json();
       setNegotiations(negData.negotiations || []);
     } catch { setMyAppointments([]); }
@@ -372,13 +370,6 @@ export default function Consultation({ lang, initialSpecialty }) {
 
       {view === 'my' && (
         <div>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-            <input placeholder={sw ? 'Weka nambari yako ya simu' : 'Enter your phone number'} value={myPhone} onChange={e => setMyPhone(e.target.value)}
-              style={{ flex: 1, padding: 10, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.card, color: theme.text, fontSize: 14 }} />
-            <button onClick={loadMyAppointments} style={{ padding: '0 16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-              {sw ? 'Tafuta' : 'Search'}
-            </button>
-          </div>
           {loading && <div style={{ textAlign: 'center', padding: 20, color: theme.textFaint, fontSize: 13 }}>{sw ? 'Inapakia...' : 'Loading...'}</div>}
 
           {negotiations.filter(n => n.status === 'countered').length > 0 && (

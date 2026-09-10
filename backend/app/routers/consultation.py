@@ -121,11 +121,22 @@ def book_appointment(data: AppointmentIn, user: User = Depends(get_current_user)
     db.commit()
     return {"success": True, "appointment_id": appt_id, "status": "pending"}
 
-@router.get("/appointments/{phone}")
-def get_appointments(phone: str, db: Session = Depends(get_db)):
-    appts = db.query(Appointment).filter(Appointment.patient_phone == phone).order_by(Appointment.created_at.desc()).all()
+@router.get("/appointments/mine")
+def get_my_appointments(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Everything the logged-in account holder can see: their own
+    appointments (by their own phone) plus every appointment booked for
+    their managed family profiles - same pattern as medicine's /mine/all."""
+    profile_ids = [p.id for p in db.query(FamilyProfile).filter(FamilyProfile.managed_by_user_id == user.id, FamilyProfile.active == True).all()]
+
+    q = db.query(Appointment)
+    own = q.filter(Appointment.owner_user_id == user.id, Appointment.family_profile_id.is_(None)).all()
+    family = q.filter(Appointment.family_profile_id.in_(profile_ids)).all() if profile_ids else []
+    # Also include any appointments booked before owner_user_id existed, matched by phone, so nothing already booked disappears
+    legacy = q.filter(Appointment.owner_user_id.is_(None), Appointment.patient_phone == user.phone).all() if user.phone else []
+
+    combined = {a.appointment_id: a for a in (own + family + legacy)}.values()
     result = []
-    for a in appts:
+    for a in sorted(combined, key=lambda x: x.created_at, reverse=True):
         doctor = db.query(Doctor).filter(Doctor.id == a.doctor_id).first()
         result.append({
             "appointment_id": a.appointment_id,
@@ -134,7 +145,7 @@ def get_appointments(phone: str, db: Session = Depends(get_db)):
             "specialty_label": SPECIALTIES.get(a.specialty, {}).get("en", a.specialty),
             "requested_date": a.requested_date, "requested_time": a.requested_time,
             "consultation_type": a.consultation_type, "status": a.status,
-            "reason": a.reason,
+            "reason": a.reason, "patient_name": a.patient_name,
         })
     return {"appointments": result}
 
@@ -214,9 +225,9 @@ def propose_negotiation(data: NegotiationIn, user: User = Depends(get_current_us
     db.commit()
     return {"success": True, "negotiation_id": nid}
 
-@router.get("/negotiate/mine/{phone}")
-def my_negotiations(phone: str, db: Session = Depends(get_db)):
-    negs = db.query(FeeNegotiation).filter(FeeNegotiation.patient_phone == phone).order_by(FeeNegotiation.created_at.desc()).all()
+@router.get("/negotiate/mine")
+def my_negotiations(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    negs = db.query(FeeNegotiation).filter(FeeNegotiation.patient_phone == user.phone).order_by(FeeNegotiation.created_at.desc()).all() if user.phone else []
     result = []
     for n in negs:
         doctor = db.query(Doctor).filter(Doctor.id == n.doctor_id).first()
