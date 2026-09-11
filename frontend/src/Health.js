@@ -147,6 +147,9 @@ export default function Health({ lang, user, setPage, setCareFilter, setAfyaTopi
 
   return (
     <div style={{ padding: 16 }}>
+      <button onClick={() => setPage('home')} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 4 }}>
+        <ArrowLeft size={14} /> {sw ? 'Nyumbani' : 'Home'}
+      </button>
       <button onClick={findFacility}
         style={{ width: '100%', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, padding: 14, textAlign: 'left', cursor: 'pointer', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
         <Building2 size={22} color="#2563eb" />
