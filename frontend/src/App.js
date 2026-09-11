@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { Home as HomeIcon, Cloud, Stethoscope, User, Globe, MapPin, Wifi, WifiOff, Sun, Moon } from 'lucide-react';
+import { Home as HomeIcon, Cloud, Stethoscope, User, Globe, MapPin, Wifi, WifiOff, Sun, Moon, HeartPulse, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { API, T } from './constants';
 import { ThemeProvider, useTheme } from './ThemeContext';
 import UserProfile from './UserProfile';
@@ -253,17 +253,37 @@ function VerifyEmail({ lang, token, onDone }) {
 
   return (
     <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:24, textAlign:'center', maxWidth:480, margin:'0 auto', boxSizing:'border-box' }}>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <div style={{
+        width: 64, height: 64, borderRadius: '50%', background: 'linear-gradient(135deg,#2563eb,#0ea5e9)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+        boxShadow: '0 4px 14px rgba(37,99,235,0.3)',
+      }}>
+        <HeartPulse size={30} color="#fff" />
+      </div>
       <div style={{ fontSize:22, fontWeight:700, marginBottom:20 }}>AfyaHewa</div>
-      {status === 'verifying' && <p>{sw ? 'Inathibitisha barua pepe yako...' : 'Verifying your email...'}</p>}
+
+      {status === 'verifying' && (
+        <>
+          <Loader2 size={32} color="#2563eb" style={{ marginBottom: 12, animation: 'spin 1s linear infinite' }} />
+          <p style={{ color: '#6b7280' }}>{sw ? 'Inathibitisha barua pepe yako...' : 'Verifying your email...'}</p>
+        </>
+      )}
       {status === 'success' && (
         <>
-          <p style={{ fontWeight:600, marginBottom:10 }}>{sw ? 'Barua pepe imethibitishwa!' : 'Email verified!'}</p>
-          <button onClick={onDone} style={{ padding:'10px 20px', background:'#2563eb', color:'#fff', border:'none', borderRadius:8, fontSize:14, fontWeight:600, cursor:'pointer' }}>
+          <CheckCircle2 size={40} color="#16a34a" style={{ marginBottom: 12 }} />
+          <p style={{ fontWeight:600, marginBottom:16, fontSize: 15 }}>{sw ? 'Barua pepe imethibitishwa!' : 'Email verified!'}</p>
+          <button onClick={onDone} style={{ padding:'11px 24px', background:'#2563eb', color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:700, cursor:'pointer' }}>
             {sw ? 'Ingia' : 'Log In'}
           </button>
         </>
       )}
-      {status === 'error' && <p>{sw ? 'Kiungo si sahihi au kimeisha muda. Jaribu kujisajili tena.' : 'This link is invalid or expired. Please try registering again.'}</p>}
+      {status === 'error' && (
+        <>
+          <XCircle size={40} color="#ef4444" style={{ marginBottom: 12 }} />
+          <p style={{ color: '#6b7280' }}>{sw ? 'Kiungo si sahihi au kimeisha muda. Jaribu kujisajili tena.' : 'This link is invalid or expired. Please try registering again.'}</p>
+        </>
+      )}
     </div>
   );
 }
