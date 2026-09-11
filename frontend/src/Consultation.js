@@ -375,20 +375,47 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
               style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.card, color: theme.text, fontSize: 14 }} />
             <input placeholder={sw ? 'Nambari ya simu' : 'Phone number'} value={form.patient_phone} onChange={e => setForm({ ...form, patient_phone: e.target.value })}
               style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.card, color: theme.text, fontSize: 14 }} />
+            <div style={{ fontSize: 12, fontWeight: 700, color: theme.textMuted, marginBottom: 8 }}>
+              {sw ? 'CHAGUA AINA YA USHAURI' : 'CHOOSE CONSULTATION TYPE'}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+              {selectedDoctor.consultation_types.map(t => {
+                const TIcon = TYPE_ICON[t] || MessageCircle;
+                const price = selectedDoctor.prices?.[t];
+                const active = form.consultation_type === t;
+                const typeLabel = { chat: sw ? 'Ujumbe wa Maandishi' : 'Chat', voice: sw ? 'Simu ya Sauti' : 'Voice Call', video: sw ? 'Simu ya Video' : 'Video Call' }[t] || t;
+                return (
+                  <button key={t} onClick={() => setForm({ ...form, consultation_type: t })}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderRadius: 10, cursor: 'pointer',
+                      background: active ? '#eff6ff' : theme.card, border: `1px solid ${active ? '#2563eb' : theme.border}`, borderWidth: active ? 2 : 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <TIcon size={18} color={active ? '#2563eb' : theme.textMuted} />
+                      <span style={{ fontSize: 14, fontWeight: 600, color: theme.text }}>{typeLabel}</span>
+                    </div>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: active ? '#2563eb' : theme.textMuted }}>
+                      {price ? `TZS ${price.toLocaleString()}` : (sw ? 'Haipatikani' : 'N/A')}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
               <input type="date" value={form.requested_date} onChange={e => setForm({ ...form, requested_date: e.target.value })}
                 style={{ flex: 1, padding: 10, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.card, color: theme.text, fontSize: 14 }} />
               <input type="time" value={form.requested_time} onChange={e => setForm({ ...form, requested_time: e.target.value })}
                 style={{ flex: 1, padding: 10, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.card, color: theme.text, fontSize: 14 }} />
             </div>
-            <select value={form.consultation_type} onChange={e => setForm({ ...form, consultation_type: e.target.value })}
-              style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.card, color: theme.text, fontSize: 14 }}>
-              {selectedDoctor.consultation_types.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
             <textarea placeholder={sw ? 'Eleza sababu ya ushauri (si lazima)' : 'Briefly describe the reason for consultation (optional)'} value={form.reason} onChange={e => setForm({ ...form, reason: e.target.value })}
               style={{ width: '100%', padding: 10, marginBottom: 10, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.card, color: theme.text, fontSize: 14, minHeight: 70 }} />
 
             {!!error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: 10, marginBottom: 10, fontSize: 12, color: '#991b1b' }}>{error}</div>}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', marginBottom: 8, borderTop: `1px solid ${theme.border}` }}>
+              <span style={{ fontSize: 13, color: theme.textMuted }}>{sw ? 'Jumla' : 'Total'}</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: theme.text }}>
+                {selectedDoctor.prices?.[form.consultation_type] ? `TZS ${selectedDoctor.prices[form.consultation_type].toLocaleString()}` : (sw ? 'Haipatikani' : 'N/A')}
+              </span>
+            </div>
 
             <button onClick={submitBooking} disabled={submitting}
               style={{ width: '100%', padding: 11, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
