@@ -2,14 +2,39 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from typing import Optional, List
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timedelta
 import random
 import string
 import json
 from database import get_db, Doctor, Appointment, DoctorRating, FeeNegotiation, User, FamilyProfile
 from app.routers.auth import get_current_user
+import azampay
 
 router = APIRouter()
+
+DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+def is_doctor_available_now(doctor: Doctor) -> bool:
+    """Auto-computed from the doctor's listed working days/hours, unless
+    they've manually overridden it in the Doctor Portal."""
+    if doctor.manual_availability == "online":
+        return True
+    if doctor.manual_availability == "offline":
+        return False
+    now = datetime.utcnow() + timedelta(hours=3)  # Tanzania time
+    today = DAY_NAMES[now.weekday()]
+    if today not in (doctor.available_days or "").split(","):
+        return False
+    try:
+        start_str, end_str = (doctor.available_hours or "09:00-17:00").split("-")
+        start_h, start_m = map(int, start_str.split(":"))
+        end_h, end_m = map(int, end_str.split(":"))
+        current_minutes = now.hour * 60 + now.minute
+        start_minutes = start_h * 60 + start_m
+        end_minutes = end_h * 60 + end_m
+        return start_minutes <= current_minutes <= end_minutes
+    except Exception:
+        return False
 
 SPECIALTIES = {
     "general":              {"en": "General Doctors",            "sw": "Madaktari wa Jumla"},
@@ -107,6 +132,7 @@ def list_doctors(specialty: Optional[str] = None, affordable_only: bool = False,
             "available_days": d.available_days.split(","), "available_hours": d.available_hours,
             "open_to_negotiation": d.open_to_negotiation, "affordable_care": d.affordable_care,
             "avg_rating": avg_rating, "rating_count": len(ratings),
+            "is_available_now": is_doctor_available_now(d),
         })
     return {"doctors": result}
 
@@ -134,6 +160,86 @@ def book_appointment(data: AppointmentIn, user: User = Depends(get_current_user)
     db.commit()
     return {"success": True, "appointment_id": appt_id, "status": "pending"}
 
+class ConsultNowIn(BaseModel):
+    doctor_id: int
+    consultation_type: str
+    patient_name: str
+    patient_phone: str
+    payment_provider: str
+    family_profile_id: Optional[int] = None
+    reason: Optional[str] = ""
+
+@router.post("/consult-now")
+async def consult_now(data: ConsultNowIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Instant consultation: check the doctor is actually available right
+    now, take payment immediately, and confirm on the spot - no 'pending'
+    state, unlike a scheduled booking."""
+    doctor = db.query(Doctor).filter(Doctor.id == data.doctor_id, Doctor.active == True).first()
+    if not doctor:
+        return {"success": False, "error": "Doctor not found"}
+    if not is_doctor_available_now(doctor):
+        return {"success": False, "error": "This doctor isn't available right now - try booking an appointment instead"}
+    prices = json.loads(doctor.prices or "{}")
+    price = prices.get(data.consultation_type)
+    if price is None:
+        return {"success": False, "error": "This doctor doesn't offer that consultation type"}
+    if data.family_profile_id:
+        profile = db.query(FamilyProfile).filter(FamilyProfile.id == data.family_profile_id, FamilyProfile.managed_by_user_id == user.id, FamilyProfile.active == True).first()
+        if not profile:
+            return {"success": False, "error": "You don't manage this family profile"}
+
+    payment = await azampay.checkout_mno(price, data.patient_phone, data.payment_provider, gen_id("PAY"), data.patient_name)
+    if not payment.get("success"):
+        return {"success": False, "error": payment.get("error", "Payment could not be started")}
+
+    now = datetime.utcnow() + timedelta(hours=3)
+    appt_id = gen_id("APT")
+    appt = Appointment(
+        appointment_id=appt_id, owner_user_id=user.id, family_profile_id=data.family_profile_id, doctor_id=data.doctor_id,
+        patient_name=data.patient_name, patient_phone=data.patient_phone, specialty=doctor.specialty, reason=data.reason,
+        requested_date=now.strftime("%Y-%m-%d"), requested_time=now.strftime("%H:%M"),
+        consultation_type=data.consultation_type, status="confirmed", payment_status="paid",
+        azampay_ref=payment.get("transaction_id"),
+    )
+    db.add(appt)
+    db.commit()
+
+    return {
+        "success": True, "appointment_id": appt_id,
+        "open_chat_now": data.consultation_type == "chat",
+        "message": "Confirmed! The doctor has been notified." if data.consultation_type != "chat" else "Connected - you can start chatting now.",
+    }
+
+@router.post("/appointments/{appointment_id}/pay")
+async def pay_for_appointment(appointment_id: str, data: dict, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Pay for a scheduled appointment - only available once the doctor has
+    confirmed it, matching the 'doctor confirms, then you pay' flow."""
+    appt = db.query(Appointment).filter(Appointment.appointment_id == appointment_id).first()
+    if not appt:
+        return {"success": False, "error": "Appointment not found"}
+    if appt.owner_user_id != user.id:
+        return {"success": False, "error": "This isn't your appointment"}
+    if appt.status != "confirmed":
+        return {"success": False, "error": "This appointment hasn't been confirmed by the doctor yet"}
+    if appt.payment_status == "paid":
+        return {"success": False, "error": "This appointment is already paid"}
+
+    doctor = db.query(Doctor).filter(Doctor.id == appt.doctor_id).first()
+    prices = json.loads(doctor.prices or "{}") if doctor else {}
+    price = prices.get(appt.consultation_type)
+    if price is None:
+        return {"success": False, "error": "Could not determine the price for this appointment"}
+
+    provider = data.get("payment_provider", "Mpesa")
+    payment = await azampay.checkout_mno(price, appt.patient_phone, provider, appointment_id, appt.patient_name)
+    if not payment.get("success"):
+        return {"success": False, "error": payment.get("error", "Payment could not be started")}
+
+    appt.payment_status = "paid"
+    appt.azampay_ref = payment.get("transaction_id")
+    db.commit()
+    return {"success": True, "message": "Payment successful"}
+
 @router.get("/appointments/mine")
 def get_my_appointments(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Everything the logged-in account holder can see: their own
@@ -158,6 +264,7 @@ def get_my_appointments(user: User = Depends(get_current_user), db: Session = De
             "specialty_label": SPECIALTIES.get(a.specialty, {}).get("en", a.specialty),
             "requested_date": a.requested_date, "requested_time": a.requested_time,
             "consultation_type": a.consultation_type, "status": a.status,
+            "payment_status": a.payment_status,
             "reason": a.reason, "patient_name": a.patient_name,
         })
     return {"appointments": result}

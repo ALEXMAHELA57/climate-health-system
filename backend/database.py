@@ -449,6 +449,7 @@ class Doctor(Base):
     password_hash       = Column(String(200), nullable=True)
     open_to_negotiation = Column(Boolean, default=False)  # doctor allows patients to propose a lower fee
     affordable_care     = Column(Boolean, default=False)  # doctor offers discounted/free-first-consultation rates
+    manual_availability = Column(String(10), nullable=True)  # null = auto from hours | "online" | "offline" (doctor override)
     active              = Column(Boolean, default=True)
     created_at          = Column(DateTime, default=datetime.utcnow)
 
@@ -529,6 +530,8 @@ class Appointment(Base):
     requested_time      = Column(String(10))   # "HH:MM"
     consultation_type   = Column(String(20), default="chat")
     status              = Column(String(20), default="pending")  # pending | confirmed | completed | cancelled
+    payment_status      = Column(String(20), default="unpaid")   # unpaid | paid | failed
+    azampay_ref         = Column(String(100), nullable=True)
     language             = Column(String(5), default="en")
     created_at          = Column(DateTime, default=datetime.utcnow)
     updated_at          = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -588,6 +591,9 @@ _COLUMNS_ADDED_TO_EXISTING_TABLES = [
     ("vendors", "password_hash", "VARCHAR(200)"),
     ("appointments", "owner_user_id", "INTEGER"),
     ("appointments", "family_profile_id", "INTEGER"),
+    ("doctors", "manual_availability", "VARCHAR(10)"),
+    ("appointments", "payment_status", "VARCHAR(20) DEFAULT 'unpaid'"),
+    ("appointments", "azampay_ref", "VARCHAR(100)"),
 ]
 
 def _run_lightweight_migrations():

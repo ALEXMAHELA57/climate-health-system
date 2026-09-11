@@ -72,7 +72,22 @@ export default function DoctorPortal() {
     } catch { /* silent */ }
   }
 
-  useEffect(() => { if (view === 'settings') { loadChangeRequests(); loadNegotiations(); } }, [view]);
+  useEffect(() => { if (view === 'settings') { loadChangeRequests(); loadNegotiations(); loadAvailability(); } }, [view]);
+
+  const [availability, setAvailability] = useState('auto');
+  async function loadAvailability() {
+    try {
+      const res = await fetch(`${API}/api/doctor/availability`, { headers: authHeaders(token) });
+      const data = await res.json();
+      setAvailability(data.manual_availability || 'auto');
+    } catch { /* silent */ }
+  }
+  async function setAvailabilityStatus(status) {
+    try {
+      await fetch(`${API}/api/doctor/availability`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ status }) });
+      setAvailability(status);
+    } catch { /* silent */ }
+  }
 
   async function loadNegotiations() {
     try {
@@ -170,6 +185,21 @@ export default function DoctorPortal() {
 
       {view === 'settings' && (
         <div style={{ padding: '0 16px' }}>
+          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 14, marginBottom: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Availability</div>
+            <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 10 }}>Auto follows your listed working hours. Override it here anytime.</p>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {['auto', 'online', 'offline'].map(s => (
+                <button key={s} onClick={() => setAvailabilityStatus(s)}
+                  style={{ flex: 1, padding: 9, borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, textTransform: 'capitalize',
+                    background: availability === s ? (s === 'online' ? '#16a34a' : s === 'offline' ? '#991b1b' : '#2563eb') : '#f3f4f6',
+                    color: availability === s ? '#fff' : '#6b7280' }}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 14, marginBottom: 14 }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Propose a Price Change</div>
             <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 8 }}>Enter as JSON, e.g. {`{"chat": 6000, "voice": 9000}`}. Sits pending until admin approves.</p>

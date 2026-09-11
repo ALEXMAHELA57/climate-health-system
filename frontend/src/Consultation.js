@@ -57,6 +57,10 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [affordableOnly, setAffordableOnly] = useState(false);
   const [showAllSpecialties, setShowAllSpecialties] = useState(!initialSpecialty);
+  const [consultNowType, setConsultNowType] = useState(null);
+  const [consultNowForm, setConsultNowForm] = useState({ patient_name: user?.name || '', patient_phone: user?.phone || '', payment_provider: 'Mpesa' });
+  const [consultingNow, setConsultingNow] = useState(false);
+  const [consultResult, setConsultResult] = useState(null);
   const [negotiatingDoctor, setNegotiatingDoctor] = useState(null);
   const [negotiationForm, setNegotiationForm] = useState({ consultation_type: '', proposed_price: '', patient_name: '', patient_phone: '' });
   const [negotiationMsg, setNegotiationMsg] = useState('');
@@ -100,6 +104,17 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
     } catch { /* silent */ }
   }
 
+  async function payNow(appointmentId) {
+    try {
+      const res = await fetch(`${API}/api/consultation/appointments/${appointmentId}/pay`, {
+        method: 'POST', headers: authHeaders(), body: JSON.stringify({ payment_provider: 'Mpesa' }),
+      });
+      const data = await res.json();
+      if (data.success) loadMyAppointments();
+      else setError(data.error || (sw ? 'Malipo yameshindwa' : 'Payment failed'));
+    } catch { setError(sw ? 'Hitilafu ya muunganisho' : 'Connection error'); }
+  }
+
   async function submitRating(appointmentId) {
     if (ratingStars === 0) return;
     const token = localStorage.getItem('afya_token');
@@ -132,6 +147,32 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
       if (data.success) { setNegotiationMsg(sw ? '✓ Ombi limetumwa' : '✓ Request sent'); }
       else setNegotiationMsg(data.error || (sw ? 'Imeshindwa' : 'Failed'));
     } catch { setNegotiationMsg(sw ? 'Hitilafu' : 'Connection error'); }
+  }
+
+  function openDoctorDetail(doctor) {
+    setSelectedDoctor(doctor);
+    setError('');
+    setView('detail');
+  }
+
+  async function submitConsultNow() {
+    const nameErr = validateName(consultNowForm.patient_name, { sw });
+    if (nameErr) { setError(nameErr); return; }
+    const phoneErr = validatePhone(consultNowForm.patient_phone, { sw });
+    if (phoneErr) { setError(phoneErr); return; }
+    setConsultingNow(true); setError('');
+    try {
+      const res = await fetch(`${API}/api/consultation/consult-now`, {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ doctor_id: selectedDoctor.id, consultation_type: consultNowType, ...consultNowForm }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setConsultResult(data);
+        if (data.open_chat_now) setActiveChat(data.appointment_id);
+      } else setError(data.error || (sw ? 'Imeshindwa' : 'Something went wrong'));
+    } catch { setError(sw ? 'Hitilafu ya muunganisho' : 'Connection error'); }
+    setConsultingNow(false);
   }
 
   function startBooking(doctor) {
@@ -302,6 +343,12 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
                   )}
                 </div>
                 <div style={{ fontSize: 12, color: c.fg, fontWeight: 600, margin: '3px 0' }}>{d.specialty_label}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: d.is_available_now ? '#16a34a' : '#9ca3af' }} />
+                  <span style={{ fontSize: 11, fontWeight: 600, color: d.is_available_now ? '#166534' : theme.textFaint }}>
+                    {d.is_available_now ? (sw ? 'Anapatikana Sasa' : 'Available Now') : (sw ? 'Hayupo Sasa' : 'Offline')}
+                  </span>
+                </div>
                 {d.avg_rating != null && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
                     <Star size={12} color="#f59e0b" fill="#f59e0b" />
@@ -327,9 +374,9 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
                       <HandCoins size={13} /> {sw ? 'Jadili' : 'Discuss Fee'}
                     </button>
                   )}
-                  <button onClick={() => startBooking(d)}
+                  <button onClick={() => openDoctorDetail(d)}
                     style={{ flex: 1, padding: 9, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                    {sw ? 'Weka Miadi' : 'Book Appointment'} <ChevronRight size={14} />
+                    {sw ? 'Ona Chaguzi' : 'View Options'} <ChevronRight size={14} />
                   </button>
                 </div>
               </div>
@@ -338,6 +385,106 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
 
           {!activeSpecialty && <div style={{ textAlign: 'center', padding: 30, color: theme.textFaint, fontSize: 13 }}>{sw ? 'Chagua aina ya huduma hapo juu' : 'Select a specialty above to see doctors'}</div>}
         </>
+      )}
+
+      {view === 'detail' && selectedDoctor && !consultResult && (
+        <div>
+          <button onClick={() => setView('browse')} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 12 }}>‹ {sw ? 'Rudi' : 'Back'}</button>
+          <div style={{ background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 14, marginBottom: 16 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: theme.text }}>{selectedDoctor.name}</div>
+            <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 6 }}>{selectedDoctor.specialty_label}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: selectedDoctor.is_available_now ? '#16a34a' : '#9ca3af' }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: selectedDoctor.is_available_now ? '#166534' : theme.textFaint }}>
+                {selectedDoctor.is_available_now ? (sw ? 'Anapatikana Sasa' : 'Available Now') : (sw ? 'Hayupo Sasa' : 'Offline')}
+              </span>
+            </div>
+          </div>
+
+          {selectedDoctor.is_available_now ? (
+            <>
+              <div style={{ fontSize: 12, fontWeight: 700, color: theme.textMuted, marginBottom: 8 }}>
+                {sw ? 'WASILIANA SASA HIVI' : 'CONSULT RIGHT NOW'}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                {selectedDoctor.consultation_types.map(t => {
+                  const TIcon = TYPE_ICON[t] || MessageCircle;
+                  const price = selectedDoctor.prices?.[t];
+                  const typeLabel = { chat: sw ? 'Ujumbe wa Maandishi' : 'Chat', voice: sw ? 'Simu ya Sauti' : 'Voice Call', video: sw ? 'Simu ya Video' : 'Video Call' }[t] || t;
+                  return (
+                    <button key={t} onClick={() => { setConsultNowType(t); setError(''); }}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderRadius: 10, cursor: 'pointer',
+                        background: consultNowType === t ? '#f0fdf4' : theme.card, border: `1px solid ${consultNowType === t ? '#16a34a' : theme.border}`, borderWidth: consultNowType === t ? 2 : 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <TIcon size={18} color={consultNowType === t ? '#16a34a' : theme.textMuted} />
+                        <span style={{ fontSize: 14, fontWeight: 600, color: theme.text }}>{typeLabel} {sw ? 'Sasa' : 'Now'}</span>
+                      </div>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: consultNowType === t ? '#16a34a' : theme.textMuted }}>
+                        {price ? `TZS ${price.toLocaleString()}` : 'N/A'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {consultNowType && (
+                <div style={{ background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 14, marginBottom: 16 }}>
+                  {familyProfiles.length > 0 && (
+                    <select value={consultNowForm.for_profile_id || ''} onChange={e => {
+                      const fp = familyProfiles.find(p => String(p.id) === e.target.value);
+                      setConsultNowForm({ ...consultNowForm, for_profile_id: e.target.value, patient_name: fp ? fp.name : (user?.name || ''), patient_phone: fp ? (fp.phone || '') : (user?.phone || '') });
+                    }} style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.text, fontSize: 14 }}>
+                      <option value="">{sw ? 'Mimi mwenyewe' : 'Myself'}</option>
+                      {familyProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  )}
+                  <input placeholder={sw ? 'Jina lako' : 'Your name'} value={consultNowForm.patient_name} onChange={e => setConsultNowForm({ ...consultNowForm, patient_name: e.target.value })}
+                    style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.text, fontSize: 14 }} />
+                  <input placeholder={sw ? 'Nambari ya simu' : 'Phone number'} value={consultNowForm.patient_phone} onChange={e => setConsultNowForm({ ...consultNowForm, patient_phone: e.target.value })}
+                    style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.text, fontSize: 14 }} />
+                  <select value={consultNowForm.payment_provider} onChange={e => setConsultNowForm({ ...consultNowForm, payment_provider: e.target.value })}
+                    style={{ width: '100%', padding: 10, marginBottom: 10, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.text, fontSize: 14 }}>
+                    <option value="Mpesa">M-Pesa</option>
+                    <option value="Tigo">Tigo Pesa</option>
+                    <option value="Airtel">Airtel Money</option>
+                    <option value="Halopesa">HaloPesa</option>
+                    <option value="Azampesa">AzamPesa</option>
+                  </select>
+                  {!!error && <p style={{ fontSize: 12, color: '#ef4444', marginBottom: 10 }}>{error}</p>}
+                  <button onClick={submitConsultNow} disabled={consultingNow}
+                    style={{ width: '100%', padding: 12, background: '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                    {consultingNow ? (sw ? 'Inashughulikia...' : 'Processing...') : (sw ? `Lipa TZS ${(selectedDoctor.prices?.[consultNowType] || 0).toLocaleString()} na Uwasiliane` : `Pay TZS ${(selectedDoctor.prices?.[consultNowType] || 0).toLocaleString()} & Consult`)}
+                  </button>
+                </div>
+              )}
+
+              <div style={{ textAlign: 'center', margin: '8px 0', fontSize: 12, color: theme.textFaint }}>{sw ? 'au' : 'or'}</div>
+            </>
+          ) : (
+            <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 12, color: '#92400e' }}>
+              {sw ? 'Daktari hayupo mtandaoni sasa hivi. Weka miadi kwa baadaye.' : "This doctor isn't online right now. Book an appointment for later instead."}
+            </div>
+          )}
+
+          <button onClick={() => startBooking(selectedDoctor)}
+            style={{ width: '100%', padding: 12, background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer', color: theme.text }}>
+            {sw ? 'Weka Miadi kwa Baadaye' : 'Book Appointment for Later'}
+          </button>
+        </div>
+      )}
+
+      {view === 'detail' && consultResult && (
+        <div style={{ textAlign: 'center', padding: 30 }}>
+          <CheckCircle2 size={40} color="#16a34a" style={{ margin: '0 auto 10px' }} />
+          <div style={{ fontSize: 16, fontWeight: 700, color: theme.text, marginBottom: 6 }}>{sw ? 'Imekamilika!' : 'All set!'}</div>
+          <div style={{ fontSize: 13, color: theme.textMuted, marginBottom: 16 }}>{consultResult.message}</div>
+          {!consultResult.open_chat_now && (
+            <button onClick={() => { setConsultResult(null); setView('my'); loadMyAppointments(); }}
+              style={{ padding: '9px 20px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              {sw ? 'Ona Miadi Yangu' : 'View My Appointments'}
+            </button>
+          )}
+        </div>
       )}
 
       {view === 'book' && selectedDoctor && (
@@ -476,6 +623,12 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
                   <button onClick={() => cancelAppointment(a.appointment_id)}
                     style={{ width: '100%', marginTop: 6, padding: 8, background: 'none', border: `1px solid ${theme.border}`, borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#991b1b' }}>
                     {sw ? 'Ghairi Miadi' : 'Cancel Appointment'}
+                  </button>
+                )}
+                {a.status === 'confirmed' && a.payment_status === 'unpaid' && (
+                  <button onClick={() => payNow(a.appointment_id)}
+                    style={{ width: '100%', marginTop: 8, padding: 10, background: '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                    {sw ? 'Lipa Sasa' : 'Pay Now'}
                   </button>
                 )}
                 {a.status === 'completed' && !ratedAppointments[a.appointment_id] && (

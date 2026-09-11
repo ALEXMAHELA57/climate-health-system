@@ -187,3 +187,20 @@ def respond_negotiation(negotiation_id: str, data: NegotiationRespondIn, doctor:
     neg.responded_at = datetime.utcnow()
     db.commit()
     return {"success": True}
+
+# ── Availability - auto from hours, with manual override ─────────────────
+
+class AvailabilityIn(BaseModel):
+    status: str  # "auto" | "online" | "offline"
+
+@router.post("/availability")
+def set_availability(data: AvailabilityIn, doctor: Doctor = Depends(get_current_doctor), db: Session = Depends(get_db)):
+    if data.status not in ("auto", "online", "offline"):
+        return {"success": False, "error": "Invalid status"}
+    doctor.manual_availability = None if data.status == "auto" else data.status
+    db.commit()
+    return {"success": True}
+
+@router.get("/availability")
+def get_availability(doctor: Doctor = Depends(get_current_doctor)):
+    return {"manual_availability": doctor.manual_availability or "auto"}
