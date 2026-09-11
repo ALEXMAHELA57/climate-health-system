@@ -108,7 +108,7 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
   const btnStyle = { width: '100%', padding: 13, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: 'pointer' };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 24, background: theme.bg }}>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 24, background: theme.bg, maxWidth: 480, margin: '0 auto', boxSizing: 'border-box' }}>
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
         <div style={{
           width: 64, height: 64, borderRadius: '50%', background: 'linear-gradient(135deg,#2563eb,#0ea5e9)',

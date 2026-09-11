@@ -252,7 +252,7 @@ function VerifyEmail({ lang, token, onDone }) {
   }, [token]);
 
   return (
-    <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:24, textAlign:'center' }}>
+    <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:24, textAlign:'center', maxWidth:480, margin:'0 auto', boxSizing:'border-box' }}>
       <div style={{ fontSize:22, fontWeight:700, marginBottom:20 }}>AfyaHewa</div>
       {status === 'verifying' && <p>{sw ? 'Inathibitisha barua pepe yako...' : 'Verifying your email...'}</p>}
       {status === 'success' && (
