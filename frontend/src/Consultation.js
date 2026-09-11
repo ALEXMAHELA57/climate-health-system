@@ -37,12 +37,19 @@ function authHeaders() {
   return token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
 }
 
-export default function Consultation({ lang, initialSpecialty }) {
+export default function Consultation({ lang, initialSpecialty, hideTabs, externalView }) {
   const { theme } = useTheme();
   const sw = lang === 'sw';
   const user = JSON.parse(localStorage.getItem('afya_user') || 'null');
   const [familyProfiles, setFamilyProfiles] = useState([]);
   const [view, setView] = useState('browse'); // browse | book | my
+
+  useEffect(() => {
+    if (externalView && externalView !== view) {
+      setView(externalView);
+      if (externalView === 'my') loadMyAppointments();
+    }
+  }, [externalView]);
   const [specialties, setSpecialties] = useState([]);
   const [activeSpecialty, setActiveSpecialty] = useState(null);
   const [doctors, setDoctors] = useState([]);
@@ -217,18 +224,20 @@ export default function Consultation({ lang, initialSpecialty }) {
 
   return (
     <div style={{ padding: 16 }}>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        <button onClick={() => { setView('browse'); setSelectedDoctor(null); }}
-          style={{ flex: 1, padding: 9, borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-            background: view === 'browse' || view === 'book' ? '#2563eb' : theme.card, color: view === 'browse' || view === 'book' ? '#fff' : theme.textMuted }}>
-          {sw ? 'Tafuta Daktari' : 'Find a Doctor'}
-        </button>
-        <button onClick={() => { setView('my'); setMyAppointments(null); }}
-          style={{ flex: 1, padding: 9, borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-            background: view === 'my' ? '#2563eb' : theme.card, color: view === 'my' ? '#fff' : theme.textMuted }}>
-          {sw ? 'Miadi Yangu' : 'My Appointments'}
-        </button>
-      </div>
+      {!hideTabs && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          <button onClick={() => { setView('browse'); setSelectedDoctor(null); }}
+            style={{ flex: 1, padding: 9, borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+              background: view === 'browse' || view === 'book' ? '#2563eb' : theme.card, color: view === 'browse' || view === 'book' ? '#fff' : theme.textMuted }}>
+            {sw ? 'Tafuta Daktari' : 'Find a Doctor'}
+          </button>
+          <button onClick={() => { setView('my'); setMyAppointments(null); loadMyAppointments(); }}
+            style={{ flex: 1, padding: 9, borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+              background: view === 'my' ? '#2563eb' : theme.card, color: view === 'my' ? '#fff' : theme.textMuted }}>
+            {sw ? 'Miadi Yangu' : 'My Appointments'}
+          </button>
+        </div>
+      )}
 
       {view === 'browse' && (
         <>
