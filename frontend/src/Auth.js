@@ -9,14 +9,31 @@ const GENDERS = [
   { id: 'other', en: 'Other', sw: 'Nyingine' },
 ];
 
+const BACK_STEP = {
+  method: 'language',
+  'phone-entry': 'method',
+  'phone-verify': 'phone-entry',
+  'email-entry': 'method',
+  'email-login': 'method',
+  'email-check-inbox': 'email-entry',
+  profile: 'method',
+  'minor-blocked': 'method',
+};
+
 export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmailLogin }) {
   const { theme } = useTheme();
   const sw = lang === 'sw';
 
-  const [step, setStep] = useState(startAtEmailLogin ? 'email-login' : 'language'); // language | method | phone-entry | phone-verify | email-entry | email-login | profile | minor-blocked
-  const [method, setMethod] = useState(startAtEmailLogin ? 'email' : 'phone');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
+  const lastMethod = localStorage.getItem('afya_last_method');
+  const [step, setStep] = useState(() => {
+    if (startAtEmailLogin) return 'email-login';
+    if (lastMethod === 'phone') return 'phone-entry';
+    if (lastMethod === 'email') return 'email-login';
+    return localStorage.getItem('afya_lang') ? 'method' : 'language';
+  });
+  const [method, setMethod] = useState(startAtEmailLogin ? 'email' : (lastMethod || 'phone'));
+  const [phone, setPhone] = useState(() => localStorage.getItem('afya_last_phone') || '');
+  const [email, setEmail] = useState(() => localStorage.getItem('afya_last_email') || '');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [name, setName] = useState('');
@@ -38,6 +55,9 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
   function finishLogin(data) {
     localStorage.setItem('afya_token', data.token);
     localStorage.setItem('afya_user', JSON.stringify(data.user));
+    localStorage.setItem('afya_last_method', method);
+    if (method === 'phone' && phone) localStorage.setItem('afya_last_phone', phone);
+    if (method === 'email' && email) localStorage.setItem('afya_last_email', email);
     onAuthenticated(data.user);
   }
 
@@ -122,7 +142,7 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
       </div>
 
       {step !== 'language' && (
-        <button onClick={() => { setStep('method'); setError(''); }} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 4 }}>
+        <button onClick={() => { setStep(BACK_STEP[step] || 'method'); setError(''); }} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 4 }}>
           <ArrowLeft size={14} /> {t('Back', 'Rudi')}
         </button>
       )}
