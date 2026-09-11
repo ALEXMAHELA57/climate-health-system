@@ -1,6 +1,55 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { API, stripMarkdown } from './constants';
 
+const TOPIC_TAGS = {
+  mental: {
+    en: ['Anxious', 'Low mood', 'Trouble sleeping', 'Racing thoughts', 'Panic', 'Irritable', 'Hopeless', 'Can\'t concentrate'],
+    sw: ['Wasiwasi', 'Hali ya chini', 'Tatizo la kulala', 'Mawazo mengi', 'Hofu', 'Kukasirika', 'Kukata tamaa', 'Kushindwa kuzingatia'],
+  },
+  reproductive: {
+    en: ['Pain', 'Discharge', 'Itching', 'Burning', 'Irregular periods', 'Delayed period', 'Cramps', 'Swelling'],
+    sw: ['Maumivu', 'Utoko', 'Muwasho', 'Hisia ya kuunguzwa', 'Hedhi isiyo ya kawaida', 'Hedhi kuchelewa', 'Kubana tumbo', 'Uvimbe'],
+  },
+  cycle: {
+    en: ['Cramps', 'Heavy flow', 'Irregular periods', 'Missed period', 'Mood swings', 'Bloating', 'Spotting'],
+    sw: ['Kubana tumbo', 'Mtiririko mkubwa', 'Hedhi isiyo ya kawaida', 'Kukosa hedhi', 'Kubadilika kwa hisia', 'Kuvimba tumbo', 'Madoa'],
+  },
+  nutrition: {
+    en: ['Weight loss', 'Weight gain', 'Poor appetite', 'Overeating', 'Fatigue', 'Bloating'],
+    sw: ['Kupungua uzito', 'Kuongezeka uzito', 'Hamu mbaya ya chakula', 'Kula kupita kiasi', 'Uchovu', 'Kuvimba tumbo'],
+  },
+  cardio: {
+    en: ['Chest pain', 'Palpitations', 'Shortness of breath', 'Dizziness', 'Swelling in legs', 'Fatigue'],
+    sw: ['Maumivu ya kifua', 'Mapigo ya moyo ya haraka', 'Kukosa pumzi', 'Kizunguzungu', 'Uvimbe miguuni', 'Uchovu'],
+  },
+  skin: {
+    en: ['Rash', 'Itching', 'Dryness', 'Redness', 'Swelling', 'Bumps', 'Discoloration'],
+    sw: ['Upele', 'Muwasho', 'Ukavu', 'Uwekundu', 'Uvimbe', 'Vipele', 'Mabadiliko ya rangi'],
+  },
+  dental: {
+    en: ['Toothache', 'Bleeding gums', 'Sensitivity', 'Bad breath', 'Swelling', 'Loose tooth'],
+    sw: ['Maumivu ya jino', 'Kutokwa damu fizi', 'Hisia kali', 'Harufu mbaya mdomoni', 'Uvimbe', 'Jino kulegea'],
+  },
+  general: {
+    en: ['Fever', 'Headache', 'Cough', 'Dizziness', 'Nausea', 'Vomiting', 'Diarrhoea', 'Body Aches', 'Chills', 'Rash', 'Sore Throat', 'Fatigue'],
+    sw: ['Homa', 'Maumivu ya kichwa', 'Kikohozi', 'Kizunguzungu', 'Kichefuchefu', 'Kutapika', 'Kuhara', 'Maumivu ya mwili', 'Baridi', 'Upele', 'Koo Kuuma', 'Uchovu'],
+  },
+};
+
+function getTopicTags(topic, sw) {
+  const lang = sw ? 'sw' : 'en';
+  if (!topic) return TOPIC_TAGS.general[lang];
+  const t = topic.toLowerCase();
+  if (t.includes('mental') || t.includes('akili')) return TOPIC_TAGS.mental[lang];
+  if (t.includes('cycle') || t.includes('mzunguko') || t.includes('hedhi')) return TOPIC_TAGS.cycle[lang];
+  if (t.includes('reproductive') || t.includes('uzazi') || t.includes('sexual')) return TOPIC_TAGS.reproductive[lang];
+  if (t.includes('nutrition') || t.includes('lishe')) return TOPIC_TAGS.nutrition[lang];
+  if (t.includes('cardio') || t.includes('moyo') || t.includes('heart')) return TOPIC_TAGS.cardio[lang];
+  if (t.includes('skin') || t.includes('dermat') || t.includes('ngozi')) return TOPIC_TAGS.skin[lang];
+  if (t.includes('dental') || t.includes('meno')) return TOPIC_TAGS.dental[lang];
+  return TOPIC_TAGS.general[lang];
+}
+
 const SYSTEM_PROMPT = `You are Afya, a friendly community health assistant for Tanzania.
 You were built specifically for the Climate Health Early Warning System to help
 communities prepare for climate-related health risks.
@@ -317,7 +366,7 @@ export default function Symptoms({ t, lang, district, setPage, topic, setCareVie
 
       {/* Symptom tags */}
       <div style={{ display:'flex', gap:5, flexWrap:'wrap', marginBottom:6 }}>
-        {t.symptomTags.map((tag, i) => {
+        {getTopicTags(topic, sw).map((tag, i) => {
           const sel = selectedTags.includes(tag);
           return (
             <button key={i} onClick={() => toggleTag(tag)}
