@@ -33,17 +33,17 @@ def gen_id(prefix: str) -> str:
 # doctors before this goes live to real patients - see the proposal's Health
 # Safety & Governance section regarding clinical review.
 SEED_DOCTORS = [
-    {"name": "Dr. Amina Juma",      "specialty": "general",             "bio": "General practitioner, 8 years experience.",              "phone": "", "consultation_types": "chat,voice", "prices": '{"chat": 5000, "voice": 8000}'},
-    {"name": "Dr. Fatuma Ally",     "specialty": "mental_health",       "bio": "Clinical psychologist, counseling and mental health support.", "phone": "", "consultation_types": "chat,video", "prices": '{"chat": 6000, "video": 12000}'},
-    {"name": "Dr. John Mrema",      "specialty": "male_reproductive",   "bio": "Urologist, men's reproductive and sexual health.",        "phone": "", "consultation_types": "chat,voice", "prices": '{"chat": 6000, "voice": 9000}'},
-    {"name": "Dr. Grace Mushi",     "specialty": "female_reproductive", "bio": "Gynecologist, women's reproductive health.",              "phone": "", "consultation_types": "chat,video", "prices": '{"chat": 6000, "video": 12000}'},
-    {"name": "Dr. Neema Kessy",     "specialty": "maternal_health",     "bio": "Obstetrician, pregnancy and maternal care.",              "phone": "", "consultation_types": "chat,video", "prices": '{"chat": 6000, "video": 12000}'},
-    {"name": "Dr. Grace Mushi",     "specialty": "menstrual_cycle",     "bio": "Gynecologist, menstrual health and cycle-related concerns.", "phone": "", "consultation_types": "chat", "prices": '{"chat": 5000}'},
-    {"name": "Dr. Hassan Kibwana",  "specialty": "dental",              "bio": "Dentist, general and restorative dental care.",           "phone": "", "consultation_types": "chat,voice", "prices": '{"chat": 5000, "voice": 8000}'},
-    {"name": "Dr. Edward Lyimo",    "specialty": "cardiology",          "bio": "Cardiologist, heart health and hypertension management.", "phone": "", "consultation_types": "chat,voice", "prices": '{"chat": 7000, "voice": 10000}'},
-    {"name": "Dr. Rehema Chuma",    "specialty": "dermatology",         "bio": "Dermatologist, skin, hair, and nail conditions.",         "phone": "", "consultation_types": "chat,video", "prices": '{"chat": 6000, "video": 11000}'},
-    {"name": "Dr. Baraka Ndosi",    "specialty": "nutrition",           "bio": "Nutritionist, diet and nutrition counseling.",            "phone": "", "consultation_types": "chat", "prices": '{"chat": 4000}'},
-    {"name": "Dr. Peter Massawe",   "specialty": "palliative_care",     "bio": "Palliative and supportive care specialist.",              "phone": "", "consultation_types": "chat,voice", "prices": '{"chat": 6000, "voice": 9000}'},
+    {"name": "Dr. Amina Juma",      "specialty": "general",             "bio": "General practitioner, 8 years experience.",              "phone": "", "consultation_types": "chat,voice,video", "prices": '{"chat": 5000, "voice": 8000, "video": 11000}'},
+    {"name": "Dr. Fatuma Ally",     "specialty": "mental_health",       "bio": "Clinical psychologist, counseling and mental health support.", "phone": "", "consultation_types": "chat,voice,video", "prices": '{"chat": 6000, "voice": 9000, "video": 12000}'},
+    {"name": "Dr. John Mrema",      "specialty": "male_reproductive",   "bio": "Urologist, men's reproductive and sexual health.",        "phone": "", "consultation_types": "chat,voice,video", "prices": '{"chat": 6000, "voice": 9000, "video": 12000}'},
+    {"name": "Dr. Grace Mushi",     "specialty": "female_reproductive", "bio": "Gynecologist, women's reproductive health.",              "phone": "", "consultation_types": "chat,voice,video", "prices": '{"chat": 6000, "voice": 9000, "video": 12000}'},
+    {"name": "Dr. Neema Kessy",     "specialty": "maternal_health",     "bio": "Obstetrician, pregnancy and maternal care.",              "phone": "", "consultation_types": "chat,voice,video", "prices": '{"chat": 6000, "voice": 9000, "video": 12000}'},
+    {"name": "Dr. Grace Mushi",     "specialty": "menstrual_cycle",     "bio": "Gynecologist, menstrual health and cycle-related concerns.", "phone": "", "consultation_types": "chat,voice,video", "prices": '{"chat": 5000, "voice": 8000, "video": 11000}'},
+    {"name": "Dr. Hassan Kibwana",  "specialty": "dental",              "bio": "Dentist, general and restorative dental care.",           "phone": "", "consultation_types": "chat,voice,video", "prices": '{"chat": 5000, "voice": 8000, "video": 11000}'},
+    {"name": "Dr. Edward Lyimo",    "specialty": "cardiology",          "bio": "Cardiologist, heart health and hypertension management.", "phone": "", "consultation_types": "chat,voice,video", "prices": '{"chat": 7000, "voice": 10000, "video": 13000}'},
+    {"name": "Dr. Rehema Chuma",    "specialty": "dermatology",         "bio": "Dermatologist, skin, hair, and nail conditions.",         "phone": "", "consultation_types": "chat,voice,video", "prices": '{"chat": 6000, "voice": 9000, "video": 11000}'},
+    {"name": "Dr. Baraka Ndosi",    "specialty": "nutrition",           "bio": "Nutritionist, diet and nutrition counseling.",            "phone": "", "consultation_types": "chat,voice,video", "prices": '{"chat": 4000, "voice": 7000, "video": 9000}'},
+    {"name": "Dr. Peter Massawe",   "specialty": "palliative_care",     "bio": "Palliative and supportive care specialist.",              "phone": "", "consultation_types": "chat,voice,video", "prices": '{"chat": 6000, "voice": 9000, "video": 12000}'},
 ]
 
 def ensure_seed_doctors(db: Session):
@@ -53,14 +53,17 @@ def ensure_seed_doctors(db: Session):
             db.add(Doctor(**d))
     db.commit()
 
-    # Backfill: doctors seeded before the `prices` column existed got the
-    # column's empty default ('{}') instead of real data, since seeding
-    # above only inserts brand-new specialties, never updates existing rows.
+    # Keep placeholder doctors in sync with SEED_DOCTORS until they've been
+    # fully configured (all 3 price types present) - stops as soon as a
+    # doctor has real data, whether from this sync or an admin-approved
+    # change request, so real changes never get silently overwritten.
     for d in SEED_DOCTORS:
         existing = db.query(Doctor).filter(Doctor.specialty == d["specialty"], Doctor.name == d["name"]).first()
-        if existing and (not existing.prices or existing.prices == "{}"):
-            existing.prices = d["prices"]
-            existing.consultation_types = d["consultation_types"]
+        if existing:
+            current_prices = json.loads(existing.prices or "{}")
+            if len(current_prices) < 3:
+                existing.prices = d["prices"]
+                existing.consultation_types = d["consultation_types"]
     db.commit()
 
 class AppointmentIn(BaseModel):
