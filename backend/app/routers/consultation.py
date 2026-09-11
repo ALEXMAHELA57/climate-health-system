@@ -53,6 +53,16 @@ def ensure_seed_doctors(db: Session):
             db.add(Doctor(**d))
     db.commit()
 
+    # Backfill: doctors seeded before the `prices` column existed got the
+    # column's empty default ('{}') instead of real data, since seeding
+    # above only inserts brand-new specialties, never updates existing rows.
+    for d in SEED_DOCTORS:
+        existing = db.query(Doctor).filter(Doctor.specialty == d["specialty"], Doctor.name == d["name"]).first()
+        if existing and (not existing.prices or existing.prices == "{}"):
+            existing.prices = d["prices"]
+            existing.consultation_types = d["consultation_types"]
+    db.commit()
+
 class AppointmentIn(BaseModel):
     doctor_id: int
     patient_name: str
