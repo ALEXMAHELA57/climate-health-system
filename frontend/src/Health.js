@@ -26,15 +26,16 @@ const DOMAINS = [
   { id: 'palliative_care', specialty: 'palliative_care', Icon: HandHeart, en: 'Palliative Care', sw: 'Huduma ya Faraja', color: '#7c3aed', bg: '#f5f3ff' },
 ];
 
-export default function Health({ lang, user, setPage, setCareFilter, setAfyaTopic, setCareView, setAfyaReturnPage }) {
+export default function Health({ lang, user, setPage, setCareFilter, setAfyaTopic, setCareView, setAfyaReturnPage, selectedDomainId, setSelectedDomainId }) {
   const { theme } = useTheme();
   const sw = lang === 'sw';
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState(() => selectedDomainId ? DOMAINS.find(d => d.id === selectedDomainId) : null);
 
   const visibleDomains = DOMAINS.filter(d => !d.showFor || d.showFor === user?.gender || !user?.gender);
 
   function openDomain(d) {
     setSelected(d);
+    setSelectedDomainId && setSelectedDomainId(d.id);
   }
 
   function askAfya(d) {
@@ -91,7 +92,7 @@ export default function Health({ lang, user, setPage, setCareFilter, setAfyaTopi
     const d = selected;
     return (
       <div style={{ padding: 16 }}>
-        <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 4 }}>
+        <button onClick={() => { setSelected(null); setSelectedDomainId && setSelectedDomainId(null); }} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 4 }}>
           <ArrowLeft size={14} /> {sw ? 'Rudi' : 'Back'}
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>

@@ -90,6 +90,7 @@ function AppShell({ startAtEmailLogin }) {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [careFilter, setCareFilter] = useState(null);
   const [afyaReturnPage, setAfyaReturnPage] = useState('home');
+  const [selectedHealthDomainId, setSelectedHealthDomainId] = useState(null);
   const [careView, setCareView] = useState('expert');
   const [afyaTopic, setAfyaTopic] = useState('');
 
@@ -207,7 +208,7 @@ function AppShell({ startAtEmailLogin }) {
           <Suspense fallback={<Loader />}>
             {page==='home'      && <Home     t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} setPage={setPage} setAfyaReturnPage={setAfyaReturnPage} />}
             {page==='climate'   && <Climate  t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} />}
-            {page==='health'    && <Health   lang={lang} user={user} setPage={setPage} setCareFilter={setCareFilter} setAfyaTopic={setAfyaTopic} setCareView={setCareView} setAfyaReturnPage={setAfyaReturnPage} />}
+            {page==='health'    && <Health   lang={lang} user={user} setPage={setPage} setCareFilter={setCareFilter} setAfyaTopic={setAfyaTopic} setCareView={setCareView} setAfyaReturnPage={setAfyaReturnPage} selectedDomainId={selectedHealthDomainId} setSelectedDomainId={setSelectedHealthDomainId} />}
             {page==='care'      && <SubPage lang={lang} setPage={()=>setPage('health')} title={lang==='sw'?'Huduma':'Care'}><Care t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} careFilter={careFilter} clearCareFilter={()=>setCareFilter(null)} initialView={careView} /></SubPage>}
             {page==='symptoms'  && <Symptoms t={t} lang={lang} district={district} setPage={setPage} topic={afyaTopic} setCareView={setCareView} returnPage={afyaReturnPage} />}
             {page==='weather'   && <Weather  t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} />}
