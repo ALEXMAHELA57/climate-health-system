@@ -150,6 +150,8 @@ def phone_complete_profile(data: ProfileComplete, db: Session = Depends(get_db))
     return _complete_profile(data, db)
 
 def _complete_profile(data: ProfileComplete, db: Session):
+    """For PHONE signups only - phone_verify does not create a user row
+    for a brand-new number, so this legitimately inserts one."""
     age = calculate_age(data.date_of_birth)
     if age < 18:
         return {
@@ -162,6 +164,28 @@ def _complete_profile(data: ProfileComplete, db: Session):
         phone_verified=bool(data.phone), email_verified=False,
     )
     db.add(user)
+    db.commit()
+    db.refresh(user)
+    return {"success": True, "token": create_jwt(user.id), "user": user_public(user)}
+
+def _complete_email_profile(data: ProfileComplete, db: Session):
+    """For EMAIL signups - email_register already created the user row
+    (email+password only) before verification, so this must UPDATE that
+    existing row rather than insert a new one, which would collide on
+    the unique email constraint."""
+    user = db.query(User).filter(User.email == data.email).first()
+    if not user:
+        return {"success": False, "error": "Account not found - please register again"}
+    age = calculate_age(data.date_of_birth)
+    if age < 18:
+        return {
+            "success": False, "minor": True,
+            "message": "Independent accounts are for users 18 and older. Please have a parent or guardian add this person under Family Health instead.",
+        }
+    user.name = data.name
+    user.date_of_birth = data.date_of_birth
+    user.gender = data.gender
+    user.language = data.language or "en"
     db.commit()
     db.refresh(user)
     return {"success": True, "token": create_jwt(user.id), "user": user_public(user)}
@@ -204,7 +228,7 @@ def email_verify(token: str, db: Session = Depends(get_db)):
 
 @router.post("/email/complete-profile")
 def email_complete_profile(data: ProfileComplete, db: Session = Depends(get_db)):
-    return _complete_profile(data, db)
+    return _complete_email_profile(data, db)
 
 @router.post("/email/login")
 def email_login(data: EmailLogin, db: Session = Depends(get_db)):
@@ -213,6 +237,8 @@ def email_login(data: EmailLogin, db: Session = Depends(get_db)):
         return {"success": False, "error": "Incorrect email or password"}
     if not user.email_verified:
         return {"success": False, "error": "Please verify your email before logging in", "needs_email_verification": True}
+    if not user.name or not user.date_of_birth:
+        return {"success": True, "needs_profile": True}
     return {"success": True, "token": create_jwt(user.id), "user": user_public(user)}
 
 # ── Current user ───────────────────────────────────────────────────────────

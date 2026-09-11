@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Phone, Mail, ArrowLeft, User, Calendar, Users } from 'lucide-react';
+import { Phone, Mail, ArrowLeft, User, Calendar, Users, HeartPulse } from 'lucide-react';
 import { API } from './constants';
 import { useTheme } from './ThemeContext';
 
@@ -9,12 +9,12 @@ const GENDERS = [
   { id: 'other', en: 'Other', sw: 'Nyingine' },
 ];
 
-export default function Auth({ lang, onLangChange, onAuthenticated }) {
+export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmailLogin }) {
   const { theme } = useTheme();
   const sw = lang === 'sw';
 
-  const [step, setStep] = useState('language'); // language | method | phone-entry | phone-verify | email-entry | email-login | profile | minor-blocked
-  const [method, setMethod] = useState('phone');
+  const [step, setStep] = useState(startAtEmailLogin ? 'email-login' : 'language'); // language | method | phone-entry | phone-verify | email-entry | email-login | profile | minor-blocked
+  const [method, setMethod] = useState(startAtEmailLogin ? 'email' : 'phone');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -82,6 +82,7 @@ export default function Auth({ lang, onLangChange, onAuthenticated }) {
     try {
       const data = await api('/email/login', { email, password });
       if (!data.success) { setError(data.error || t('Login failed', 'Imeshindwa kuingia')); setLoading(false); return; }
+      if (data.needs_profile) { setMethod('email'); setStep('profile'); setLoading(false); return; }
       finishLogin(data);
     } catch { setError(t('Connection error', 'Hitilafu ya muunganisho')); }
     setLoading(false);
@@ -109,6 +110,13 @@ export default function Auth({ lang, onLangChange, onAuthenticated }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 24, background: theme.bg }}>
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
+        <div style={{
+          width: 64, height: 64, borderRadius: '50%', background: 'linear-gradient(135deg,#2563eb,#0ea5e9)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px',
+          boxShadow: '0 4px 14px rgba(37,99,235,0.3)',
+        }}>
+          <HeartPulse size={30} color="#fff" />
+        </div>
         <div style={{ fontSize: 24, fontWeight: 700, color: theme.text }}>AfyaHewa</div>
         <div style={{ fontSize: 13, color: theme.textMuted, marginTop: 4 }}>{t('Climate & health guidance for Tanzania', 'Mwongozo wa afya na hali ya hewa Tanzania')}</div>
       </div>

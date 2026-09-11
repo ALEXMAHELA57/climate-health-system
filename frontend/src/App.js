@@ -69,7 +69,7 @@ function SubPage({ lang, setPage, title, children }) {
   );
 }
 
-function AppShell() {
+function AppShell({ startAtEmailLogin }) {
   const { theme, isDark, toggleTheme } = useTheme();
   const [page, setPage]         = useState('home');
   const [lang, setLang]         = useState(()=>localStorage.getItem('afya_lang')||'en');
@@ -136,7 +136,7 @@ function AppShell() {
   );
 
   if (!user) {
-    return <Auth lang={lang} onLangChange={handleLangChange} onAuthenticated={(u) => setUser(u)} />;
+    return <Auth lang={lang} onLangChange={handleLangChange} onAuthenticated={(u) => setUser(u)} startAtEmailLogin={startAtEmailLogin} />;
   }
 
   if (showOnboarding) {
@@ -287,7 +287,7 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <AppShell />
+      <AppShell startAtEmailLogin={verified} />
     </ThemeProvider>
   );
 }
