@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Pill, Plus, Trash2, Bell, Clock, User } from 'lucide-react';
-import { API } from './constants';
+import { API, validateFreeText } from './constants';
 import { useTheme } from './ThemeContext';
 
 function authHeaders() {
@@ -47,8 +47,10 @@ export default function MedicineSchedule({ lang }) {
   function removeTime(i) { setForm({ ...form, times: form.times.filter((_, idx) => idx !== i) }); }
 
   async function submit() {
-    if (!form.medicine_name.trim() || form.times.length === 0) {
-      setError(sw ? 'Tafadhali jaza sehemu zote muhimu' : 'Please fill in all required fields');
+    const nameErr = validateFreeText(form.medicine_name, 3, { sw, label: sw ? 'Jina la dawa' : 'Medicine name' });
+    if (nameErr) { setError(nameErr); return; }
+    if (form.times.length === 0) {
+      setError(sw ? 'Tafadhali weka muda angalau mmoja' : 'Please add at least one time');
       return;
     }
     setSubmitting(true); setError('');

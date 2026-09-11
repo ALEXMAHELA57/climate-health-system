@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FlaskConical, Droplet, Baby, HeartPulse, TestTube, ChevronRight, CheckCircle2, AlertCircle, MessageCircle } from 'lucide-react';
-import { API } from './constants';
+import { API, validateName, validatePhone } from './constants';
 import { useTheme } from './ThemeContext';
 
 function authHeaders() {
@@ -58,9 +58,11 @@ export default function LabDiagnostics({ lang, setPage, setAfyaTopic, setAfyaRet
   }
 
   async function submitBooking() {
-    if (!form.patient_name.trim() || !form.patient_phone.trim() || !form.scheduled_date) {
-      setError(sw ? 'Tafadhali jaza sehemu zote' : 'Please fill in all fields'); return;
-    }
+    const nameErr = validateName(form.patient_name, { sw });
+    if (nameErr) { setError(nameErr); return; }
+    const phoneErr = validatePhone(form.patient_phone, { sw });
+    if (phoneErr) { setError(phoneErr); return; }
+    if (!form.scheduled_date) { setError(sw ? 'Tafadhali chagua tarehe' : 'Please select a date'); return; }
     setSubmitting(true); setError('');
     try {
       const res = await fetch(`${API}/api/lab/bookings`, {

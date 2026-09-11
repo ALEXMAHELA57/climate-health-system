@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Stethoscope, Brain, UserRound, Users, Baby, CalendarHeart, Smile, HeartPulse, Sparkles, Apple, HandHeart, Calendar, Clock, MessageCircle, Video, Phone, ChevronRight, CheckCircle2, XCircle, Star, HandCoins, HeartHandshake } from 'lucide-react';
-import { API } from './constants';
+import { API, validateName, validatePhone } from './constants';
 import { useTheme } from './ThemeContext';
 import Chat from './Chat';
 
@@ -142,8 +142,12 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
   }
 
   async function submitBooking() {
-    if (!form.patient_name.trim() || !form.patient_phone.trim() || !form.requested_date || !form.requested_time) {
-      setError(sw ? 'Tafadhali jaza sehemu zote muhimu' : 'Please fill in all required fields');
+    const nameErr = validateName(form.patient_name, { sw });
+    if (nameErr) { setError(nameErr); return; }
+    const phoneErr = validatePhone(form.patient_phone, { sw });
+    if (phoneErr) { setError(phoneErr); return; }
+    if (!form.requested_date || !form.requested_time) {
+      setError(sw ? 'Tafadhali chagua tarehe na muda' : 'Please select a date and time');
       return;
     }
     setSubmitting(true); setError('');

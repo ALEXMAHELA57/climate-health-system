@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Users, Plus, Trash2, Siren, CheckCircle2 } from 'lucide-react';
-import { API } from './constants';
+import { API, validateName, validatePhone } from './constants';
 import { useTheme } from './ThemeContext';
 
 function authHeaders() {
@@ -39,7 +39,10 @@ export default function EmergencyContacts({ lang }) {
   }
 
   async function submitContact() {
-    if (!form.name.trim() || !form.phone.trim()) { setError(sw ? 'Jaza jina na nambari ya simu' : 'Enter a name and phone number'); return; }
+    const nameErr = validateName(form.name, { sw });
+    if (nameErr) { setError(nameErr); return; }
+    const phoneErr = validatePhone(form.phone, { sw });
+    if (phoneErr) { setError(phoneErr); return; }
     setError('');
     try {
       const res = await fetch(`${API}/api/emergency-contacts/contacts`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(form) });

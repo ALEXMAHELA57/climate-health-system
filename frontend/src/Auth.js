@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Phone, Mail, ArrowLeft, User, Calendar, Users, HeartPulse } from 'lucide-react';
-import { API } from './constants';
+import { API, validateName, validatePhone, validateEmail, validatePassword } from './constants';
 import { useTheme } from './ThemeContext';
 
 const GENDERS = [
@@ -62,7 +62,8 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
   }
 
   async function submitPhoneStart() {
-    if (!phone.trim()) { setError(t('Enter your phone number', 'Weka nambari yako ya simu')); return; }
+    const err = validatePhone(phone, { sw });
+    if (err) { setError(err); return; }
     setLoading(true); setError('');
     try {
       const data = await api('/phone/start', { phone });
@@ -85,7 +86,10 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
   }
 
   async function submitEmailRegister() {
-    if (!email.trim() || !password.trim()) { setError(t('Enter email and password', 'Weka barua pepe na nenosiri')); return; }
+    const emailErr = validateEmail(email, { sw });
+    if (emailErr) { setError(emailErr); return; }
+    const pwErr = validatePassword(password, { sw });
+    if (pwErr) { setError(pwErr); return; }
     setLoading(true); setError('');
     try {
       const data = await api('/email/register', { email, password, language: lang });
@@ -109,7 +113,10 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
   }
 
   async function submitProfile() {
-    if (!name.trim() || !dob || !gender) { setError(t('Please fill in all fields', 'Tafadhali jaza sehemu zote')); return; }
+    const nameErr = validateName(name, { sw });
+    if (nameErr) { setError(nameErr); return; }
+    if (!dob) { setError(t('Please select your date of birth', 'Tafadhali chagua tarehe ya kuzaliwa')); return; }
+    if (!gender) { setError(t('Please select your gender', 'Tafadhali chagua jinsia')); return; }
     setLoading(true); setError('');
     try {
       const path = method === 'phone' ? '/phone/complete-profile' : '/email/complete-profile';

@@ -144,3 +144,45 @@ export function formatTime(minutes) {
   if (m === 0) return `${h}h`;
   return `${h}h ${m}min`;
 }
+
+// ── Shared form validation ─────────────────────────────────────────────────
+// Used across every form in the app (signup, shop checkout, appointment/lab
+// booking, family members, emergency contacts) so "s" or "1" can no longer
+// pass as a valid name, address, or phone number anywhere.
+
+export function validateName(name, { sw = false } = {}) {
+  const v = (name || '').trim();
+  if (v.length < 2) return sw ? 'Jina lazima liwe na herufi angalau 2' : 'Name must be at least 2 characters';
+  if (!/[a-zA-Z\u00C0-\u017F]/.test(v)) return sw ? 'Jina lazima liwe na herufi halisi' : 'Name must contain real letters';
+  return null;
+}
+
+export function validatePhone(phone, { sw = false } = {}) {
+  const v = (phone || '').trim().replace(/[\s-]/g, '');
+  if (!/^\+?\d{9,13}$/.test(v)) return sw ? 'Weka nambari sahihi ya simu' : 'Enter a valid phone number';
+  return null;
+}
+
+export function validateEmail(email, { sw = false } = {}) {
+  const v = (email || '').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return sw ? 'Weka barua pepe sahihi' : 'Enter a valid email address';
+  return null;
+}
+
+export function validatePassword(password, { sw = false } = {}) {
+  const v = password || '';
+  if (v.length < 8) return sw ? 'Nenosiri lazima liwe na herufi angalau 8' : 'Password must be at least 8 characters';
+  return null;
+}
+
+export function validateAddress(address, { sw = false } = {}) {
+  const v = (address || '').trim();
+  if (v.length < 6) return sw ? 'Weka anwani kamili zaidi' : 'Enter a more complete address';
+  return null;
+}
+
+export function validateFreeText(text, minLen, { sw = false, label = '' } = {}) {
+  const v = (text || '').trim();
+  if (v.length < minLen) return sw ? `Weka maelezo marefu zaidi (herufi ${minLen}+)` : `${label || 'This'} must be at least ${minLen} characters`;
+  return null;
+}

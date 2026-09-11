@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Plus, Minus, Trash2, Package, CheckCircle2 } from 'lucide-react';
-import { API } from './constants';
+import { API, validateName, validatePhone, validateAddress } from './constants';
 import { useTheme } from './ThemeContext';
 
 function authHeaders() {
@@ -60,9 +60,12 @@ export default function HealthShop({ lang }) {
   const cartCount = cart.reduce((sum, i) => sum + i.quantity, 0);
 
   async function submitCheckout() {
-    if (!form.delivery_name.trim() || !form.delivery_phone.trim() || !form.delivery_address.trim()) {
-      setError(sw ? 'Tafadhali jaza sehemu zote' : 'Please fill in all fields'); return;
-    }
+    const nameErr = validateName(form.delivery_name, { sw });
+    if (nameErr) { setError(nameErr); return; }
+    const phoneErr = validatePhone(form.delivery_phone, { sw });
+    if (phoneErr) { setError(phoneErr); return; }
+    const addrErr = validateAddress(form.delivery_address, { sw });
+    if (addrErr) { setError(addrErr); return; }
     setSubmitting(true); setError('');
     try {
       const res = await fetch(`${API}/api/shop/checkout`, {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Baby, UserPlus, Trash2, Link2, Check, X, AlertCircle } from 'lucide-react';
-import { API } from './constants';
+import { API, validateName, validatePhone, validateEmail } from './constants';
 import { useTheme } from './ThemeContext';
 
 const RELATIONSHIPS = [
@@ -58,7 +58,9 @@ export default function FamilyHealth({ lang }) {
   const isAdultBeingAdded = form.date_of_birth && calcAge(form.date_of_birth) >= 18;
 
   async function submitManaged() {
-    if (!form.name.trim() || !form.date_of_birth || !form.relationship_type) {
+    const nameErr = validateName(form.name, { sw });
+    if (nameErr) { setError(nameErr); return; }
+    if (!form.date_of_birth || !form.relationship_type) {
       setError(sw ? 'Tafadhali jaza sehemu zote muhimu' : 'Please fill in all required fields'); return;
     }
     if (isAdultBeingAdded && !form.consent_confirmed) {
@@ -79,6 +81,14 @@ export default function FamilyHealth({ lang }) {
   async function submitLinkRequest() {
     if (!linkForm.target_phone.trim() && !linkForm.target_email.trim()) {
       setError(sw ? 'Weka nambari ya simu au barua pepe' : 'Enter a phone number or email'); return;
+    }
+    if (linkForm.target_phone.trim()) {
+      const err = validatePhone(linkForm.target_phone, { sw });
+      if (err) { setError(err); return; }
+    }
+    if (linkForm.target_email.trim()) {
+      const err = validateEmail(linkForm.target_email, { sw });
+      if (err) { setError(err); return; }
     }
     setSubmitting(true); setError('');
     try {
