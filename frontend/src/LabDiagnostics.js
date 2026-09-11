@@ -10,7 +10,7 @@ function authHeaders() {
 
 const CATEGORY_ICON = { blood: Droplet, diabetes: FlaskConical, hiv_sti: TestTube, pregnancy: Baby, cholesterol: HeartPulse, kidney_liver: FlaskConical, other: FlaskConical };
 
-export default function LabDiagnostics({ lang, setPage, setAfyaTopic }) {
+export default function LabDiagnostics({ lang, setPage, setAfyaTopic, setAfyaReturnPage }) {
   const { theme } = useTheme();
   const sw = lang === 'sw';
   const user = JSON.parse(localStorage.getItem('afya_user') || 'null');
@@ -85,6 +85,7 @@ export default function LabDiagnostics({ lang, setPage, setAfyaTopic }) {
   }
 
   function explainResult(b) {
+    setAfyaReturnPage && setAfyaReturnPage('lab');
     setAfyaTopic(sw
       ? `Kueleza matokeo ya kipimo cha "${b.test_name}": "${b.result_summary}"`
       : `Explaining the "${b.test_name}" lab result: "${b.result_summary}"`);

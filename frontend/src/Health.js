@@ -26,7 +26,7 @@ const DOMAINS = [
   { id: 'palliative_care', specialty: 'palliative_care', Icon: HandHeart, en: 'Palliative Care', sw: 'Huduma ya Faraja', color: '#7c3aed', bg: '#f5f3ff' },
 ];
 
-export default function Health({ lang, user, setPage, setCareFilter, setAfyaTopic, setCareView }) {
+export default function Health({ lang, user, setPage, setCareFilter, setAfyaTopic, setCareView, setAfyaReturnPage }) {
   const { theme } = useTheme();
   const sw = lang === 'sw';
   const [selected, setSelected] = useState(null);
@@ -39,6 +39,7 @@ export default function Health({ lang, user, setPage, setCareFilter, setAfyaTopi
 
   function askAfya(d) {
     setAfyaTopic(sw ? d.sw : d.en);
+    setAfyaReturnPage && setAfyaReturnPage('health');
     setPage('symptoms');
   }
 
@@ -81,6 +82,7 @@ export default function Health({ lang, user, setPage, setCareFilter, setAfyaTopi
         onBack={() => setActiveAssessment(null)}
         setPage={setPage} setAfyaTopic={setAfyaTopic}
         setCareFilter={setCareFilter} setCareView={setCareView}
+        setAfyaReturnPage={setAfyaReturnPage}
       />
     );
   }

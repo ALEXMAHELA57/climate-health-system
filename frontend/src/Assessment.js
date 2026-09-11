@@ -8,7 +8,7 @@ function authHeaders() {
   return token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
 }
 
-export default function Assessment({ lang, assessmentId, onBack, setPage, setAfyaTopic, setCareFilter, setCareView }) {
+export default function Assessment({ lang, assessmentId, onBack, setPage, setAfyaTopic, setCareFilter, setCareView, setAfyaReturnPage }) {
   const { theme } = useTheme();
   const sw = lang === 'sw';
   const [data, setData] = useState(null);
@@ -43,6 +43,7 @@ export default function Assessment({ lang, assessmentId, onBack, setPage, setAfy
   }
 
   function askAfya() {
+    setAfyaReturnPage && setAfyaReturnPage('health');
     setAfyaTopic(sw
       ? `Kuelewa matokeo ya ${data.name_sw}: alama ${result.score}/${result.max_score} (${result.band_sw})`
       : `Understanding my ${data.name_en} result: score ${result.score}/${result.max_score} (${result.band})`);

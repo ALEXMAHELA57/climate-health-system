@@ -89,6 +89,7 @@ function AppShell({ startAtEmailLogin }) {
   }
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [careFilter, setCareFilter] = useState(null);
+  const [afyaReturnPage, setAfyaReturnPage] = useState('home');
   const [careView, setCareView] = useState('expert');
   const [afyaTopic, setAfyaTopic] = useState('');
 
@@ -204,11 +205,11 @@ function AppShell({ startAtEmailLogin }) {
           <OfflineEmergency lang={lang} />
         ) : (
           <Suspense fallback={<Loader />}>
-            {page==='home'      && <Home     t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} setPage={setPage} />}
+            {page==='home'      && <Home     t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} setPage={setPage} setAfyaReturnPage={setAfyaReturnPage} />}
             {page==='climate'   && <Climate  t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} />}
-            {page==='health'    && <Health   lang={lang} user={user} setPage={setPage} setCareFilter={setCareFilter} setAfyaTopic={setAfyaTopic} setCareView={setCareView} />}
+            {page==='health'    && <Health   lang={lang} user={user} setPage={setPage} setCareFilter={setCareFilter} setAfyaTopic={setAfyaTopic} setCareView={setCareView} setAfyaReturnPage={setAfyaReturnPage} />}
             {page==='care'      && <SubPage lang={lang} setPage={()=>setPage('health')} title={lang==='sw'?'Huduma':'Care'}><Care t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} careFilter={careFilter} clearCareFilter={()=>setCareFilter(null)} initialView={careView} /></SubPage>}
-            {page==='symptoms'  && <Symptoms t={t} lang={lang} district={district} setPage={setPage} topic={afyaTopic} setCareView={setCareView} />}
+            {page==='symptoms'  && <Symptoms t={t} lang={lang} district={district} setPage={setPage} topic={afyaTopic} setCareView={setCareView} returnPage={afyaReturnPage} />}
             {page==='weather'   && <Weather  t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} />}
             {page==='clinics'   && <Clinics  t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} />}
             {page==='map'       && <RiskMap  t={t} lang={lang} />}
@@ -217,7 +218,7 @@ function AppShell({ startAtEmailLogin }) {
             {page==='profile'   && <UserProfile lang={lang} onLangChange={handleLangChange} onDistrictChange={handleDistrictChange} setPage={setPage} user={user} onLogout={handleLogout} />}
             {page==='family'    && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Afya ya Familia':'Family Health'}><FamilyHealth lang={lang} /></SubPage>}
             {page==='myhealth'  && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Afya Yangu':'My Health'}><MyHealth lang={lang} /></SubPage>}
-            {page==='lab'       && <SubPage lang={lang} setPage={()=>setPage('health')} title={lang==='sw'?'Vipimo vya Maabara':'Lab & Diagnostics'}><LabDiagnostics lang={lang} setPage={setPage} setAfyaTopic={setAfyaTopic} /></SubPage>}
+            {page==='lab'       && <SubPage lang={lang} setPage={()=>setPage('health')} title={lang==='sw'?'Vipimo vya Maabara':'Lab & Diagnostics'}><LabDiagnostics lang={lang} setPage={setPage} setAfyaTopic={setAfyaTopic} setAfyaReturnPage={setAfyaReturnPage} /></SubPage>}
             {page==='shop'      && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Duka la Afya':'Health Shop'}><HealthShop lang={lang} /></SubPage>}
             {page==='report'    && <CommunityReport lang={lang} />}
             {page==='emergency' && <EmergencyPage lang={lang} setPage={setPage} />}

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { API, stripMarkdown } from './constants';
 
 const TOPIC_TAGS = {
@@ -260,7 +261,7 @@ async function askAfya(messages, district, onStatus, topic = '') {
   return backend;
 }
 
-export default function Symptoms({ t, lang, district, setPage, topic, setCareView }) {
+export default function Symptoms({ t, lang, district, setPage, topic, setCareView, returnPage }) {
   const [messages, setMessages]         = useState([{ role:'assistant', content: topic ? `${t.afyaGreet} ${lang==='sw' ? `Nipo hapa kuzungumza kuhusu ${topic}.` : `I'm here to talk about ${topic}.`}` : t.afyaGreet }]);
   const [input, setInput]               = useState('');
   const [loading, setLoading]           = useState(false);
@@ -355,6 +356,11 @@ export default function Symptoms({ t, lang, district, setPage, topic, setCareVie
 
   return (
     <div style={{ padding:16, display:'flex', flexDirection:'column', height:'calc(100vh - 130px)' }}>
+      {setPage && (
+        <button onClick={() => setPage(returnPage || 'home')} style={{ background:'none', border:'none', color:'#2563eb', fontSize:13, cursor:'pointer', padding:0, marginBottom:10, display:'flex', alignItems:'center', gap:4 }}>
+          <ArrowLeft size={14} /> {sw ? 'Rudi' : 'Back'}
+        </button>
+      )}
       <div style={{ fontSize:16, fontWeight:700, marginBottom:8 }}>🤒 {t.symptoms}</div>
 
       {emergency && (

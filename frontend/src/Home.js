@@ -14,7 +14,7 @@ function authHeaders() {
   return token ? { 'Authorization': `Bearer ${token}` } : {};
 }
 
-export default function Home({ t, lang, district, onDistrictChange, setPage }) {
+export default function Home({ t, lang, district, onDistrictChange, setPage, setAfyaReturnPage }) {
   const { theme } = useTheme();
   const [weather, setWeather]   = useState(null);
   const [airQuality, setAirQuality] = useState(null);
@@ -303,7 +303,7 @@ export default function Home({ t, lang, district, onDistrictChange, setPage }) {
           { Icon: Users, title:sw?'Afya ya Familia':'Family Health', sub:sw?'Simamia wanafamilia':'Manage family members', page:'family', color:'#f0fdf4', border:'#bbf7d0' },
           { Icon: ShoppingCart, title:sw?'Duka la Afya':'Health Shop', sub:sw?'Nunua dawa na vifaa':'Medicines & supplies', page:'shop', color:'#fdf4ff', border:'#f5d0fe' },
         ].map((item,i)=>(
-          <button key={i} onClick={()=>setPage(item.page)}
+          <button key={i} onClick={()=>{ if (item.page === 'symptoms' && setAfyaReturnPage) setAfyaReturnPage('home'); setPage(item.page); }}
             style={{ background:item.color, border:`1px solid ${item.border}`, borderRadius:12, padding:'12px 10px', textAlign:'left', cursor:'pointer' }}>
             <div style={{ marginBottom:4 }}><item.Icon size={22} color="#2563eb" /></div>
             <div style={{ fontSize:13, fontWeight:600, color:'#111' }}>{item.title}</div>
