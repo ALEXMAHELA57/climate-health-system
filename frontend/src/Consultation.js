@@ -56,6 +56,7 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
   const [loading, setLoading] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [affordableOnly, setAffordableOnly] = useState(false);
+  const [showAllSpecialties, setShowAllSpecialties] = useState(!initialSpecialty);
   const [negotiatingDoctor, setNegotiatingDoctor] = useState(null);
   const [negotiationForm, setNegotiationForm] = useState({ consultation_type: '', proposed_price: '', patient_name: '', patient_phone: '' });
   const [negotiationMsg, setNegotiationMsg] = useState('');
@@ -74,7 +75,10 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
 
   useEffect(() => { fetch(`${API}/api/consultation/specialties`).then(r => r.json()).then(d => setSpecialties(d.specialties || [])).catch(() => {}); }, []);
   useEffect(() => { fetch(`${API}/api/family/profiles`, { headers: authHeaders() }).then(r => r.json()).then(d => setFamilyProfiles((d.profiles || []).filter(p => !p.is_linked))).catch(() => {}); }, []);
-  useEffect(() => { if (initialSpecialty) loadDoctors(initialSpecialty); }, [initialSpecialty]);
+  useEffect(() => {
+    if (initialSpecialty) { loadDoctors(initialSpecialty); setShowAllSpecialties(false); }
+    else setShowAllSpecialties(true);
+  }, [initialSpecialty]);
   useEffect(() => { if (activeSpecialty) loadDoctors(activeSpecialty); }, [affordableOnly]);
 
   async function loadDoctors(specId) {
@@ -246,21 +250,34 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
               background: affordableOnly ? '#f0fdf4' : theme.card, border: `1px solid ${affordableOnly ? '#bbf7d0' : theme.border}`, color: affordableOnly ? '#166534' : theme.textMuted, fontSize: 12, fontWeight: 600 }}>
             <HeartHandshake size={14} /> {sw ? 'Onyesha Huduma Nafuu Tu' : 'Show Affordable Care Only'}
           </button>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
-            {specialties.map(s => {
-              const Icon = SPECIALTY_ICON[s.id] || Stethoscope;
-              const c = SPECIALTY_COLOR[s.id] || SPECIALTY_COLOR.general;
-              const active = activeSpecialty === s.id;
-              return (
-                <button key={s.id} onClick={() => loadDoctors(s.id)}
-                  style={{ textAlign: 'left', padding: 12, borderRadius: 12, cursor: 'pointer',
-                    background: c.bg, border: `1px solid ${active ? c.fg : c.border}`, borderWidth: active ? 2 : 1 }}>
-                  <Icon size={20} color={c.fg} />
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#111', marginTop: 6 }}>{sw ? s.sw : s.en}</div>
-                </button>
-              );
-            })}
-          </div>
+          {showAllSpecialties ? (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+                {specialties.map(s => {
+                  const Icon = SPECIALTY_ICON[s.id] || Stethoscope;
+                  const c = SPECIALTY_COLOR[s.id] || SPECIALTY_COLOR.general;
+                  const active = activeSpecialty === s.id;
+                  return (
+                    <button key={s.id} onClick={() => { loadDoctors(s.id); setShowAllSpecialties(false); }}
+                      style={{ textAlign: 'left', padding: 12, borderRadius: 12, cursor: 'pointer',
+                        background: c.bg, border: `1px solid ${active ? c.fg : c.border}`, borderWidth: active ? 2 : 1 }}>
+                      <Icon size={20} color={c.fg} />
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#111', marginTop: 6 }}>{sw ? s.sw : s.en}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: theme.text }}>
+                {specialties.find(s => s.id === activeSpecialty)?.[sw ? 'sw' : 'en'] || (sw ? 'Wataalamu' : 'Experts')}
+              </div>
+              <button onClick={() => setShowAllSpecialties(true)} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+                {sw ? 'Badilisha Fani' : 'Browse all specialties'}
+              </button>
+            </div>
+          )}
 
           {loading && <div style={{ textAlign: 'center', padding: 20, color: theme.textFaint, fontSize: 13 }}>{sw ? 'Inapakia...' : 'Loading...'}</div>}
 
