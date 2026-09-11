@@ -53,14 +53,15 @@ function EmergencyPage({ lang, setPage }) {
   );
 }
 
-function SubPage({ lang, setPage, title, children }) {
+function SubPage({ lang, setPage, title, backLabel, children }) {
   const sw = lang === 'sw';
+  const label = backLabel || (sw ? 'Rudi Nyumbani' : 'Back to Home');
   return (
     <div>
       <div style={{ padding:'12px 16px 0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <button onClick={()=>setPage('home')}
           style={{ background:'none', border:'none', color:'#2563eb', fontSize:13, cursor:'pointer', padding:0, fontWeight:500 }}>
-          ‹ {sw?'Rudi Nyumbani':'Back to Home'}
+          ‹ {label}
         </button>
         <span style={{ fontSize:13, fontWeight:700, color:'#111' }}>{title}</span>
       </div>
@@ -209,7 +210,7 @@ function AppShell({ startAtEmailLogin }) {
             {page==='home'      && <Home     t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} setPage={setPage} setAfyaReturnPage={setAfyaReturnPage} />}
             {page==='climate'   && <Climate  t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} />}
             {page==='health'    && <Health   lang={lang} user={user} setPage={setPage} setCareFilter={setCareFilter} setAfyaTopic={setAfyaTopic} setCareView={setCareView} setAfyaReturnPage={setAfyaReturnPage} selectedDomainId={selectedHealthDomainId} setSelectedDomainId={setSelectedHealthDomainId} />}
-            {page==='care'      && <SubPage lang={lang} setPage={()=>setPage('health')} title={lang==='sw'?'Huduma':'Care'}><Care t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} careFilter={careFilter} clearCareFilter={()=>setCareFilter(null)} initialView={careView} /></SubPage>}
+            {page==='care'      && <SubPage lang={lang} setPage={()=>setPage('health')} backLabel={lang==='sw'?'Rudi Afya':'Back to Health'} title={lang==='sw'?'Huduma':'Care'}><Care t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} careFilter={careFilter} clearCareFilter={()=>setCareFilter(null)} initialView={careView} /></SubPage>}
             {page==='symptoms'  && <Symptoms t={t} lang={lang} district={district} setPage={setPage} topic={afyaTopic} setCareView={setCareView} returnPage={afyaReturnPage} />}
             {page==='weather'   && <Weather  t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} />}
             {page==='clinics'   && <Clinics  t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} />}
@@ -219,7 +220,7 @@ function AppShell({ startAtEmailLogin }) {
             {page==='profile'   && <UserProfile lang={lang} onLangChange={handleLangChange} onDistrictChange={handleDistrictChange} setPage={setPage} user={user} onLogout={handleLogout} />}
             {page==='family'    && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Afya ya Familia':'Family Health'}><FamilyHealth lang={lang} /></SubPage>}
             {page==='myhealth'  && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Afya Yangu':'My Health'}><MyHealth lang={lang} /></SubPage>}
-            {page==='lab'       && <SubPage lang={lang} setPage={()=>setPage('health')} title={lang==='sw'?'Vipimo vya Maabara':'Lab & Diagnostics'}><LabDiagnostics lang={lang} setPage={setPage} setAfyaTopic={setAfyaTopic} setAfyaReturnPage={setAfyaReturnPage} /></SubPage>}
+            {page==='lab'       && <SubPage lang={lang} setPage={()=>setPage('health')} backLabel={lang==='sw'?'Rudi Afya':'Back to Health'} title={lang==='sw'?'Vipimo vya Maabara':'Lab & Diagnostics'}><LabDiagnostics lang={lang} setPage={setPage} setAfyaTopic={setAfyaTopic} setAfyaReturnPage={setAfyaReturnPage} /></SubPage>}
             {page==='shop'      && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Duka la Afya':'Health Shop'}><HealthShop lang={lang} /></SubPage>}
             {page==='report'    && <CommunityReport lang={lang} />}
             {page==='emergency' && <EmergencyPage lang={lang} setPage={setPage} />}
