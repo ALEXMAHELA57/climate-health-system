@@ -8,6 +8,12 @@ function authHeaders() {
   return token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
 }
 
+function formatDate(iso, sw) {
+  if (!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  return d.toLocaleDateString(sw ? 'sw-TZ' : 'en-GB', { day: 'numeric', month: 'short' });
+}
+
 export default function MenstrualCycle({ lang }) {
   const { theme } = useTheme();
   const sw = lang === 'sw';
@@ -152,11 +158,6 @@ export default function MenstrualCycle({ lang }) {
               <div style={{ fontSize: 32, fontWeight: 700 }}>{sw ? `Siku ${summary.cycle_day}` : `Day ${summary.cycle_day}`}</div>
               <div style={{ fontSize: 12, opacity: 0.9 }}>{sw ? 'Ya mzunguko' : 'of cycle'}</div>
             </div>
-            {summary.is_in_fertile_window && (
-              <span style={{ background: 'rgba(255,255,255,0.25)', padding: '4px 10px', borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
-                {sw ? 'Muda wa Kushika Mimba' : 'Fertile Window'}
-              </span>
-            )}
           </div>
           <div style={{ display: 'flex', gap: 16, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.25)' }}>
             <div>
@@ -173,6 +174,21 @@ export default function MenstrualCycle({ lang }) {
                 <div style={{ fontSize: 14, fontWeight: 600 }}>{summary.avg_period_length} {sw ? 'siku' : 'days'}</div>
               </div>
             )}
+          </div>
+
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.25)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+              <span style={{ fontSize: 11, opacity: 0.85 }}>{sw ? 'Utabiri wa Mfumuko' : 'Predicted Ovulation'}</span>
+              {summary.is_in_fertile_window && (
+                <span style={{ background: 'rgba(255,255,255,0.3)', padding: '1px 8px', borderRadius: 99, fontSize: 10, fontWeight: 700 }}>
+                  {sw ? 'SASA' : 'NOW'}
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>{formatDate(summary.predicted_ovulation, sw)}</div>
+            <div style={{ fontSize: 11, opacity: 0.85, marginTop: 4 }}>
+              {sw ? 'Muda wa Kushika Mimba' : 'Fertile Window'}: {formatDate(summary.fertile_window.start, sw)} – {formatDate(summary.fertile_window.end, sw)}
+            </div>
           </div>
           {summary.irregular_cycles && (
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
