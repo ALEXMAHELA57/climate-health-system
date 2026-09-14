@@ -305,7 +305,13 @@ export default function Home({ t, lang, district, onDistrictChange, setPage, set
               <div style={{ display:'flex', alignItems:'center', gap:5, marginBottom:3 }}><Droplets size={13} color="#db2777" /><span style={{ fontSize:10, fontWeight:600, color:theme.textMuted }}>{sw?'MZUNGUKO':'CYCLE'}</span></div>
               <div style={{ fontSize:12, fontWeight:700, color:theme.text }}>{sw?`Siku ${cycleStatus.cycle_day}`:`Day ${cycleStatus.cycle_day}`}</div>
               <div style={{ fontSize:11, color:theme.textMuted }}>
-                {cycleStatus.is_in_fertile_window ? (sw?'Muda wa Kushika Mimba':'Fertile window') : (sw?`Hedhi ijayo: Siku ${cycleStatus.days_until_next_period}`:`Next period: ${cycleStatus.days_until_next_period}d`)}
+                {cycleStatus.is_in_fertile_window
+                  ? (sw?'Muda wa Kushika Mimba - Sasa':'Fertile window - now')
+                  : cycleStatus.days_until_ovulation > 0 && cycleStatus.days_until_ovulation <= 3
+                  ? (sw?`Mfumuko baada ya siku ${cycleStatus.days_until_ovulation}`:`Ovulation in ${cycleStatus.days_until_ovulation}d`)
+                  : cycleStatus.days_until_fertile_window > 0 && cycleStatus.days_until_fertile_window <= 3
+                  ? (sw?`Muda wa kushika mimba baada ya siku ${cycleStatus.days_until_fertile_window}`:`Fertile window in ${cycleStatus.days_until_fertile_window}d`)
+                  : (sw?`Hedhi ijayo: Siku ${cycleStatus.days_until_next_period}`:`Next period: ${cycleStatus.days_until_next_period}d`)}
               </div>
             </button>
           )}

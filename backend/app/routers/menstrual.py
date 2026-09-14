@@ -115,6 +115,8 @@ def get_summary(family_profile_id: Optional[int] = None, user: User = Depends(ge
         "predicted_next_period": predicted_next.isoformat(),
         "days_until_next_period": (predicted_next - today).days,
         "predicted_ovulation": predicted_ovulation.isoformat(),
+        "days_until_ovulation": (predicted_ovulation - today).days,
+        "days_until_fertile_window": (fertile_start - today).days,
         "fertile_window": {"start": fertile_start.isoformat(), "end": fertile_end.isoformat()},
         "is_in_fertile_window": fertile_start <= today <= fertile_end,
         "irregular_cycles": irregular,

@@ -179,15 +179,22 @@ export default function MenstrualCycle({ lang }) {
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.25)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
               <span style={{ fontSize: 11, opacity: 0.85 }}>{sw ? 'Utabiri wa Mfumuko' : 'Predicted Ovulation'}</span>
-              {summary.is_in_fertile_window && (
+              {summary.is_in_fertile_window ? (
                 <span style={{ background: 'rgba(255,255,255,0.3)', padding: '1px 8px', borderRadius: 99, fontSize: 10, fontWeight: 700 }}>
                   {sw ? 'SASA' : 'NOW'}
+                </span>
+              ) : summary.days_until_ovulation > 0 && summary.days_until_ovulation <= 5 && (
+                <span style={{ background: 'rgba(255,255,255,0.3)', padding: '1px 8px', borderRadius: 99, fontSize: 10, fontWeight: 700 }}>
+                  {sw ? `SIKU ${summary.days_until_ovulation}` : `IN ${summary.days_until_ovulation}D`}
                 </span>
               )}
             </div>
             <div style={{ fontSize: 14, fontWeight: 600 }}>{formatDate(summary.predicted_ovulation, sw)}</div>
             <div style={{ fontSize: 11, opacity: 0.85, marginTop: 4 }}>
               {sw ? 'Muda wa Kushika Mimba' : 'Fertile Window'}: {formatDate(summary.fertile_window.start, sw)} – {formatDate(summary.fertile_window.end, sw)}
+              {!summary.is_in_fertile_window && summary.days_until_fertile_window > 0 && summary.days_until_fertile_window <= 5 && (
+                <span> · {sw ? `huanza siku ${summary.days_until_fertile_window}` : `starts in ${summary.days_until_fertile_window}d`}</span>
+              )}
             </div>
           </div>
           {summary.irregular_cycles && (
