@@ -51,6 +51,25 @@ function getTopicTags(topic, sw) {
   return TOPIC_TAGS.general[lang];
 }
 
+// Maps the current Afya topic (a domain display name, e.g. "Mental Health")
+// to a real specialty ID matching the doctor directory - so "Find a Doctor"
+// always routes to an actual, correctly-filtered list, never a guess.
+function getTopicSpecialty(topic) {
+  if (!topic) return 'general';
+  const t = topic.toLowerCase();
+  if (t.includes('mental') || t.includes('akili')) return 'mental_health';
+  if (t.includes('cycle') || t.includes('mzunguko') || t.includes('hedhi')) return 'menstrual_cycle';
+  if ((t.includes('men') && !t.includes('women')) || t.includes('mwanaume')) return 'male_reproductive';
+  if (t.includes('women') || t.includes('female') || t.includes('mwanamke')) return 'female_reproductive';
+  if (t.includes('maternal') || t.includes('mama na mtoto') || t.includes('child')) return 'maternal_health';
+  if (t.includes('dental') || t.includes('meno')) return 'dental';
+  if (t.includes('cardio') || t.includes('moyo') || t.includes('heart')) return 'cardiology';
+  if (t.includes('skin') || t.includes('dermat') || t.includes('ngozi')) return 'dermatology';
+  if (t.includes('nutrition') || t.includes('lishe')) return 'nutrition';
+  if (t.includes('palliative') || t.includes('faraja')) return 'palliative_care';
+  return 'general';
+}
+
 const SYSTEM_PROMPT = `You are Afya, a friendly community health assistant for Tanzania.
 You were built specifically for the Climate Health Early Warning System to help
 communities prepare for climate-related health risks.
@@ -86,19 +105,32 @@ STRICT RULES:
 9. Never use markdown formatting like **bold** or ## headers. Write in plain text only.
 
 10. CLINIC REQUEST RULE — this overrides all other behavior including symptom gathering:
-    If the user's message contains ANY of these signals (in English or Swahili), you MUST respond
-    immediately with ONLY the clinic redirect below — do NOT ask follow-up questions, do NOT ask
-    about symptoms first, do NOT explain anything else:
-    - "clinic", "hospital", "doctor", "nearest", "number", "phone", "where do I go", "stop asking"
-    - "kliniki", "hospitali", "daktari", "karibu", "namba", "nambari", "wapi nielekee", "acha kuuliza"
+    If the user's message contains ANY of these facility-finding signals (in English or Swahili),
+    you MUST respond immediately with ONLY the clinic redirect below — do NOT ask follow-up
+    questions, do NOT ask about symptoms first, do NOT explain anything else:
+    - "clinic", "hospital", "nearest", "number", "phone", "where do I go", "stop asking"
+    - "kliniki", "hospitali", "karibu", "namba", "nambari", "wapi nielekee", "acha kuuliza"
 
     Your ENTIRE response in this case must be exactly:
     English: "To find the nearest clinic to you with phone numbers and directions, tap [OPEN CLINICS TAB] below. For any emergency call 112 immediately."
     Swahili: "Kupata kliniki ya karibu nawe pamoja na nambari za simu, bonyeza [FUNGUA KLINIKI] hapa chini. Kwa dharura yoyote piga simu 112 mara moja."
 
+    If the user's message contains ANY of these doctor/specialist-finding signals instead, or if
+    based on what they've described you genuinely think they should see a doctor or specialist for
+    this (not just self-manage at home), respond with ONLY the doctor redirect below:
+    - "doctor", "specialist", "consult", "appointment", "talk to someone", "see a doctor"
+    - "daktari", "mtaalamu", "ushauri", "miadi", "nizungumze na"
+
+    Your ENTIRE response in this case must be exactly:
+    English: "It would be worth talking to a doctor about this. Tap [OPEN DOCTORS TAB] below to see who's available. For any emergency call 112 immediately."
+    Swahili: "Ni vyema kuzungumza na daktari kuhusu hili. Bonyeza [FUNGUA MADAKTARI] hapa chini kuona nani anapatikana. Kwa dharura yoyote piga simu 112 mara moja."
+
     Do not add extra sentences, do not ask "what symptoms do you have", do not say "I don't have phone numbers in my system".
-    The user asking for a clinic is itself enough information — give them the button immediately.
-    The text [OPEN CLINICS TAB] or [FUNGUA KLINIKI] will be converted into a clickable button by the app — always include it exactly as written, every time, with no exceptions.`;
+    The user asking for a clinic or doctor is itself enough information — give them the button immediately.
+    The text [OPEN CLINICS TAB], [FUNGUA KLINIKI], [OPEN DOCTORS TAB], or [FUNGUA MADAKTARI] will be
+    converted into a clickable button by the app — always include the relevant one exactly as written,
+    every time, with no exceptions. Never invent or name a specific doctor yourself - the button shows
+    the real, current list, which you don't have visibility into.`;
 
 // Detect if Claude's reply mentions clinics/hospitals but forgot to include the button tag
 function mentionsClinicWithoutButton(text) {
@@ -108,7 +140,13 @@ function mentionsClinicWithoutButton(text) {
   return mentionsClinic;
 }
 
-function renderMessage(text, setPage, lang, setCareView) {
+function mentionsDoctorWithoutButton(text) {
+  const hasTag = text.includes('[OPEN DOCTORS TAB]') || text.includes('[FUNGUA MADAKTARI]');
+  if (hasTag) return false;
+  return /\b(doctor|specialist|daktari|mtaalamu)\b/i.test(text);
+}
+
+function renderMessage(text, setPage, lang, setCareView, topic, setCareFilter) {
   const patterns = ['[OPEN CLINICS TAB]', '[FUNGUA KLINIKI]'];
   let parts = [text];
   let foundButton = false;
@@ -133,6 +171,28 @@ function renderMessage(text, setPage, lang, setCareView) {
     });
   });
 
+  const doctorPatterns = ['[OPEN DOCTORS TAB]', '[FUNGUA MADAKTARI]'];
+  let foundDoctorButton = false;
+  doctorPatterns.forEach(pattern => {
+    parts = parts.flatMap(part => {
+      if (typeof part !== 'string') return [part];
+      const split = part.split(pattern);
+      if (split.length === 1) return [part];
+      foundDoctorButton = true;
+      return split.reduce((acc, seg, i) => {
+        if (i > 0) acc.push(
+          <button key={`doc-${pattern}-${i}`}
+            onClick={() => { setCareFilter && setCareFilter(getTopicSpecialty(topic)); setCareView && setCareView('expert'); setPage && setPage('care'); }}
+            style={{ display:'inline-flex', alignItems:'center', gap:4, background:'#16a34a', color:'#fff', border:'none', borderRadius:8, padding:'5px 12px', fontSize:13, fontWeight:600, cursor:'pointer', margin:'4px 0' }}>
+            👨‍⚕️ {pattern === '[FUNGUA MADAKTARI]' ? 'Ona Madaktari' : 'Find a Doctor'}
+          </button>
+        );
+        if (seg) acc.push(seg);
+        return acc;
+      }, []);
+    });
+  });
+
   // Safety net — if Claude mentioned clinic/hospital but forgot the button, add it anyway
   if (!foundButton && mentionsClinicWithoutButton(text)) {
     parts.push(
@@ -140,6 +200,19 @@ function renderMessage(text, setPage, lang, setCareView) {
         <button onClick={() => { setCareView && setCareView('facility'); setPage && setPage('care'); }}
           style={{ display:'inline-flex', alignItems:'center', gap:4, background:'#2563eb', color:'#fff', border:'none', borderRadius:8, padding:'5px 12px', fontSize:13, fontWeight:600, cursor:'pointer' }}>
           🏥 {lang === 'sw' ? 'Fungua Kliniki' : 'Open Clinics'}
+        </button>
+      </div>
+    );
+  }
+
+  // Safety net — if Claude suggested seeing a doctor/specialist but forgot
+  // the button, add it anyway, filtered to the doctor's current topic
+  if (!foundDoctorButton && mentionsDoctorWithoutButton(text)) {
+    parts.push(
+      <div key="doctor-fallback-btn" style={{ marginTop: 8 }}>
+        <button onClick={() => { setCareFilter && setCareFilter(getTopicSpecialty(topic)); setCareView && setCareView('expert'); setPage && setPage('care'); }}
+          style={{ display:'inline-flex', alignItems:'center', gap:4, background:'#16a34a', color:'#fff', border:'none', borderRadius:8, padding:'5px 12px', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+          👨‍⚕️ {lang === 'sw' ? 'Ona Madaktari' : 'Find a Doctor'}
         </button>
       </div>
     );
@@ -261,7 +334,7 @@ async function askAfya(messages, district, onStatus, topic = '') {
   return backend;
 }
 
-export default function Symptoms({ t, lang, district, setPage, topic, setCareView, returnPage }) {
+export default function Symptoms({ t, lang, district, setPage, topic, setCareView, setCareFilter, returnPage }) {
   const [messages, setMessages]         = useState([{ role:'assistant', content: topic ? `${t.afyaGreet} ${lang==='sw' ? `Nipo hapa kuzungumza kuhusu ${topic}.` : `I'm here to talk about ${topic}.`}` : t.afyaGreet }]);
   const [input, setInput]               = useState('');
   const [loading, setLoading]           = useState(false);
@@ -409,7 +482,7 @@ export default function Symptoms({ t, lang, district, setPage, topic, setCareVie
                 fontSize:14, lineHeight:1.55,
                 borderBottomRightRadius:m.role==='user'?4:16,
                 borderBottomLeftRadius:m.role==='assistant'?4:16 }}>
-                {m.role==='assistant' ? renderMessage(m.content, setPage, lang, setCareView) : m.content}
+                {m.role==='assistant' ? renderMessage(m.content, setPage, lang, setCareView, topic, setCareFilter) : m.content}
               </div>
               {/* Retry button for failed messages */}
               {m._isError && m._retryMessages && (

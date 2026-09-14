@@ -211,7 +211,7 @@ function AppShell({ startAtEmailLogin }) {
             {page==='climate'   && <Climate  t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} />}
             {page==='health'    && <Health   lang={lang} user={user} setPage={setPage} setCareFilter={setCareFilter} setAfyaTopic={setAfyaTopic} setCareView={setCareView} setAfyaReturnPage={setAfyaReturnPage} selectedDomainId={selectedHealthDomainId} setSelectedDomainId={setSelectedHealthDomainId} />}
             {page==='care'      && <SubPage lang={lang} setPage={()=>setPage('health')} backLabel={lang==='sw'?'Rudi Afya':'Back to Health'} title={lang==='sw'?'Huduma':'Care'}><Care t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} careFilter={careFilter} clearCareFilter={()=>setCareFilter(null)} initialView={careView} /></SubPage>}
-            {page==='symptoms'  && <Symptoms t={t} lang={lang} district={district} setPage={setPage} topic={afyaTopic} setCareView={setCareView} returnPage={afyaReturnPage} />}
+            {page==='symptoms'  && <Symptoms t={t} lang={lang} district={district} setPage={setPage} topic={afyaTopic} setCareView={setCareView} setCareFilter={setCareFilter} returnPage={afyaReturnPage} />}
             {page==='weather'   && <Weather  t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} />}
             {page==='clinics'   && <Clinics  t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} />}
             {page==='map'       && <RiskMap  t={t} lang={lang} />}
