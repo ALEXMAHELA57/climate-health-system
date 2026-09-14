@@ -23,6 +23,7 @@ export default function Home({ t, lang, district, onDistrictChange, setPage, set
   const [gpsStatus, setGpsStatus] = useState('idle');
   const [nextMed, setNextMed] = useState(null);
   const [nextAppt, setNextAppt] = useState(null);
+  const [cycleStatus, setCycleStatus] = useState(null);
   const sw = lang === 'sw';
   const user = JSON.parse(localStorage.getItem('afya_user') || 'null');
 
@@ -104,6 +105,14 @@ export default function Home({ t, lang, district, onDistrictChange, setPage, set
         .sort((a, b) => (a.requested_date + a.requested_time).localeCompare(b.requested_date + b.requested_time))[0];
       setNextAppt(upcoming || null);
     } catch { /* silent */ }
+
+    if (user.gender === 'female') {
+      try {
+        const cycleRes = await fetch(`${API}/api/menstrual/summary`, { headers: authHeaders() });
+        const cycleData = await cycleRes.json();
+        setCycleStatus(cycleData.has_data ? cycleData : null);
+      } catch { /* silent */ }
+    }
   }
 
   function detectLocation() {
@@ -275,8 +284,8 @@ export default function Home({ t, lang, district, onDistrictChange, setPage, set
       )}
 
       {/* My Health snapshot */}
-      {user && (nextMed || nextAppt) && (
-        <div style={{ display:'grid', gridTemplateColumns: nextMed && nextAppt ? '1fr 1fr' : '1fr', gap:8, marginBottom:10 }}>
+      {user && (nextMed || nextAppt || cycleStatus) && (
+        <div style={{ display:'grid', gridTemplateColumns: [nextMed, nextAppt, cycleStatus].filter(Boolean).length >= 2 ? '1fr 1fr' : '1fr', gap:8, marginBottom:10 }}>
           {nextMed && (
             <button onClick={()=>setPage('medicine')} style={{ background:theme.card, border:`1px solid ${theme.border}`, borderRadius:10, padding:10, textAlign:'left', cursor:'pointer' }}>
               <div style={{ display:'flex', alignItems:'center', gap:5, marginBottom:3 }}><Pill size={13} color="#2563eb" /><span style={{ fontSize:10, fontWeight:600, color:theme.textMuted }}>{sw?'DAWA IJAYO':'NEXT DOSE'}</span></div>
@@ -289,6 +298,15 @@ export default function Home({ t, lang, district, onDistrictChange, setPage, set
               <div style={{ display:'flex', alignItems:'center', gap:5, marginBottom:3 }}><Calendar size={13} color="#7c3aed" /><span style={{ fontSize:10, fontWeight:600, color:theme.textMuted }}>{sw?'MIADI IJAYO':'NEXT APPOINTMENT'}</span></div>
               <div style={{ fontSize:12, fontWeight:700, color:theme.text }}>{nextAppt.doctor_name}</div>
               <div style={{ fontSize:11, color:theme.textMuted }}>{nextAppt.requested_date} · {nextAppt.requested_time}</div>
+            </button>
+          )}
+          {cycleStatus && (
+            <button onClick={()=>setPage('health')} style={{ background:theme.card, border:`1px solid ${theme.border}`, borderRadius:10, padding:10, textAlign:'left', cursor:'pointer' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:5, marginBottom:3 }}><Droplets size={13} color="#db2777" /><span style={{ fontSize:10, fontWeight:600, color:theme.textMuted }}>{sw?'MZUNGUKO':'CYCLE'}</span></div>
+              <div style={{ fontSize:12, fontWeight:700, color:theme.text }}>{sw?`Siku ${cycleStatus.cycle_day}`:`Day ${cycleStatus.cycle_day}`}</div>
+              <div style={{ fontSize:11, color:theme.textMuted }}>
+                {cycleStatus.is_in_fertile_window ? (sw?'Muda wa Kushika Mimba':'Fertile window') : (sw?`Hedhi ijayo: Siku ${cycleStatus.days_until_next_period}`:`Next period: ${cycleStatus.days_until_next_period}d`)}
+              </div>
             </button>
           )}
         </div>
