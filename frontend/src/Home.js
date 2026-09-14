@@ -4,7 +4,7 @@ import {
   Stethoscope, Users, Pill, HeartPulse, ShoppingCart,
   Ambulance, ChevronRight, Siren, MessageCircle, Wind,
   CloudLightning, CloudRain, CloudDrizzle, Sun as SunIcon,
-  Bug, Droplets, Thermometer, Sun, Calendar, Clock, FlaskConical, Megaphone,
+  Bug, Droplets, Thermometer, Sun, Calendar, Clock, FlaskConical,
 } from 'lucide-react';
 import { DISTRICTS, DISTRICT_COORDS, getRisk, findNearestDistrict, reverseGeocode, API } from './constants';
 import { useTheme } from './ThemeContext';
@@ -327,9 +327,6 @@ export default function Home({ t, lang, district, onDistrictChange, setPage, set
           { Icon: Users, title:sw?'Afya ya Familia':'Family Health', sub:sw?'Simamia wanafamilia':'Manage family members', page:'family', color:'#f0fdf4', border:'#bbf7d0' },
           { Icon: ShoppingCart, title:sw?'Duka la Afya':'Health Shop', sub:sw?'Nunua dawa na vifaa':'Medicines & supplies', page:'shop', color:'#fdf4ff', border:'#f5d0fe' },
           { Icon: FlaskConical, title:sw?'Vipimo vya Maabara':'Lab & Diagnostics', sub:sw?'Weka miadi ya vipimo':'Book a lab test', page:'lab', color:'#f0fdf4', border:'#bbf7d0' },
-          { Icon: Siren, title:sw?'Watu wa Dharura':'Emergency Contacts', sub:sw?'Ongeza watu wa kujulishwa':'Set up who to notify', page:'emergency', color:'#fef2f2', border:'#fecaca' },
-          { Icon: Megaphone, title:sw?'Ripoti Hatari':'Report a Hazard', sub:sw?'Mafuriko, ugonjwa, na zaidi':'Flooding, outbreak, and more', page:'climate', color:'#eff6ff', border:'#bfdbfe' },
-          ...(user?.gender === 'female' ? [{ Icon: Droplets, title:sw?'Fuatilia Mzunguko':'Track My Cycle', sub:sw?'Siku, utabiri, dalili':'Cycle day, predictions, symptoms', page:'health', color:'#fdf2f8', border:'#fbcfe8' }] : []),
         ].map((item,i)=>(
           <button key={i} onClick={()=>{ if (item.page === 'symptoms' && setAfyaReturnPage) setAfyaReturnPage('home'); setPage(item.page); }}
             style={{ background:item.color, border:`1px solid ${item.border}`, borderRadius:12, padding:'12px 10px', textAlign:'left', cursor:'pointer' }}>
