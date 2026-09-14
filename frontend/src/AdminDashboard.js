@@ -907,6 +907,13 @@ function ShopPanel({ sw, API }) {
     } catch { setLoginMsg(sw ? 'Hitilafu' : 'Connection error'); }
   }
 
+  async function togglePharmacyLicense(vendorId, licensed) {
+    try {
+      await fetch(`${API}/api/shop/admin/vendors/${vendorId}/set-pharmacy-license?licensed=${licensed}`, { method: 'POST', headers: authHeaders() });
+      load();
+    } catch {}
+  }
+
   async function addVendor() {
     if (!vendorForm.name.trim() || !vendorForm.phone.trim()) return;
     try {
@@ -968,6 +975,21 @@ function ShopPanel({ sw, API }) {
         <input value={vendorPassword} onChange={e => setVendorPassword(e.target.value)} placeholder={sw ? 'Nywila' : 'Password'} style={{ width: '100%', padding: 9, marginBottom: 8, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13, boxSizing: 'border-box' }} />
         {!!loginMsg && <div style={{ fontSize: 12, color: loginMsg.startsWith('✓') ? '#166534' : '#ef4444', marginBottom: 8 }}>{loginMsg}</div>}
         <button onClick={setVendorLogin} style={{ width: '100%', padding: 10, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{sw ? 'Hifadhi' : 'Save Login'}</button>
+      </div>
+
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{sw ? 'Leseni ya Duka la Dawa' : 'Pharmacy Licensing'}</div>
+        <p style={{ fontSize: 11, color: '#9ca3af', marginBottom: 10 }}>{sw ? 'Ni wauzaji walio na leseni pekee ndio wanaweza kuuza dawa' : 'Only licensed vendors can list products under Medicine'}</p>
+        {vendors.map(v => (
+          <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f3f4f6' }}>
+            <span style={{ fontSize: 12, color: '#111' }}>{v.name}</span>
+            <button onClick={() => togglePharmacyLicense(v.id, !v.is_licensed_pharmacy)}
+              style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                background: v.is_licensed_pharmacy ? '#f0fdf4' : '#f3f4f6', color: v.is_licensed_pharmacy ? '#166534' : '#6b7280' }}>
+              {v.is_licensed_pharmacy ? (sw ? '✓ Ana Leseni' : '✓ Licensed') : (sw ? 'Hana Leseni' : 'Not Licensed')}
+            </button>
+          </div>
+        ))}
       </div>
 
       <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 14, marginBottom: 14 }}>

@@ -39,6 +39,7 @@ def get_current_vendor(authorization: str = Header(None), db: Session = Depends(
     return vendor
 
 CATEGORIES = {
+    "medicine":             {"en": "Medicine",                "sw": "Dawa"},  # licensed pharmacies only - see checks below
     "medical_equipment":   {"en": "Medical Equipment",       "sw": "Vifaa vya Tiba"},
     "first_aid":           {"en": "First Aid",               "sw": "Huduma ya Kwanza"},
     "maternal_baby":       {"en": "Maternal & Baby",         "sw": "Mama na Mtoto"},
@@ -49,9 +50,10 @@ CATEGORIES = {
     "mosquito_protection": {"en": "Mosquito Protection",     "sw": "Kinga dhidi ya Mbu"},
     "heat_protection":     {"en": "Climate/Heat Protection", "sw": "Kinga dhidi ya Joto"},
 }
-# NOTE: Medicines are deliberately excluded - see the proposal's Health
-# Safety & Governance section. Selling prescription medicine online needs
-# real pharmacy licensing (TMDA) before that category can be added.
+# NOTE: Medicine listings require the vendor to be marked as a verified
+# licensed pharmacy (Vendor.is_licensed_pharmacy) - see the checks in
+# create_product and vendor_add_product below. Every other category
+# remains open to any active vendor, same as before.
 
 def gen_id(prefix: str) -> str:
     return prefix + "".join(random.choices(string.ascii_uppercase + string.digits, k=8))
@@ -223,10 +225,25 @@ def create_vendor(data: VendorIn, admin: Admin = Depends(get_current_admin), db:
 @router.get("/admin/vendors")
 def list_vendors(admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     vendors = db.query(Vendor).all()
-    return {"vendors": [{"id": v.id, "name": v.name, "phone": v.phone, "verified": v.verified, "active": v.active} for v in vendors]}
+    return {"vendors": [{"id": v.id, "name": v.name, "phone": v.phone, "verified": v.verified, "active": v.active, "is_licensed_pharmacy": v.is_licensed_pharmacy} for v in vendors]}
+
+@router.post("/admin/vendors/{vendor_id}/set-pharmacy-license")
+def set_pharmacy_license(vendor_id: int, licensed: bool, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
+    """Admin confirms (or revokes) that a vendor has real TMDA pharmacy
+    licensing - only then can they list products under the Medicine category."""
+    vendor = db.query(Vendor).filter(Vendor.id == vendor_id).first()
+    if not vendor:
+        return {"success": False, "error": "Vendor not found"}
+    vendor.is_licensed_pharmacy = licensed
+    db.commit()
+    return {"success": True}
 
 @router.post("/admin/products")
 def create_product(data: ProductIn, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
+    if data.category == "medicine":
+        vendor = db.query(Vendor).filter(Vendor.id == data.vendor_id).first()
+        if not vendor or not vendor.is_licensed_pharmacy:
+            return {"success": False, "error": "This vendor isn't marked as a verified licensed pharmacy - medicine can't be listed for them"}
     product = Product(**data.dict(), active=True)
     db.add(product)
     db.commit()
@@ -325,7 +342,8 @@ def vendor_login(data: VendorLoginIn, db: Session = Depends(get_db)):
 @router.get("/vendor/me")
 def vendor_me(vendor: Vendor = Depends(get_current_vendor)):
     return {"vendor": {"id": vendor.id, "name": vendor.name, "phone": vendor.phone, "verified": vendor.verified,
-                        "payout_provider": vendor.payout_provider, "payout_account": vendor.payout_account}}
+                        "payout_provider": vendor.payout_provider, "payout_account": vendor.payout_account,
+                        "is_licensed_pharmacy": vendor.is_licensed_pharmacy}}
 
 @router.get("/vendor/products")
 def vendor_products(vendor: Vendor = Depends(get_current_vendor), db: Session = Depends(get_db)):
@@ -337,6 +355,8 @@ def vendor_products(vendor: Vendor = Depends(get_current_vendor), db: Session = 
 
 @router.post("/vendor/products")
 def vendor_add_product(data: VendorProductIn, vendor: Vendor = Depends(get_current_vendor), db: Session = Depends(get_db)):
+    if data.category == "medicine" and not vendor.is_licensed_pharmacy:
+        return {"success": False, "error": "Only verified licensed pharmacies can list medicine - contact admin to get verified"}
     product = Product(vendor_id=vendor.id, active=True, **data.dict())
     db.add(product)
     db.commit()

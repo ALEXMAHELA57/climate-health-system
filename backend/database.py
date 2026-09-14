@@ -255,6 +255,7 @@ class Vendor(Base):
     login_username      = Column(String(100), unique=True, nullable=True)
     password_hash       = Column(String(200), nullable=True)
     verified            = Column(Boolean, default=False)
+    is_licensed_pharmacy = Column(Boolean, default=False)  # admin-verified - only these vendors can list medicine
     active              = Column(Boolean, default=True)
     created_at          = Column(DateTime, default=datetime.utcnow)
 
@@ -602,6 +603,7 @@ _COLUMNS_ADDED_TO_EXISTING_TABLES = [
     ("doctors", "affordable_care", "BOOLEAN DEFAULT FALSE"),
     ("vendors", "login_username", "VARCHAR(100)"),
     ("vendors", "password_hash", "VARCHAR(200)"),
+    ("vendors", "is_licensed_pharmacy", "BOOLEAN DEFAULT FALSE"),
     ("appointments", "owner_user_id", "INTEGER"),
     ("appointments", "family_profile_id", "INTEGER"),
     ("doctors", "manual_availability", "VARCHAR(10)"),

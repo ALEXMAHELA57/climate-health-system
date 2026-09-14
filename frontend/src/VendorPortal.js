@@ -26,6 +26,7 @@ export default function VendorPortal() {
     if (token) {
       loadCategories();
       loadView();
+      fetch(`${API}/api/shop/vendor/me`, { headers: authHeaders(token) }).then(r => r.json()).then(d => { if (d.vendor) setVendor(d.vendor); }).catch(() => {});
     }
   }, [token, view]);
 
@@ -144,7 +145,7 @@ export default function VendorPortal() {
               <select value={productForm.category} onChange={e => setProductForm({ ...productForm, category: e.target.value })}
                 style={{ width: '100%', padding: 9, marginBottom: 8, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13, boxSizing: 'border-box' }}>
                 <option value="">Select category</option>
-                {categories.map(c => <option key={c.id} value={c.id}>{c.en}</option>)}
+                {categories.filter(c => c.id !== 'medicine' || vendor?.is_licensed_pharmacy).map(c => <option key={c.id} value={c.id}>{c.en}</option>)}
               </select>
               <input value={productForm.price} onChange={e => setProductForm({ ...productForm, price: e.target.value })} placeholder="Price (TZS)" type="number"
                 style={{ width: '100%', padding: 9, marginBottom: 8, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13, boxSizing: 'border-box' }} />
