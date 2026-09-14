@@ -340,6 +340,19 @@ class MenstrualLog(Base):
     notes              = Column(String(300), default="")
     created_at         = Column(DateTime, default=datetime.utcnow)
 
+class MenstrualSettings(Base):
+    """User-provided cycle knowledge - lets someone who already knows
+    their typical cycle length skip waiting through 2+ logged periods
+    before getting accurate predictions. Takes priority over the
+    auto-calculated average whenever it's set."""
+    __tablename__ = "menstrual_settings"
+    id                 = Column(Integer, primary_key=True, index=True)
+    owner_user_id      = Column(Integer, index=True)
+    family_profile_id  = Column(Integer, nullable=True, index=True)
+    avg_cycle_length   = Column(Integer, nullable=True)   # e.g. 28
+    avg_period_length  = Column(Integer, nullable=True)   # e.g. 5
+    updated_at         = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class Lab(Base):
     """A partner laboratory offering diagnostic tests. Placeholder
     entries until real partner labs are onboarded - same caution as

@@ -22,11 +22,39 @@ export default function MenstrualCycle({ lang }) {
 
   const [showLogSymptom, setShowLogSymptom] = useState(false);
   const [symptomForm, setSymptomForm] = useState({ date: new Date().toISOString().slice(0, 10), flow: '', cramps: '', mood: '', notes: '' });
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsForm, setSettingsForm] = useState({ avg_cycle_length: '', avg_period_length: '' });
+  const [settingsMsg, setSettingsMsg] = useState('');
 
   useEffect(() => {
     fetch(`${API}/api/family/profiles`, { headers: authHeaders() }).then(r => r.json()).then(d => setFamilyProfiles((d.profiles || []).filter(p => !p.is_linked))).catch(() => {});
   }, []);
   useEffect(() => { loadAll(); }, [forProfile]);
+  useEffect(() => {
+    if (summary) {
+      setSettingsForm({
+        avg_cycle_length: summary.avg_cycle_length != null ? String(summary.avg_cycle_length) : '',
+        avg_period_length: summary.avg_period_length != null ? String(summary.avg_period_length) : '',
+      });
+    }
+  }, [summary]);
+
+  async function saveSettings() {
+    setSettingsMsg('');
+    try {
+      const res = await fetch(`${API}/api/menstrual/settings`, {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({
+          family_profile_id: forProfile || null,
+          avg_cycle_length: settingsForm.avg_cycle_length ? parseInt(settingsForm.avg_cycle_length) : null,
+          avg_period_length: settingsForm.avg_period_length ? parseInt(settingsForm.avg_period_length) : null,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) { setSettingsMsg(sw ? '✓ Imehifadhiwa' : '✓ Saved'); loadAll(); }
+      else setSettingsMsg(data.error || (sw ? 'Imeshindwa' : 'Failed'));
+    } catch { setSettingsMsg(sw ? 'Hitilafu' : 'Connection error'); }
+  }
 
   async function loadAll() {
     setLoading(true);
@@ -75,6 +103,41 @@ export default function MenstrualCycle({ lang }) {
       )}
       {loading && <p style={{ textAlign: 'center', color: theme.textFaint, fontSize: 13 }}>{sw ? 'Inapakia...' : 'Loading...'}</p>}
 
+      {!loading && (
+        <button onClick={() => setShowSettings(s => !s)}
+          style={{ width: '100%', padding: 10, marginBottom: 12, borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            background: showSettings ? theme.card : '#fdf2f8', border: `1px solid ${showSettings ? theme.border : '#fbcfe8'}` }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: showSettings ? theme.textMuted : '#db2777' }}>
+            {sw ? 'Mipangilio ya Mzunguko' : 'Cycle Settings'}
+          </span>
+          <span style={{ fontSize: 11, color: theme.textFaint }}>
+            {summary?.avg_cycle_length && summary?.is_known_length !== false
+              ? `${summary.avg_cycle_length} ${sw ? 'siku' : 'days'}`
+              : (sw ? 'Weka kinachojulikana' : 'Set what you know')}
+          </span>
+        </button>
+      )}
+
+      {showSettings && (
+        <div style={{ background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
+          <p style={{ fontSize: 12, color: theme.textMuted, marginBottom: 10 }}>
+            {sw
+              ? 'Ikiwa unajua tayari mzunguko wako wa kawaida, weka hapa ili kupata utabiri sahihi mara moja - badala ya kusubiri kurekodi hedhi mbili.'
+              : 'If you already know your typical cycle, enter it here for accurate predictions right away - instead of waiting through 2 logged periods.'}
+          </p>
+          <label style={{ fontSize: 11, color: theme.textFaint, display: 'block', marginBottom: 4 }}>{sw ? 'Urefu wa Mzunguko (siku)' : 'Cycle Length (days)'}</label>
+          <input type="number" min="15" max="60" placeholder="28" value={settingsForm.avg_cycle_length}
+            onChange={e => setSettingsForm({ ...settingsForm, avg_cycle_length: e.target.value })} style={inputStyle} />
+          <label style={{ fontSize: 11, color: theme.textFaint, display: 'block', marginBottom: 4 }}>{sw ? 'Urefu wa Hedhi (siku)' : 'Period Length (days)'}</label>
+          <input type="number" min="1" max="15" placeholder="5" value={settingsForm.avg_period_length}
+            onChange={e => setSettingsForm({ ...settingsForm, avg_period_length: e.target.value })} style={inputStyle} />
+          {!!settingsMsg && <p style={{ fontSize: 12, color: settingsMsg.startsWith('✓') ? '#166534' : '#ef4444', marginBottom: 8 }}>{settingsMsg}</p>}
+          <button onClick={saveSettings} style={{ width: '100%', padding: 11, background: '#db2777', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            {sw ? 'Hifadhi' : 'Save'}
+          </button>
+        </div>
+      )}
+
       {!loading && summary && !summary.has_data && (
         <div style={{ textAlign: 'center', padding: 30, color: theme.textFaint, fontSize: 13 }}>
           {sw ? 'Weka tarehe ya hedhi ya mwisho kuanza' : 'Log your last period to get started'}
@@ -104,6 +167,12 @@ export default function MenstrualCycle({ lang }) {
               <div style={{ fontSize: 11, opacity: 0.85 }}>{sw ? 'Wastani wa Mzunguko' : 'Avg Cycle'}</div>
               <div style={{ fontSize: 14, fontWeight: 600 }}>{summary.avg_cycle_length} {sw ? 'siku' : 'days'}</div>
             </div>
+            {summary.avg_period_length && (
+              <div>
+                <div style={{ fontSize: 11, opacity: 0.85 }}>{sw ? 'Urefu wa Hedhi' : 'Period Length'}</div>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>{summary.avg_period_length} {sw ? 'siku' : 'days'}</div>
+              </div>
+            )}
           </div>
           {summary.irregular_cycles && (
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
