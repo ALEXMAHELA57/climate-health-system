@@ -41,6 +41,11 @@ SEED_TESTS = [
     {"name": "Cholesterol Panel", "category": "cholesterol", "price": 20000, "sensitive": False},
     {"name": "Kidney Function Test", "category": "kidney_liver", "price": 22000, "sensitive": False},
     {"name": "Liver Function Test", "category": "kidney_liver", "price": 22000, "sensitive": False},
+    {"name": "Malaria Test (RDT)", "category": "other", "price": 6000, "sensitive": False},
+    {"name": "Thyroid Function Test", "category": "other", "price": 28000, "sensitive": False},
+    {"name": "Urinalysis", "category": "other", "price": 7000, "sensitive": False},
+    {"name": "Typhoid Test (Widal)", "category": "other", "price": 9000, "sensitive": False},
+    {"name": "Vitamin D Test", "category": "other", "price": 30000, "sensitive": False},
 ]
 
 def ensure_seed(db: Session):
@@ -52,6 +57,16 @@ def ensure_seed(db: Session):
         for t in SEED_TESTS:
             db.add(LabTest(lab_id=lab.id, **t))
         db.commit()
+    else:
+        # Backfill any seed tests added after the initial seed ran (e.g. new
+        # categories) - same gap we hit with doctor seeding earlier.
+        lab = db.query(Lab).first()
+        if lab:
+            existing_names = {t.name for t in db.query(LabTest).filter(LabTest.lab_id == lab.id).all()}
+            for t in SEED_TESTS:
+                if t["name"] not in existing_names:
+                    db.add(LabTest(lab_id=lab.id, **t))
+            db.commit()
 
 class BookingIn(BaseModel):
     lab_id: int
