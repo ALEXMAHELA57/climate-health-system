@@ -64,6 +64,30 @@ def bootstrap_admin(data: BootstrapIn, db: Session = Depends(get_db)):
     db.commit()
     return {"success": True, "message": "First admin created - you can now log in"}
 
+class ResetIn(BaseModel):
+    secret: str
+    new_username: str
+    new_password: str
+
+@router.post("/reset")
+def reset_admin(data: ResetIn, db: Session = Depends(get_db)):
+    """Recovery path for a forgotten admin username/password - gated by the
+    same ADMIN_BOOTSTRAP_KEY secret used for the original bootstrap, since
+    whoever controls that env var is already trusted to create admins in
+    the first place. Resets whichever admin account exists (this system
+    is designed around a single admin)."""
+    if not ADMIN_BOOTSTRAP_KEY:
+        return {"success": False, "error": "ADMIN_BOOTSTRAP_KEY is not set on the server"}
+    if data.secret != ADMIN_BOOTSTRAP_KEY:
+        raise HTTPException(status_code=403, detail="Incorrect bootstrap secret")
+    admin = db.query(Admin).first()
+    if not admin:
+        return {"success": False, "error": "No admin exists yet - use /bootstrap instead"}
+    admin.login_username = data.new_username
+    admin.password_hash = pwd_context.hash(data.new_password)
+    db.commit()
+    return {"success": True, "message": "Admin credentials reset - you can now log in with the new username and password"}
+
 @router.post("/login")
 def admin_login(data: LoginIn, db: Session = Depends(get_db)):
     admin = db.query(Admin).filter(Admin.login_username == data.username, Admin.active == True).first()
