@@ -100,6 +100,7 @@ class User(Base):
     language       = Column(String(5), default="en")
     phone_verified = Column(Boolean, default=False)
     email_verified = Column(Boolean, default=False)
+    photo_url      = Column(Text, nullable=True)  # optional profile photo, base64 data URI (small, compressed client-side)
     active         = Column(Boolean, default=True)
     created_at     = Column(DateTime, default=datetime.utcnow)
 
@@ -614,6 +615,7 @@ _COLUMNS_ADDED_TO_EXISTING_TABLES = [
     ("appointments", "azampay_ref", "VARCHAR(100)"),
     ("labs", "login_username", "VARCHAR(100)"),
     ("labs", "password_hash", "VARCHAR(200)"),
+    ("users", "photo_url", "TEXT"),
 ]
 
 def _run_lightweight_migrations():

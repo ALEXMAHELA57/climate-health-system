@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Camera, X } from 'lucide-react';
 
 const API = 'https://climate-health-system-backend.onrender.com';
 
@@ -86,6 +87,61 @@ export default function UserProfile({ lang = 'en', onLangChange, onDistrictChang
   });
   const [saved, setSaved] = useState(false);
   const [phoneError, setPhoneError] = useState('');
+  const [photoUrl, setPhotoUrl] = useState(user?.photo_url || null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState('');
+
+  function authHeaders() {
+    const token = localStorage.getItem('afya_token');
+    return token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+  }
+
+  function compressImage(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onload = e => { img.src = e.target.result; };
+      reader.onerror = reject;
+      img.onload = () => {
+        const maxSize = 300;
+        let { width, height } = img;
+        if (width > height && width > maxSize) { height = height * (maxSize / width); width = maxSize; }
+        else if (height > maxSize) { width = width * (maxSize / height); height = maxSize; }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.7));
+      };
+      img.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handlePhotoSelect(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoError(''); setUploadingPhoto(true);
+    try {
+      const compressed = await compressImage(file);
+      const res = await fetch(`${API}/api/auth/photo`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ photo_url: compressed }) });
+      const data = await res.json();
+      if (data.success) {
+        setPhotoUrl(compressed);
+        localStorage.setItem('afya_user', JSON.stringify(data.user));
+      } else setPhotoError(data.error || (lang === 'sw' ? 'Imeshindwa' : 'Failed to upload'));
+    } catch { setPhotoError(lang === 'sw' ? 'Hitilafu' : 'Something went wrong'); }
+    setUploadingPhoto(false);
+    e.target.value = '';
+  }
+
+  async function removePhoto() {
+    try {
+      await fetch(`${API}/api/auth/photo`, { method: 'DELETE', headers: authHeaders() });
+      setPhotoUrl(null);
+      const stored = JSON.parse(localStorage.getItem('afya_user') || '{}');
+      localStorage.setItem('afya_user', JSON.stringify({ ...stored, photo_url: null }));
+    } catch { /* silent */ }
+  }
 
   function validatePhone(p) {
     return /^(\+255|0)[67]\d{8}$/.test(p.replace(/\s/g, ''));
@@ -143,14 +199,33 @@ export default function UserProfile({ lang = 'en', onLangChange, onDistrictChang
       {user && (
         <div style={card}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, color: '#2563eb', flexShrink: 0 }}>
-              {(user.name || user.phone || user.email || '?').charAt(0).toUpperCase()}
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <label htmlFor="profile-photo-input" style={{ cursor: 'pointer', display: 'block' }}>
+                {photoUrl ? (
+                  <img src={photoUrl} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />
+                ) : (
+                  <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, color: '#2563eb' }}>
+                    {(user.name || user.phone || user.email || '?').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div style={{ position: 'absolute', bottom: -2, right: -2, background: '#2563eb', borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff' }}>
+                  <Camera size={10} color="#fff" />
+                </div>
+              </label>
+              <input id="profile-photo-input" type="file" accept="image/*" onChange={handlePhotoSelect} style={{ display: 'none' }} />
+              {photoUrl && (
+                <button onClick={removePhoto} style={{ position: 'absolute', top: -4, left: -4, background: '#ef4444', borderRadius: '50%', width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', cursor: 'pointer', padding: 0 }}>
+                  <X size={9} color="#fff" />
+                </button>
+              )}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>{user.name || (lang === 'sw' ? 'Mtumiaji' : 'User')}</div>
               <div style={{ fontSize: 12, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.phone || user.email}</div>
             </div>
           </div>
+          {uploadingPhoto && <p style={{ fontSize: 11, color: '#6b7280', marginTop: 8 }}>{lang === 'sw' ? 'Inapakia picha...' : 'Uploading photo...'}</p>}
+          {!!photoError && <p style={{ fontSize: 11, color: '#ef4444', marginTop: 8 }}>{photoError}</p>}
           <button onClick={onLogout} style={{ ...dangerBtn, marginTop: 12 }}>
             {lang === 'sw' ? 'Toka' : 'Log Out'}
           </button>

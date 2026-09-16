@@ -61,6 +61,7 @@ def user_public(u: User) -> dict:
         "id": u.id, "phone": u.phone, "email": u.email, "name": u.name,
         "date_of_birth": u.date_of_birth, "gender": u.gender, "language": u.language,
         "phone_verified": u.phone_verified, "email_verified": u.email_verified,
+        "photo_url": u.photo_url,
     }
 
 async def send_otp_sms(phone: str, code: str):
@@ -246,3 +247,25 @@ def email_login(data: EmailLogin, db: Session = Depends(get_db)):
 @router.get("/me")
 def get_me(user: User = Depends(get_current_user)):
     return {"user": user_public(user)}
+
+class PhotoIn(BaseModel):
+    photo_url: str  # base64 data URI, compressed client-side before sending
+
+@router.post("/photo")
+def set_profile_photo(data: PhotoIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Optional profile photo. No real file storage (S3/R2) is set up for this
+    # yet, so it's stored as a compressed base64 data URI directly - fine for
+    # small avatar-sized images, not meant to scale to large uploads.
+    if len(data.photo_url) > 700_000:  # ~500KB of actual image data once decoded
+        return {"success": False, "error": "Image is too large - please choose a smaller photo"}
+    if not data.photo_url.startswith("data:image/"):
+        return {"success": False, "error": "Invalid image format"}
+    user.photo_url = data.photo_url
+    db.commit()
+    return {"success": True, "user": user_public(user)}
+
+@router.delete("/photo")
+def remove_profile_photo(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    user.photo_url = None
+    db.commit()
+    return {"success": True}
