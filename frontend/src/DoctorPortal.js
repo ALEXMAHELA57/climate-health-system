@@ -82,9 +82,48 @@ export default function DoctorPortal() {
     setSubmittingPrice(false);
   }
 
-  useEffect(() => { if (view === 'settings') { loadChangeRequests(); loadNegotiations(); loadAvailability(); } }, [view]);
+  useEffect(() => { if (view === 'settings') { loadChangeRequests(); loadNegotiations(); loadAvailability(); loadContactPhone(); } }, [view]);
 
   const [availability, setAvailability] = useState('auto');
+  const [contactPhone, setContactPhone] = useState('');
+  const [contactMsg, setContactMsg] = useState('');
+  const [pwForm, setPwForm] = useState({ current_password: '', new_password: '', confirm_password: '' });
+  const [pwMsg, setPwMsg] = useState('');
+  const [changingPw, setChangingPw] = useState(false);
+
+  async function loadContactPhone() {
+    try {
+      const res = await fetch(`${API}/api/doctor/me`, { headers: authHeaders(token) });
+      const data = await res.json();
+      setContactPhone(data.doctor?.phone || '');
+    } catch { /* silent */ }
+  }
+
+  async function saveContactPhone() {
+    setContactMsg('');
+    try {
+      const res = await fetch(`${API}/api/doctor/contact`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ phone: contactPhone }) });
+      const data = await res.json();
+      setContactMsg(data.success ? '✓ Saved' : (data.error || 'Failed'));
+    } catch { setContactMsg('Connection error'); }
+  }
+
+  async function changePassword() {
+    setPwMsg('');
+    if (pwForm.new_password !== pwForm.confirm_password) { setPwMsg('New passwords don\'t match'); return; }
+    if (pwForm.new_password.length < 8) { setPwMsg('New password must be at least 8 characters'); return; }
+    setChangingPw(true);
+    try {
+      const res = await fetch(`${API}/api/doctor/change-password`, {
+        method: 'POST', headers: authHeaders(token),
+        body: JSON.stringify({ current_password: pwForm.current_password, new_password: pwForm.new_password }),
+      });
+      const data = await res.json();
+      if (data.success) { setPwMsg('✓ Password changed'); setPwForm({ current_password: '', new_password: '', confirm_password: '' }); }
+      else setPwMsg(data.error || 'Failed');
+    } catch { setPwMsg('Connection error'); }
+    setChangingPw(false);
+  }
   async function loadAvailability() {
     try {
       const res = await fetch(`${API}/api/doctor/availability`, { headers: authHeaders(token) });
@@ -208,6 +247,30 @@ export default function DoctorPortal() {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 14, marginBottom: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>My Contact Phone</div>
+            <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 10 }}>Only visible to admin - never shown to patients.</p>
+            <input value={contactPhone} onChange={e => setContactPhone(e.target.value)} placeholder="+255..."
+              style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13 }} />
+            {!!contactMsg && <p style={{ fontSize: 12, marginBottom: 8, color: contactMsg.startsWith('✓') ? '#166534' : '#ef4444', fontWeight: 600 }}>{contactMsg}</p>}
+            <button onClick={saveContactPhone} style={{ width: '100%', padding: 10, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Save</button>
+          </div>
+
+          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 14, marginBottom: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Change Password</div>
+            <input type="password" value={pwForm.current_password} onChange={e => setPwForm({ ...pwForm, current_password: e.target.value })} placeholder="Current password"
+              style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13 }} />
+            <input type="password" value={pwForm.new_password} onChange={e => setPwForm({ ...pwForm, new_password: e.target.value })} placeholder="New password"
+              style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13 }} />
+            <input type="password" value={pwForm.confirm_password} onChange={e => setPwForm({ ...pwForm, confirm_password: e.target.value })} placeholder="Confirm new password"
+              style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13 }} />
+            {!!pwMsg && <p style={{ fontSize: 12, marginBottom: 8, color: pwMsg.startsWith('✓') ? '#166534' : '#ef4444', fontWeight: 600 }}>{pwMsg}</p>}
+            <button onClick={changePassword} disabled={changingPw}
+              style={{ width: '100%', padding: 10, background: changingPw ? '#93c5fd' : '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: changingPw ? 'default' : 'pointer' }}>
+              {changingPw ? 'Changing...' : 'Change Password'}
+            </button>
           </div>
 
           <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 14, marginBottom: 14 }}>

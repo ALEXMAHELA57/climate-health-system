@@ -798,13 +798,16 @@ function DoctorsPanel({ sw, API }) {
   async function load() {
     setLoading(true);
     try {
-      const [dRes, rRes] = await Promise.all([
+      const [dRes, rRes, cRes] = await Promise.all([
         fetch(`${API}/api/consultation/doctors`),
         fetch(`${API}/api/doctor/admin/change-requests/pending`, { headers: authHeaders() }),
+        fetch(`${API}/api/doctor/admin/contacts`, { headers: authHeaders() }),
       ]);
       const d = await dRes.json();
       const r = await rRes.json();
-      setDoctors(d.doctors || []);
+      const c = await cRes.json();
+      const phoneById = Object.fromEntries((c.doctors || []).map(x => [x.id, x.phone]));
+      setDoctors((d.doctors || []).map(doc => ({ ...doc, contact_phone: phoneById[doc.id] || '' })));
       setRequests(r.requests || []);
     } catch {}
     setLoading(false);
@@ -838,7 +841,7 @@ function DoctorsPanel({ sw, API }) {
         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{sw ? 'Weka Ingizo la Daktari' : 'Set Doctor Login'}</div>
         <select value={selectedDoctor} onChange={e => setSelectedDoctor(e.target.value)} style={inputSt}>
           <option value="">{sw ? 'Chagua daktari' : 'Select a doctor'}</option>
-          {doctors.map(d => <option key={d.id} value={d.id}>{d.name} — {d.specialty_label}</option>)}
+          {doctors.map(d => <option key={d.id} value={d.id}>{d.name} — {d.specialty_label}{d.contact_phone ? ` (${d.contact_phone})` : ''}</option>)}
         </select>
         <input value={username} onChange={e => setUsername(e.target.value)} placeholder={sw ? 'Jina la mtumiaji' : 'Username'} style={inputSt} />
         <input value={password} onChange={e => setPassword(e.target.value)} placeholder={sw ? 'Nywila' : 'Password'} style={inputSt} />
@@ -846,6 +849,17 @@ function DoctorsPanel({ sw, API }) {
         <button onClick={setLogin} style={{ width: '100%', padding: 10, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
           {sw ? 'Hifadhi' : 'Save Login'}
         </button>
+      </div>
+
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{sw ? 'Mawasiliano ya Madaktari' : 'Doctor Contacts'}</div>
+        <p style={{ fontSize: 11, color: '#9ca3af', marginBottom: 10 }}>{sw ? 'Kila daktari huweka nambari yake mwenyewe kwenye Portal yao' : 'Each doctor sets their own number in their Portal'}</p>
+        {doctors.map(d => (
+          <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f3f4f6', fontSize: 12 }}>
+            <span style={{ color: '#111' }}>{d.name}</span>
+            <span style={{ color: d.contact_phone ? '#374151' : '#d1d5db' }}>{d.contact_phone || (sw ? 'Haijawekwa' : 'Not set')}</span>
+          </div>
+        ))}
       </div>
 
       <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{sw ? 'Maombi ya Mabadiliko' : 'Pending Change Requests'}</div>

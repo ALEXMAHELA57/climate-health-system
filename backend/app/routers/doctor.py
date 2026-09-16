@@ -4,6 +4,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 import json
+import re
 import jwt
 from passlib.context import CryptContext
 
@@ -62,7 +63,37 @@ def get_me(doctor: Doctor = Depends(get_current_doctor)):
         "photo_url": doctor.photo_url, "prices": json.loads(doctor.prices or "{}"),
         "consultation_types": doctor.consultation_types.split(","),
         "available_days": doctor.available_days.split(","), "available_hours": doctor.available_hours,
+        "phone": doctor.phone,
     }}
+
+class ContactUpdateIn(BaseModel):
+    phone: str
+
+@router.post("/contact")
+def update_contact(data: ContactUpdateIn, doctor: Doctor = Depends(get_current_doctor), db: Session = Depends(get_db)):
+    """Doctor updates their own contact phone - visible to admin only, never
+    shown to patients (matches how it's always worked - phone was never
+    part of the public doctor listing)."""
+    phone = data.phone.strip()
+    if phone and not re.match(r'^\+?\d{9,13}$', phone.replace(' ', '').replace('-', '')):
+        return {"success": False, "error": "Enter a valid phone number"}
+    doctor.phone = phone
+    db.commit()
+    return {"success": True}
+
+class ChangePasswordIn(BaseModel):
+    current_password: str
+    new_password: str
+
+@router.post("/change-password")
+def change_password(data: ChangePasswordIn, doctor: Doctor = Depends(get_current_doctor), db: Session = Depends(get_db)):
+    if not doctor.password_hash or not pwd_context.verify(data.current_password, doctor.password_hash):
+        return {"success": False, "error": "Current password is incorrect"}
+    if len(data.new_password) < 8:
+        return {"success": False, "error": "New password must be at least 8 characters"}
+    doctor.password_hash = pwd_context.hash(data.new_password)
+    db.commit()
+    return {"success": True}
 
 @router.get("/appointments")
 def list_appointments(doctor: Doctor = Depends(get_current_doctor), db: Session = Depends(get_db)):
@@ -204,3 +235,10 @@ def set_availability(data: AvailabilityIn, doctor: Doctor = Depends(get_current_
 @router.get("/availability")
 def get_availability(doctor: Doctor = Depends(get_current_doctor)):
     return {"manual_availability": doctor.manual_availability or "auto"}
+
+@router.get("/admin/contacts")
+def list_doctor_contacts(admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
+    """Admin-only view of doctor contact phone numbers - never exposed to
+    patients, who only ever see the public doctor listing (no phone field)."""
+    doctors = db.query(Doctor).filter(Doctor.active == True).all()
+    return {"doctors": [{"id": d.id, "name": d.name, "phone": d.phone} for d in doctors]}
