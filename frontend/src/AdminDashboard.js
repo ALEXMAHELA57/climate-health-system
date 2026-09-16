@@ -787,6 +787,7 @@ function OutbreakQueuePanel({ sw, API }) {
 // ── DOCTORS: set login credentials + approve/reject price/availability changes ─
 function DoctorsPanel({ sw, API }) {
   const [doctors, setDoctors] = useState([]);
+  const [specialties, setSpecialties] = useState([]);
   const [selectedDoctor, setSelectedDoctor] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -794,24 +795,63 @@ function DoctorsPanel({ sw, API }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const [newDoctor, setNewDoctor] = useState({ name: '', specialty: '', bio: '', types: [], prices: { chat: '', voice: '', video: '' } });
+  const [addMsg, setAddMsg] = useState('');
+  const [adding, setAdding] = useState(false);
+
   useEffect(() => { load(); }, []);
 
   async function load() {
     setLoading(true);
     try {
-      const [dRes, rRes, cRes] = await Promise.all([
+      const [dRes, rRes, cRes, sRes] = await Promise.all([
         fetch(`${API}/api/consultation/doctors`),
         fetch(`${API}/api/doctor/admin/change-requests/pending`, { headers: authHeaders() }),
         fetch(`${API}/api/doctor/admin/contacts`, { headers: authHeaders() }),
+        fetch(`${API}/api/consultation/specialties`),
       ]);
       const d = await dRes.json();
       const r = await rRes.json();
       const c = await cRes.json();
+      const s = await sRes.json();
       const phoneById = Object.fromEntries((c.doctors || []).map(x => [x.id, x.phone]));
       setDoctors((d.doctors || []).map(doc => ({ ...doc, contact_phone: phoneById[doc.id] || '' })));
       setRequests(r.requests || []);
+      setSpecialties(s.specialties || []);
     } catch {}
     setLoading(false);
+  }
+
+  function toggleType(t) {
+    setNewDoctor(prev => ({ ...prev, types: prev.types.includes(t) ? prev.types.filter(x => x !== t) : [...prev.types, t] }));
+  }
+
+  async function addDoctor() {
+    if (!newDoctor.name.trim() || !newDoctor.specialty || newDoctor.types.length === 0) {
+      setAddMsg(sw ? 'Jaza jina, fani, na aina ya ushauri angalau moja' : 'Fill in name, specialty, and at least one consultation type');
+      return;
+    }
+    for (const t of newDoctor.types) {
+      if (!newDoctor.prices[t]) { setAddMsg(sw ? `Weka bei ya ${t}` : `Set a price for ${t}`); return; }
+    }
+    setAdding(true); setAddMsg('');
+    try {
+      const res = await fetch(`${API}/api/consultation/admin/doctors`, {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({
+          name: newDoctor.name, specialty: newDoctor.specialty, bio: newDoctor.bio,
+          consultation_types: newDoctor.types,
+          prices: Object.fromEntries(newDoctor.types.map(t => [t, parseFloat(newDoctor.prices[t])])),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAddMsg(sw ? '✓ Daktari ameongezwa' : '✓ Doctor added');
+        setNewDoctor({ name: '', specialty: '', bio: '', types: [], prices: { chat: '', voice: '', video: '' } });
+        load();
+      } else setAddMsg(data.error || (sw ? 'Imeshindwa' : 'Failed'));
+    } catch { setAddMsg(sw ? 'Hitilafu' : 'Connection error'); }
+    setAdding(false);
   }
 
   async function setLogin() {
@@ -838,6 +878,34 @@ function DoctorsPanel({ sw, API }) {
 
   return (
     <div>
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{sw ? 'Ongeza Daktari' : 'Add Doctor'}</div>
+        <input value={newDoctor.name} onChange={e => setNewDoctor({ ...newDoctor, name: e.target.value })} placeholder={sw ? 'Jina la daktari' : "Doctor's name"} style={inputSt} />
+        <select value={newDoctor.specialty} onChange={e => setNewDoctor({ ...newDoctor, specialty: e.target.value })} style={inputSt}>
+          <option value="">{sw ? 'Chagua fani' : 'Select specialty'}</option>
+          {specialties.map(s => <option key={s.id} value={s.id}>{sw ? s.sw : s.en}</option>)}
+        </select>
+        <textarea value={newDoctor.bio} onChange={e => setNewDoctor({ ...newDoctor, bio: e.target.value })} placeholder={sw ? 'Maelezo mafupi (si lazima)' : 'Short bio (optional)'} style={{ ...inputSt, minHeight: 60 }} />
+
+        <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 6 }}>{sw ? 'Aina za Ushauri na Bei (TZS)' : 'Consultation Types & Prices (TZS)'}</div>
+        {['chat', 'voice', 'video'].map(t => (
+          <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#374151', width: 60, textTransform: 'capitalize' }}>
+              <input type="checkbox" checked={newDoctor.types.includes(t)} onChange={() => toggleType(t)} /> {t}
+            </label>
+            {newDoctor.types.includes(t) && (
+              <input type="number" placeholder="Price" value={newDoctor.prices[t]} onChange={e => setNewDoctor({ ...newDoctor, prices: { ...newDoctor.prices, [t]: e.target.value } })}
+                style={{ flex: 1, padding: 7, borderRadius: 6, border: '1px solid #e5e7eb', fontSize: 12 }} />
+            )}
+          </div>
+        ))}
+
+        {!!addMsg && <div style={{ fontSize: 12, color: addMsg.startsWith('✓') ? '#166534' : '#ef4444', marginTop: 4, marginBottom: 8 }}>{addMsg}</div>}
+        <button onClick={addDoctor} disabled={adding} style={{ width: '100%', padding: 10, marginTop: 4, background: adding ? '#93c5fd' : '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: adding ? 'default' : 'pointer' }}>
+          {adding ? (sw ? 'Inaongeza...' : 'Adding...') : (sw ? 'Ongeza Daktari' : 'Add Doctor')}
+        </button>
+      </div>
+
       <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 14, marginBottom: 14 }}>
         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{sw ? 'Weka Ingizo la Daktari' : 'Set Doctor Login'}</div>
         <select value={selectedDoctor} onChange={e => setSelectedDoctor(e.target.value)} style={inputSt}>

@@ -110,6 +110,40 @@ class StatusIn(BaseModel):
 def list_specialties():
     return {"specialties": [{"id": k, **v} for k, v in SPECIALTIES.items()]}
 
+class AdminDoctorIn(BaseModel):
+    name: str
+    specialty: str
+    bio: Optional[str] = ""
+    consultation_types: List[str]  # e.g. ["chat", "voice", "video"]
+    prices: dict  # e.g. {"chat": 5000, "voice": 8000, "video": 12000}
+    available_days: Optional[List[str]] = None  # defaults to Mon-Fri
+    available_hours: Optional[str] = "09:00-17:00"
+
+@router.post("/admin/doctors")
+def admin_create_doctor(data: AdminDoctorIn, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
+    if data.specialty not in SPECIALTIES:
+        return {"success": False, "error": "Invalid specialty"}
+    if not data.consultation_types:
+        return {"success": False, "error": "Select at least one consultation type"}
+    for t in data.consultation_types:
+        if t not in ("chat", "voice", "video"):
+            return {"success": False, "error": f"Invalid consultation type: {t}"}
+        if t not in data.prices or not data.prices[t]:
+            return {"success": False, "error": f"Set a price for {t}"}
+
+    doctor = Doctor(
+        name=data.name, specialty=data.specialty, bio=data.bio or "",
+        consultation_types=",".join(data.consultation_types),
+        prices=json.dumps({t: data.prices[t] for t in data.consultation_types}),
+        available_days=",".join(data.available_days) if data.available_days else "Mon,Tue,Wed,Thu,Fri",
+        available_hours=data.available_hours or "09:00-17:00",
+        active=True,
+    )
+    db.add(doctor)
+    db.commit()
+    db.refresh(doctor)
+    return {"success": True, "doctor_id": doctor.id}
+
 @router.get("/doctors")
 def list_doctors(specialty: Optional[str] = None, affordable_only: bool = False, db: Session = Depends(get_db)):
     ensure_seed_doctors(db)
