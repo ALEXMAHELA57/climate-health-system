@@ -214,7 +214,7 @@ export default function UserProfile({ lang = 'en', onLangChange, onDistrictChang
               </label>
               <input id="profile-photo-input" type="file" accept="image/*" onChange={handlePhotoSelect} style={{ display: 'none' }} />
               {photoUrl && (
-                <button onClick={removePhoto} style={{ position: 'absolute', top: -4, left: -4, background: '#ef4444', borderRadius: '50%', width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', cursor: 'pointer', padding: 0 }}>
+                <button onClick={removePhoto} title={lang === 'sw' ? 'Ondoa picha' : 'Remove photo'} style={{ position: 'absolute', top: -4, left: -4, background: '#ef4444', borderRadius: '50%', width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', cursor: 'pointer', padding: 0, boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>
                   <X size={9} color="#fff" />
                 </button>
               )}
