@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Phone, Mail, ArrowLeft, User, Calendar, Users, HeartPulse } from 'lucide-react';
 import { API, validateName, validatePhone, validateEmail, validatePassword } from './constants';
 import { useTheme } from './ThemeContext';
+import PasswordInput from './PasswordInput';
 
 const GENDERS = [
   { id: 'male', en: 'Male', sw: 'Mwanaume' },
@@ -199,7 +200,7 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
       {step === 'email-entry' && (
         <>
           <input placeholder={t('Email', 'Barua pepe')} value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} />
-          <input type="password" placeholder={t('Password', 'Nenosiri')} value={password} onChange={e => setPassword(e.target.value)} style={inputStyle} />
+          <PasswordInput placeholder={t('Password', 'Nenosiri')} value={password} onChange={e => setPassword(e.target.value)} style={inputStyle} />
           {!!error && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{error}</p>}
           <button onClick={submitEmailRegister} disabled={loading} style={{ ...btnStyle, marginBottom: 8 }}>{loading ? t('Creating...', 'Inaunda...') : t('Create Account', 'Unda Akaunti')}</button>
           <button onClick={() => { setStep('email-login'); setError(''); }} style={{ background: 'none', border: 'none', color: theme.textMuted, fontSize: 13, cursor: 'pointer' }}>{t('Already have an account? Log in', 'Una akaunti tayari? Ingia')}</button>
@@ -209,7 +210,7 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
       {step === 'email-login' && (
         <>
           <input placeholder={t('Email', 'Barua pepe')} value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} />
-          <input type="password" placeholder={t('Password', 'Nenosiri')} value={password} onChange={e => setPassword(e.target.value)} style={inputStyle} />
+          <PasswordInput placeholder={t('Password', 'Nenosiri')} value={password} onChange={e => setPassword(e.target.value)} style={inputStyle} />
           {!!error && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{error}</p>}
           <button onClick={submitEmailLogin} disabled={loading} style={btnStyle}>{loading ? t('Logging in...', 'Inaingia...') : t('Log In', 'Ingia')}</button>
         </>

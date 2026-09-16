@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Store, Package, ShoppingBag, Wallet, LogOut, Plus, Trash2 } from 'lucide-react';
 import { API } from './constants';
+import PasswordInput from './PasswordInput';
 
 function authHeaders(token) {
   return token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
@@ -102,7 +103,7 @@ export default function VendorPortal() {
         </div>
         <input placeholder="Username" value={username} onChange={e => setUsername(e.target.value)}
           style={{ padding: 12, marginBottom: 10, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14 }} />
-        <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()}
+        <PasswordInput placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()}
           style={{ padding: 12, marginBottom: 10, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14 }} />
         {!!error && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{error}</p>}
         <button onClick={login} style={{ padding: 13, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>Log In</button>

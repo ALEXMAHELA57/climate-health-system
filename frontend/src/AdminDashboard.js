@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import PasswordInput from './PasswordInput';
 
 const API = 'https://climate-health-system-backend.onrender.com';
 
@@ -109,7 +110,7 @@ export default function AdminDashboard({ lang = 'en', onClose }) {
         <input value={username} onChange={e => setUsername(e.target.value)}
           placeholder={sw ? 'Jina la mtumiaji' : 'Username'}
           style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14, boxSizing: 'border-box', marginBottom: 8 }} />
-        <input type="password" value={pw} onChange={e => setPw(e.target.value)}
+        <PasswordInput value={pw} onChange={e => setPw(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && login()}
           placeholder={sw ? 'Nywila' : 'Password'}
           style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: `1px solid ${pwError ? '#ef4444' : '#e5e7eb'}`, fontSize: 14, boxSizing: 'border-box', marginBottom: 4 }} />
