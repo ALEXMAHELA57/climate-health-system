@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Stethoscope, Calendar, MessageCircle, Settings, LogOut } from 'lucide-react';
 import { API } from './constants';
 import Chat from './Chat';
+import PasswordInput from './PasswordInput';
 
 function authHeaders(token) {
   return token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
@@ -165,7 +166,7 @@ export default function DoctorPortal() {
         </div>
         <input placeholder="Username" value={username} onChange={e => setUsername(e.target.value)}
           style={{ padding: 12, marginBottom: 10, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14 }} />
-        <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()}
+        <PasswordInput placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()}
           style={{ padding: 12, marginBottom: 10, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14 }} />
         {!!error && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{error}</p>}
         <button onClick={login} style={{ padding: 13, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>Log In</button>
@@ -259,11 +260,11 @@ export default function DoctorPortal() {
 
           <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 14, marginBottom: 14 }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Change Password</div>
-            <input type="password" value={pwForm.current_password} onChange={e => setPwForm({ ...pwForm, current_password: e.target.value })} placeholder="Current password"
+            <PasswordInput value={pwForm.current_password} onChange={e => setPwForm({ ...pwForm, current_password: e.target.value })} placeholder="Current password"
               style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13 }} />
-            <input type="password" value={pwForm.new_password} onChange={e => setPwForm({ ...pwForm, new_password: e.target.value })} placeholder="New password"
+            <PasswordInput value={pwForm.new_password} onChange={e => setPwForm({ ...pwForm, new_password: e.target.value })} placeholder="New password"
               style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13 }} />
-            <input type="password" value={pwForm.confirm_password} onChange={e => setPwForm({ ...pwForm, confirm_password: e.target.value })} placeholder="Confirm new password"
+            <PasswordInput value={pwForm.confirm_password} onChange={e => setPwForm({ ...pwForm, confirm_password: e.target.value })} placeholder="Confirm new password"
               style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13 }} />
             {!!pwMsg && <p style={{ fontSize: 12, marginBottom: 8, color: pwMsg.startsWith('✓') ? '#166534' : '#ef4444', fontWeight: 600 }}>{pwMsg}</p>}
             <button onClick={changePassword} disabled={changingPw}
