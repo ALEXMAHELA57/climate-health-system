@@ -172,7 +172,7 @@ def update_status(booking_id: str, data: StatusIn, admin: Admin = Depends(get_cu
     return {"success": True}
 
 @router.post("/bookings/{booking_id}/result")
-def upload_result(booking_id: str, data: ResultIn, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
+async def upload_result(booking_id: str, data: ResultIn, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
     # Intended for lab staff/admin use.
     booking = db.query(LabBooking).filter(LabBooking.booking_id == booking_id).first()
     if not booking:
@@ -181,6 +181,19 @@ def upload_result(booking_id: str, data: ResultIn, admin: Admin = Depends(get_cu
     booking.status = "results_ready"
     booking.result_ready_at = datetime.utcnow()
     db.commit()
+
+    if booking.patient_phone:
+        try:
+            from sms import send_beem_sms, normalize_phone
+            test = db.query(LabTest).filter(LabTest.id == booking.test_id).first()
+            # Keep the message generic for sensitive tests (HIV/STI) - a named
+            # test in an SMS someone else glimpses could out a diagnosis.
+            test_name = "your test" if (test and test.sensitive) else (test.name if test else "your test")
+            msg = f"AfyaHewa: Your {test_name} result is ready. Open the app under Lab & Diagnostics > My Bookings to view it."
+            await send_beem_sms([{"recipient_id": "1", "dest_addr": normalize_phone(booking.patient_phone)}], msg[:160])
+        except Exception as e:
+            print(f"[lab] Could not notify patient of ready result: {e}")
+
     return {"success": True}
 
 # ── Lab self-service - login, own bookings, own tests/pricing ─────────────
@@ -253,7 +266,7 @@ def lab_update_status(booking_id: str, data: StatusIn, lab: Lab = Depends(get_cu
     return {"success": True}
 
 @router.post("/lab-portal/bookings/{booking_id}/result")
-def lab_upload_result(booking_id: str, data: ResultIn, lab: Lab = Depends(get_current_lab), db: Session = Depends(get_db)):
+async def lab_upload_result(booking_id: str, data: ResultIn, lab: Lab = Depends(get_current_lab), db: Session = Depends(get_db)):
     booking = db.query(LabBooking).filter(LabBooking.booking_id == booking_id, LabBooking.lab_id == lab.id).first()
     if not booking:
         return {"success": False, "error": "Booking not found"}
@@ -261,6 +274,19 @@ def lab_upload_result(booking_id: str, data: ResultIn, lab: Lab = Depends(get_cu
     booking.status = "results_ready"
     booking.result_ready_at = datetime.utcnow()
     db.commit()
+
+    if booking.patient_phone:
+        try:
+            from sms import send_beem_sms, normalize_phone
+            test = db.query(LabTest).filter(LabTest.id == booking.test_id).first()
+            # Keep the message generic for sensitive tests (HIV/STI) - a named
+            # test in an SMS someone else glimpses could out a diagnosis.
+            test_name = "your test" if (test and test.sensitive) else (test.name if test else "your test")
+            msg = f"AfyaHewa: Your {test_name} result is ready. Open the app under Lab & Diagnostics > My Bookings to view it."
+            await send_beem_sms([{"recipient_id": "1", "dest_addr": normalize_phone(booking.patient_phone)}], msg[:160])
+        except Exception as e:
+            print(f"[lab] Could not notify patient of ready result: {e}")
+
     return {"success": True}
 
 @router.get("/lab-portal/tests")
