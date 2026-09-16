@@ -110,6 +110,24 @@ class ResultIn(BaseModel):
 def list_categories():
     return {"categories": [{"id": k, **v} for k, v in CATEGORIES.items()]}
 
+class AdminLabIn(BaseModel):
+    name: str
+    address: Optional[str] = ""
+    phone: Optional[str] = ""
+    district: str
+
+@router.post("/admin/labs")
+def admin_create_lab(data: AdminLabIn, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
+    if not data.name.strip():
+        return {"success": False, "error": "Enter a lab name"}
+    if not data.district.strip():
+        return {"success": False, "error": "Enter a district"}
+    lab = Lab(name=data.name, address=data.address or "", phone=data.phone or "", district=data.district, active=True)
+    db.add(lab)
+    db.commit()
+    db.refresh(lab)
+    return {"success": True, "lab_id": lab.id}
+
 @router.get("/labs")
 def list_labs(district: Optional[str] = None, db: Session = Depends(get_db)):
     ensure_seed(db)

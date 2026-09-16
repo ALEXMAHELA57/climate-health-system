@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import PasswordInput from './PasswordInput';
+import { DISTRICTS } from './constants';
 
 const API = 'https://climate-health-system-backend.onrender.com';
 
@@ -1120,9 +1121,35 @@ function LabPanel({ sw, API }) {
   const [labPassword, setLabPassword] = useState('');
   const [loginMsg, setLoginMsg] = useState('');
 
+  const [newLab, setNewLab] = useState({ name: '', address: '', phone: '', district: '' });
+  const [addLabMsg, setAddLabMsg] = useState('');
+  const [addingLab, setAddingLab] = useState(false);
+
   useEffect(() => {
-    fetch(`${API}/api/lab/labs`).then(r => r.json()).then(d => setLabs(d.labs || [])).catch(() => {});
+    loadLabs();
   }, [API]);
+
+  function loadLabs() {
+    fetch(`${API}/api/lab/labs`).then(r => r.json()).then(d => setLabs(d.labs || [])).catch(() => {});
+  }
+
+  async function addLab() {
+    if (!newLab.name.trim() || !newLab.district) {
+      setAddLabMsg(sw ? 'Jaza jina na mkoa' : 'Fill in name and district');
+      return;
+    }
+    setAddingLab(true); setAddLabMsg('');
+    try {
+      const res = await fetch(`${API}/api/lab/admin/labs`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(newLab) });
+      const data = await res.json();
+      if (data.success) {
+        setAddLabMsg(sw ? '✓ Maabara imeongezwa' : '✓ Lab added');
+        setNewLab({ name: '', address: '', phone: '', district: '' });
+        loadLabs();
+      } else setAddLabMsg(data.error || (sw ? 'Imeshindwa' : 'Failed'));
+    } catch { setAddLabMsg(sw ? 'Hitilafu' : 'Connection error'); }
+    setAddingLab(false);
+  }
 
   async function setLabLogin() {
     if (!loginLabId || !labUsername.trim() || !labPassword.trim()) return;
@@ -1154,6 +1181,21 @@ function LabPanel({ sw, API }) {
 
   return (
     <div>
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{sw ? 'Ongeza Maabara' : 'Add Lab'}</div>
+        <input value={newLab.name} onChange={e => setNewLab({ ...newLab, name: e.target.value })} placeholder={sw ? 'Jina la maabara' : 'Lab name'} style={inputSt} />
+        <input value={newLab.address} onChange={e => setNewLab({ ...newLab, address: e.target.value })} placeholder={sw ? 'Anwani (si lazima)' : 'Address (optional)'} style={inputSt} />
+        <input value={newLab.phone} onChange={e => setNewLab({ ...newLab, phone: e.target.value })} placeholder={sw ? 'Nambari ya simu (si lazima)' : 'Phone (optional)'} style={inputSt} />
+        <select value={newLab.district} onChange={e => setNewLab({ ...newLab, district: e.target.value })} style={inputSt}>
+          <option value="">{sw ? 'Chagua mkoa' : 'Select district'}</option>
+          {DISTRICTS.map(d => <option key={d} value={d}>{d}</option>)}
+        </select>
+        {!!addLabMsg && <div style={{ fontSize: 12, color: addLabMsg.startsWith('✓') ? '#166534' : '#ef4444', marginBottom: 8 }}>{addLabMsg}</div>}
+        <button onClick={addLab} disabled={addingLab} style={{ width: '100%', padding: 10, background: addingLab ? '#93c5fd' : '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: addingLab ? 'default' : 'pointer' }}>
+          {addingLab ? (sw ? 'Inaongeza...' : 'Adding...') : (sw ? 'Ongeza Maabara' : 'Add Lab')}
+        </button>
+      </div>
+
       <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 14, marginBottom: 14 }}>
         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{sw ? 'Weka Ingizo la Maabara' : 'Set Lab Login'}</div>
         <p style={{ fontSize: 11, color: '#9ca3af', marginBottom: 10 }}>{sw ? 'Kila maabara husimamia miadi na bei zao wenyewe' : 'Each lab manages their own bookings and pricing'}</p>
