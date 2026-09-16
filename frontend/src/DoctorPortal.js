@@ -251,7 +251,6 @@ export default function DoctorPortal() {
 
           <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 14, marginBottom: 14 }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>My Contact Phone</div>
-            <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 10 }}>Only visible to admin - never shown to patients.</p>
             <input value={contactPhone} onChange={e => setContactPhone(e.target.value)} placeholder="+255..."
               style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13 }} />
             {!!contactMsg && <p style={{ fontSize: 12, marginBottom: 8, color: contactMsg.startsWith('✓') ? '#166534' : '#ef4444', fontWeight: 600 }}>{contactMsg}</p>}
