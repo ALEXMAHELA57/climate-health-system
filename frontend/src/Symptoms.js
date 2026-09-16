@@ -151,7 +151,7 @@ function mentionsDoctorWithoutButton(text) {
   return /\b(doctor|specialist|daktari|mtaalamu)\b/i.test(text);
 }
 
-function renderMessage(text, setPage, lang, setCareView, topic, setCareFilter) {
+function renderMessage(text, setPage, lang, setCareView, topic, setCareFilter, conversationText) {
   const patterns = ['[OPEN CLINICS TAB]', '[FUNGUA KLINIKI]'];
   let parts = [text];
   let foundButton = false;
@@ -187,7 +187,7 @@ function renderMessage(text, setPage, lang, setCareView, topic, setCareFilter) {
       return split.reduce((acc, seg, i) => {
         if (i > 0) acc.push(
           <button key={`doc-${pattern}-${i}`}
-            onClick={() => { setCareFilter && setCareFilter(getTopicSpecialty(topic)); setCareView && setCareView('expert'); setPage && setPage('care'); }}
+            onClick={() => { setCareFilter && setCareFilter(getTopicSpecialty(`${topic || ''} ${conversationText || text}`)); setCareView && setCareView('expert'); setPage && setPage('care'); }}
             style={{ display:'inline-flex', alignItems:'center', gap:4, background:'#16a34a', color:'#fff', border:'none', borderRadius:8, padding:'5px 12px', fontSize:13, fontWeight:600, cursor:'pointer', margin:'4px 0' }}>
             👨‍⚕️ {pattern === '[FUNGUA MADAKTARI]' ? 'Ona Madaktari' : 'Find a Doctor'}
           </button>
@@ -215,7 +215,7 @@ function renderMessage(text, setPage, lang, setCareView, topic, setCareFilter) {
   if (!foundDoctorButton && mentionsDoctorWithoutButton(text)) {
     parts.push(
       <div key="doctor-fallback-btn" style={{ marginTop: 8 }}>
-        <button onClick={() => { setCareFilter && setCareFilter(getTopicSpecialty(topic)); setCareView && setCareView('expert'); setPage && setPage('care'); }}
+        <button onClick={() => { setCareFilter && setCareFilter(getTopicSpecialty(`${topic || ''} ${conversationText || text}`)); setCareView && setCareView('expert'); setPage && setPage('care'); }}
           style={{ display:'inline-flex', alignItems:'center', gap:4, background:'#16a34a', color:'#fff', border:'none', borderRadius:8, padding:'5px 12px', fontSize:13, fontWeight:600, cursor:'pointer' }}>
           👨‍⚕️ {lang === 'sw' ? 'Ona Madaktari' : 'Find a Doctor'}
         </button>
@@ -487,7 +487,7 @@ export default function Symptoms({ t, lang, district, setPage, topic, setCareVie
                 fontSize:14, lineHeight:1.55,
                 borderBottomRightRadius:m.role==='user'?4:16,
                 borderBottomLeftRadius:m.role==='assistant'?4:16 }}>
-                {m.role==='assistant' ? renderMessage(m.content, setPage, lang, setCareView, topic, setCareFilter) : m.content}
+                {m.role==='assistant' ? renderMessage(m.content, setPage, lang, setCareView, topic, setCareFilter, messages.slice(0, i + 1).map(msg => msg.content).join(' ')) : m.content}
               </div>
               {/* Retry button for failed messages */}
               {m._isError && m._retryMessages && (
