@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, X } from 'lucide-react';
+import { Camera } from 'lucide-react';
 
 const API = 'https://climate-health-system-backend.onrender.com';
 
@@ -134,15 +134,6 @@ export default function UserProfile({ lang = 'en', onLangChange, onDistrictChang
     e.target.value = '';
   }
 
-  async function removePhoto() {
-    try {
-      await fetch(`${API}/api/auth/photo`, { method: 'DELETE', headers: authHeaders() });
-      setPhotoUrl(null);
-      const stored = JSON.parse(localStorage.getItem('afya_user') || '{}');
-      localStorage.setItem('afya_user', JSON.stringify({ ...stored, photo_url: null }));
-    } catch { /* silent */ }
-  }
-
   function validatePhone(p) {
     return /^(\+255|0)[67]\d{8}$/.test(p.replace(/\s/g, ''));
   }
@@ -213,11 +204,6 @@ export default function UserProfile({ lang = 'en', onLangChange, onDistrictChang
                 </div>
               </label>
               <input id="profile-photo-input" type="file" accept="image/*" onChange={handlePhotoSelect} style={{ display: 'none' }} />
-              {photoUrl && (
-                <button onClick={removePhoto} title={lang === 'sw' ? 'Ondoa picha' : 'Remove photo'} style={{ position: 'absolute', top: -4, left: -4, background: '#ef4444', borderRadius: '50%', width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', cursor: 'pointer', padding: 0, boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>
-                  <X size={9} color="#fff" />
-                </button>
-              )}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>{user.name || (lang === 'sw' ? 'Mtumiaji' : 'User')}</div>
