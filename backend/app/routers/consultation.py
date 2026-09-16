@@ -6,8 +6,9 @@ from datetime import datetime, timedelta
 import random
 import string
 import json
-from database import get_db, Doctor, Appointment, DoctorRating, FeeNegotiation, User, FamilyProfile
+from database import get_db, Doctor, Appointment, DoctorRating, FeeNegotiation, User, FamilyProfile, Admin
 from app.routers.auth import get_current_user
+from app.routers.admin_auth import get_current_admin
 import azampay
 
 router = APIRouter()
