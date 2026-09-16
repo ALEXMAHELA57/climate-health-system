@@ -54,19 +54,28 @@ function getTopicTags(topic, sw) {
 // Maps the current Afya topic (a domain display name, e.g. "Mental Health")
 // to a real specialty ID matching the doctor directory - so "Find a Doctor"
 // always routes to an actual, correctly-filtered list, never a guess.
+// Word-boundary-safe check - avoids false positives like "meno" (Swahili for
+// teeth) containing the substring "men" and wrongly matching male_reproductive.
+function hasWord(text, word) {
+  return new RegExp(`\\b${word}\\b`, 'i').test(text);
+}
+
 function getTopicSpecialty(topic) {
   if (!topic) return 'general';
-  const t = topic.toLowerCase();
-  if (t.includes('mental') || t.includes('akili')) return 'mental_health';
-  if (t.includes('cycle') || t.includes('mzunguko') || t.includes('hedhi')) return 'menstrual_cycle';
-  if ((t.includes('men') && !t.includes('women')) || t.includes('mwanaume')) return 'male_reproductive';
-  if (t.includes('women') || t.includes('female') || t.includes('mwanamke')) return 'female_reproductive';
-  if (t.includes('maternal') || t.includes('mama na mtoto') || t.includes('child')) return 'maternal_health';
-  if (t.includes('dental') || t.includes('meno')) return 'dental';
-  if (t.includes('cardio') || t.includes('moyo') || t.includes('heart')) return 'cardiology';
-  if (t.includes('skin') || t.includes('dermat') || t.includes('ngozi')) return 'dermatology';
-  if (t.includes('nutrition') || t.includes('lishe')) return 'nutrition';
-  if (t.includes('palliative') || t.includes('faraja')) return 'palliative_care';
+  const t = topic;
+  if (hasWord(t, 'mental') || hasWord(t, 'akili') || hasWord(t, 'anxiety') || hasWord(t, 'anxious') || hasWord(t, 'depression') || hasWord(t, 'depressed') || hasWord(t, 'wasiwasi')) return 'mental_health';
+  if (hasWord(t, 'period') || hasWord(t, 'periods') || hasWord(t, 'cycle') || hasWord(t, 'mzunguko') || hasWord(t, 'hedhi')) return 'menstrual_cycle';
+  if (hasWord(t, 'pregnant') || hasWord(t, 'pregnancy') || hasWord(t, 'maternal') || hasWord(t, 'mimba') || hasWord(t, 'mjamzito')) return 'maternal_health';
+  if (hasWord(t, 'wife') || hasWord(t, 'girlfriend') || hasWord(t, 'mke') || hasWord(t, 'mwanamke') ||
+      ((hasWord(t, 'women') || hasWord(t, 'female')) && !hasWord(t, 'men') && !hasWord(t, 'male'))) return 'female_reproductive';
+  if (hasWord(t, 'husband') || hasWord(t, 'boyfriend') || hasWord(t, 'mume') || hasWord(t, 'mwanaume') ||
+      ((hasWord(t, 'men') || hasWord(t, 'male')) && !hasWord(t, 'women') && !hasWord(t, 'female'))) return 'male_reproductive';
+  if (hasWord(t, 'reproductive') || hasWord(t, 'uzazi') || hasWord(t, 'sexual')) return 'female_reproductive'; // ambiguous gender signal - more common intake
+  if (hasWord(t, 'dental') || hasWord(t, 'dentist') || hasWord(t, 'tooth') || hasWord(t, 'teeth') || hasWord(t, 'meno')) return 'dental';
+  if (hasWord(t, 'cardio') || hasWord(t, 'cardiologist') || hasWord(t, 'moyo') || hasWord(t, 'heart')) return 'cardiology';
+  if (hasWord(t, 'skin') || hasWord(t, 'dermat') || hasWord(t, 'ngozi')) return 'dermatology';
+  if (hasWord(t, 'nutrition') || hasWord(t, 'nutritionist') || hasWord(t, 'lishe') || hasWord(t, 'diet')) return 'nutrition';
+  if (hasWord(t, 'palliative') || hasWord(t, 'faraja') || hasWord(t, 'hospice')) return 'palliative_care';
   return 'general';
 }
 
