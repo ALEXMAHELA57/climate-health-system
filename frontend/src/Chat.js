@@ -32,10 +32,16 @@ export default function Chat({ lang, appointmentId, token, senderType }) {
     } catch { /* silent */ }
   }
 
+  const [connectionFailed, setConnectionFailed] = useState(false);
+
   function connect() {
     const ws = new WebSocket(`${wsUrl()}/api/chat/ws/${appointmentId}?token=${encodeURIComponent(token)}`);
-    ws.onopen = () => setConnected(true);
-    ws.onclose = () => setConnected(false);
+    let didOpen = false;
+    ws.onopen = () => { didOpen = true; setConnected(true); setConnectionFailed(false); };
+    ws.onclose = () => {
+      setConnected(false);
+      if (!didOpen) setConnectionFailed(true); // never actually connected - a real failure, not just a drop
+    };
     ws.onmessage = (evt) => {
       const msg = JSON.parse(evt.data);
       setMessages(prev => [...prev, msg]);
@@ -51,8 +57,17 @@ export default function Chat({ lang, appointmentId, token, senderType }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '60vh', border: `1px solid ${theme.border}`, borderRadius: 12, overflow: 'hidden' }}>
-      <div style={{ padding: '8px 12px', background: theme.card, borderBottom: `1px solid ${theme.border}`, fontSize: 11, color: connected ? '#16a34a' : '#d97706' }}>
-        {connected ? (sw ? '● Mtandaoni' : '● Connected') : (sw ? '○ Inaunganisha...' : '○ Connecting...')}
+      <div style={{ padding: '8px 12px', background: theme.card, borderBottom: `1px solid ${theme.border}`, fontSize: 11, color: connected ? '#16a34a' : connectionFailed ? '#ef4444' : '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span>
+          {connected ? (sw ? '● Mtandaoni' : '● Connected')
+            : connectionFailed ? (sw ? '✕ Imeshindwa kuunganisha' : '✕ Couldn\'t connect')
+            : (sw ? '○ Inaunganisha...' : '○ Connecting...')}
+        </span>
+        {connectionFailed && (
+          <button onClick={() => { setConnectionFailed(false); connect(); }} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+            {sw ? 'Jaribu Tena' : 'Retry'}
+          </button>
+        )}
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: 12, background: theme.bg }}>
         {messages.length === 0 && <p style={{ textAlign: 'center', color: theme.textFaint, fontSize: 12, marginTop: 20 }}>{sw ? 'Hakuna ujumbe bado' : 'No messages yet'}</p>}

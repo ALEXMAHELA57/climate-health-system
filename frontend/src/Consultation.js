@@ -104,7 +104,9 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
     } catch { /* silent */ }
   }
 
+  const [payingId, setPayingId] = useState(null);
   async function payNow(appointmentId) {
+    setError(''); setPayingId(appointmentId);
     try {
       const res = await fetch(`${API}/api/consultation/appointments/${appointmentId}/pay`, {
         method: 'POST', headers: authHeaders(), body: JSON.stringify({ payment_provider: 'Mpesa' }),
@@ -113,6 +115,7 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
       if (data.success) loadMyAppointments();
       else setError(data.error || (sw ? 'Malipo yameshindwa' : 'Payment failed'));
     } catch { setError(sw ? 'Hitilafu ya muunganisho' : 'Connection error'); }
+    setPayingId(null);
   }
 
   async function submitRating(appointmentId) {
@@ -576,6 +579,12 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
         <div>
           {loading && <div style={{ textAlign: 'center', padding: 20, color: theme.textFaint, fontSize: 13 }}>{sw ? 'Inapakia...' : 'Loading...'}</div>}
 
+          {!!error && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 12, color: '#991b1b' }}>
+              {error}
+            </div>
+          )}
+
           {negotiations.filter(n => n.status === 'countered').length > 0 && (
             <div style={{ marginBottom: 16 }}>
               <p style={{ fontSize: 12, fontWeight: 700, color: theme.textMuted, marginBottom: 8 }}>{sw ? 'OFA ZA BEI' : 'FEE COUNTER-OFFERS'}</p>
@@ -626,9 +635,9 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
                   </button>
                 )}
                 {a.status === 'confirmed' && a.payment_status === 'unpaid' && (
-                  <button onClick={() => payNow(a.appointment_id)}
-                    style={{ width: '100%', marginTop: 8, padding: 10, background: '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                    {sw ? 'Lipa Sasa' : 'Pay Now'}
+                  <button onClick={() => payNow(a.appointment_id)} disabled={payingId === a.appointment_id}
+                    style={{ width: '100%', marginTop: 8, padding: 10, background: payingId === a.appointment_id ? '#86efac' : '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: payingId === a.appointment_id ? 'default' : 'pointer' }}>
+                    {payingId === a.appointment_id ? (sw ? 'Inashughulikia...' : 'Processing...') : (sw ? 'Lipa Sasa' : 'Pay Now')}
                   </button>
                 )}
                 {a.status === 'completed' && !ratedAppointments[a.appointment_id] && (

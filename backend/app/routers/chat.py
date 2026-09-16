@@ -28,6 +28,12 @@ def verify_access(appointment_id: str, sender_type: str, sender_id: int, db: Ses
         return False
     if sender_type == "doctor":
         return appt.doctor_id == sender_id
+    # Patient: primary check is account ownership - correctly covers
+    # appointments booked for a family member and patients with no phone
+    # on file (e.g. email signups). Phone matching is a fallback only for
+    # legacy appointments booked before owner_user_id existed.
+    if appt.owner_user_id is not None:
+        return appt.owner_user_id == sender_id
     user = db.query(User).filter(User.id == sender_id).first()
     return bool(user and user.phone and user.phone == appt.patient_phone)
 
