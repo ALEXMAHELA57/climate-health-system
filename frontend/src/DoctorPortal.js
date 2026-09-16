@@ -63,13 +63,23 @@ export default function DoctorPortal() {
     } catch { /* silent */ }
   }
 
+  const [submittingPrice, setSubmittingPrice] = useState(false);
+  const [priceMsg, setPriceMsg] = useState('');
   async function submitPriceChange() {
-    if (!proposedPrices.trim()) return;
+    if (!proposedPrices.trim() || submittingPrice) return;
+    setSubmittingPrice(true); setPriceMsg('');
     try {
-      await fetch(`${API}/api/doctor/change-requests`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ field: 'prices', proposed_value: proposedPrices }) });
-      setProposedPrices('');
-      loadChangeRequests();
-    } catch { /* silent */ }
+      const res = await fetch(`${API}/api/doctor/change-requests`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ field: 'prices', proposed_value: proposedPrices }) });
+      const data = await res.json();
+      if (data.success) {
+        setPriceMsg('✓ Submitted - pending admin review');
+        setProposedPrices('');
+        loadChangeRequests();
+      } else {
+        setPriceMsg(data.error || 'Something went wrong - please try again');
+      }
+    } catch { setPriceMsg('Connection error - please try again'); }
+    setSubmittingPrice(false);
   }
 
   useEffect(() => { if (view === 'settings') { loadChangeRequests(); loadNegotiations(); loadAvailability(); } }, [view]);
@@ -205,7 +215,11 @@ export default function DoctorPortal() {
             <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 8 }}>Enter as JSON, e.g. {`{"chat": 6000, "voice": 9000}`}. Sits pending until admin approves.</p>
             <input value={proposedPrices} onChange={e => setProposedPrices(e.target.value)} placeholder='{"chat": 6000}'
               style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13 }} />
-            <button onClick={submitPriceChange} style={{ width: '100%', padding: 10, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Submit for Approval</button>
+            {!!priceMsg && <p style={{ fontSize: 12, marginBottom: 8, color: priceMsg.startsWith('✓') ? '#166534' : '#ef4444', fontWeight: 600 }}>{priceMsg}</p>}
+            <button onClick={submitPriceChange} disabled={submittingPrice}
+              style={{ width: '100%', padding: 10, background: submittingPrice ? '#93c5fd' : '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: submittingPrice ? 'default' : 'pointer' }}>
+              {submittingPrice ? 'Submitting...' : 'Submit for Approval'}
+            </button>
           </div>
 
           <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 8 }}>FEE NEGOTIATION REQUESTS</div>
