@@ -1,16 +1,40 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timedelta
 import random
 import string
+import jwt
+from passlib.context import CryptContext
 
 from database import get_db, User, Lab, LabTest, LabBooking, FamilyProfile, Admin
-from app.routers.auth import get_current_user
+from app.routers.auth import get_current_user, JWT_SECRET, JWT_ALGO
 from app.routers.admin_auth import get_current_admin
 
 router = APIRouter()
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def create_lab_jwt(lab_id: int) -> str:
+    payload = {"lab_id": lab_id, "type": "lab", "exp": datetime.utcnow() + timedelta(days=90), "iat": datetime.utcnow()}
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
+
+def get_current_lab(authorization: str = Header(None), db: Session = Depends(get_db)) -> Lab:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Lab login required")
+    token = authorization.split(" ", 1)[1]
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Session expired, please log in again")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid session")
+    if payload.get("type") != "lab":
+        raise HTTPException(status_code=401, detail="Not a lab session")
+    lab = db.query(Lab).filter(Lab.id == payload["lab_id"], Lab.active == True).first()
+    if not lab:
+        raise HTTPException(status_code=401, detail="Lab account not found")
+    return lab
 
 CATEGORIES = {
     "blood":         {"en": "Blood Tests",        "sw": "Vipimo vya Damu"},
@@ -156,5 +180,110 @@ def upload_result(booking_id: str, data: ResultIn, admin: Admin = Depends(get_cu
     booking.result_summary = data.result_summary
     booking.status = "results_ready"
     booking.result_ready_at = datetime.utcnow()
+    db.commit()
+    return {"success": True}
+
+# ── Lab self-service - login, own bookings, own tests/pricing ─────────────
+# Labs don't self-register - admin creates their login, then they manage
+# their own bookings and test pricing. Same pattern as Doctor/Vendor Portal.
+
+class LabLoginIn(BaseModel):
+    username: str
+    password: str
+
+class AdminLabLoginIn(BaseModel):
+    username: str
+    password: str
+
+class LabTestIn(BaseModel):
+    name: str
+    category: str
+    price: float
+    sensitive: bool = False
+
+class LabTestUpdateIn(BaseModel):
+    name: Optional[str] = None
+    price: Optional[float] = None
+    active: Optional[bool] = None
+
+@router.post("/admin/labs/{lab_id}/set-login")
+def admin_set_lab_login(lab_id: int, data: AdminLabLoginIn, admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
+    lab = db.query(Lab).filter(Lab.id == lab_id).first()
+    if not lab:
+        return {"success": False, "error": "Lab not found"}
+    existing = db.query(Lab).filter(Lab.login_username == data.username, Lab.id != lab_id).first()
+    if existing:
+        return {"success": False, "error": "That username is already taken"}
+    lab.login_username = data.username
+    lab.password_hash = pwd_context.hash(data.password)
+    db.commit()
+    return {"success": True}
+
+@router.post("/lab-portal/login")
+def lab_login(data: LabLoginIn, db: Session = Depends(get_db)):
+    lab = db.query(Lab).filter(Lab.login_username == data.username, Lab.active == True).first()
+    if not lab or not lab.password_hash or not pwd_context.verify(data.password, lab.password_hash):
+        return {"success": False, "error": "Incorrect username or password"}
+    return {"success": True, "token": create_lab_jwt(lab.id), "lab": {"id": lab.id, "name": lab.name}}
+
+@router.get("/lab-portal/me")
+def lab_me(lab: Lab = Depends(get_current_lab)):
+    return {"lab": {"id": lab.id, "name": lab.name, "address": lab.address, "phone": lab.phone, "district": lab.district}}
+
+@router.get("/lab-portal/bookings")
+def lab_bookings(lab: Lab = Depends(get_current_lab), db: Session = Depends(get_db)):
+    bookings = db.query(LabBooking).filter(LabBooking.lab_id == lab.id).order_by(LabBooking.id.desc()).all()
+    result = []
+    for b in bookings:
+        test = db.query(LabTest).filter(LabTest.id == b.test_id).first()
+        result.append({
+            "booking_id": b.booking_id, "test_name": test.name if test else "Unknown",
+            "patient_name": b.patient_name, "patient_phone": b.patient_phone,
+            "scheduled_date": b.scheduled_date, "status": b.status, "result_summary": b.result_summary,
+        })
+    return {"bookings": result}
+
+@router.patch("/lab-portal/bookings/{booking_id}/status")
+def lab_update_status(booking_id: str, data: StatusIn, lab: Lab = Depends(get_current_lab), db: Session = Depends(get_db)):
+    booking = db.query(LabBooking).filter(LabBooking.booking_id == booking_id, LabBooking.lab_id == lab.id).first()
+    if not booking:
+        return {"success": False, "error": "Booking not found"}
+    booking.status = data.status
+    db.commit()
+    return {"success": True}
+
+@router.post("/lab-portal/bookings/{booking_id}/result")
+def lab_upload_result(booking_id: str, data: ResultIn, lab: Lab = Depends(get_current_lab), db: Session = Depends(get_db)):
+    booking = db.query(LabBooking).filter(LabBooking.booking_id == booking_id, LabBooking.lab_id == lab.id).first()
+    if not booking:
+        return {"success": False, "error": "Booking not found"}
+    booking.result_summary = data.result_summary
+    booking.status = "results_ready"
+    booking.result_ready_at = datetime.utcnow()
+    db.commit()
+    return {"success": True}
+
+@router.get("/lab-portal/tests")
+def lab_tests(lab: Lab = Depends(get_current_lab), db: Session = Depends(get_db)):
+    tests = db.query(LabTest).filter(LabTest.lab_id == lab.id).all()
+    return {"tests": [{"id": t.id, "name": t.name, "category": t.category, "price": t.price, "active": t.active, "sensitive": t.sensitive} for t in tests]}
+
+@router.post("/lab-portal/tests")
+def lab_add_test(data: LabTestIn, lab: Lab = Depends(get_current_lab), db: Session = Depends(get_db)):
+    if data.category not in CATEGORIES:
+        return {"success": False, "error": "Invalid category"}
+    test = LabTest(lab_id=lab.id, active=True, **data.dict())
+    db.add(test)
+    db.commit()
+    db.refresh(test)
+    return {"success": True, "test_id": test.id}
+
+@router.patch("/lab-portal/tests/{test_id}")
+def lab_update_test(test_id: int, data: LabTestUpdateIn, lab: Lab = Depends(get_current_lab), db: Session = Depends(get_db)):
+    test = db.query(LabTest).filter(LabTest.id == test_id, LabTest.lab_id == lab.id).first()
+    if not test:
+        return {"success": False, "error": "Test not found"}
+    for field, value in data.dict(exclude_unset=True).items():
+        setattr(test, field, value)
     db.commit()
     return {"success": True}

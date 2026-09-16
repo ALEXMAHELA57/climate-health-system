@@ -1046,6 +1046,28 @@ function LabPanel({ sw, API }) {
   const [bookingId, setBookingId] = useState('');
   const [resultSummary, setResultSummary] = useState('');
   const [msg, setMsg] = useState('');
+  const [labs, setLabs] = useState([]);
+  const [loginLabId, setLoginLabId] = useState('');
+  const [labUsername, setLabUsername] = useState('');
+  const [labPassword, setLabPassword] = useState('');
+  const [loginMsg, setLoginMsg] = useState('');
+
+  useEffect(() => {
+    fetch(`${API}/api/lab/labs`).then(r => r.json()).then(d => setLabs(d.labs || [])).catch(() => {});
+  }, [API]);
+
+  async function setLabLogin() {
+    if (!loginLabId || !labUsername.trim() || !labPassword.trim()) return;
+    setLoginMsg('');
+    try {
+      const res = await fetch(`${API}/api/lab/admin/labs/${loginLabId}/set-login`, {
+        method: 'POST', headers: authHeaders(), body: JSON.stringify({ username: labUsername, password: labPassword }),
+      });
+      const data = await res.json();
+      setLoginMsg(data.success ? (sw ? '✓ Imefanikiwa' : '✓ Login set successfully') : (data.error || 'Failed'));
+      if (data.success) { setLabUsername(''); setLabPassword(''); }
+    } catch { setLoginMsg(sw ? 'Hitilafu' : 'Connection error'); }
+  }
 
   async function submit() {
     if (!bookingId.trim() || !resultSummary.trim()) return;
@@ -1063,14 +1085,31 @@ function LabPanel({ sw, API }) {
   const inputSt = { width: '100%', padding: 9, marginBottom: 8, borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13, boxSizing: 'border-box' };
 
   return (
-    <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 14 }}>
-      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{sw ? 'Pakia Matokeo ya Kipimo' : 'Upload Lab Result'}</div>
-      <input value={bookingId} onChange={e => setBookingId(e.target.value)} placeholder={sw ? 'Namba ya Miadi (mfano LAB...)' : 'Booking ID (e.g. LAB...)'} style={inputSt} />
-      <textarea value={resultSummary} onChange={e => setResultSummary(e.target.value)} placeholder={sw ? 'Muhtasari wa matokeo' : 'Result summary'} style={{ ...inputSt, minHeight: 80 }} />
-      {!!msg && <div style={{ fontSize: 12, color: msg.startsWith('✓') ? '#166534' : '#ef4444', marginBottom: 8 }}>{msg}</div>}
-      <button onClick={submit} style={{ width: '100%', padding: 10, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-        {sw ? 'Pakia' : 'Upload Result'}
-      </button>
+    <div>
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{sw ? 'Weka Ingizo la Maabara' : 'Set Lab Login'}</div>
+        <p style={{ fontSize: 11, color: '#9ca3af', marginBottom: 10 }}>{sw ? 'Kila maabara husimamia miadi na bei zao wenyewe' : 'Each lab manages their own bookings and pricing'}</p>
+        <select value={loginLabId} onChange={e => setLoginLabId(e.target.value)} style={inputSt}>
+          <option value="">{sw ? 'Chagua maabara' : 'Select a lab'}</option>
+          {labs.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+        </select>
+        <input value={labUsername} onChange={e => setLabUsername(e.target.value)} placeholder={sw ? 'Jina la mtumiaji' : 'Username'} style={inputSt} />
+        <input value={labPassword} onChange={e => setLabPassword(e.target.value)} placeholder={sw ? 'Nywila' : 'Password'} style={inputSt} />
+        {!!loginMsg && <div style={{ fontSize: 12, color: loginMsg.startsWith('✓') ? '#166534' : '#ef4444', marginBottom: 8 }}>{loginMsg}</div>}
+        <button onClick={setLabLogin} style={{ width: '100%', padding: 10, background: '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          {sw ? 'Hifadhi' : 'Save Login'}
+        </button>
+      </div>
+
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{sw ? 'Pakia Matokeo ya Kipimo' : 'Upload Lab Result'}</div>
+        <input value={bookingId} onChange={e => setBookingId(e.target.value)} placeholder={sw ? 'Namba ya Miadi (mfano LAB...)' : 'Booking ID (e.g. LAB...)'} style={inputSt} />
+        <textarea value={resultSummary} onChange={e => setResultSummary(e.target.value)} placeholder={sw ? 'Muhtasari wa matokeo' : 'Result summary'} style={{ ...inputSt, minHeight: 80 }} />
+        {!!msg && <div style={{ fontSize: 12, color: msg.startsWith('✓') ? '#166534' : '#ef4444', marginBottom: 8 }}>{msg}</div>}
+        <button onClick={submit} style={{ width: '100%', padding: 10, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          {sw ? 'Pakia' : 'Upload Result'}
+        </button>
+      </div>
     </div>
   );
 }

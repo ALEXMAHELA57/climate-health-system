@@ -22,6 +22,7 @@ const MyHealth = lazy(() => import('./MyHealth'));
 const LabDiagnostics = lazy(() => import('./LabDiagnostics'));
 const DoctorPortal = lazy(() => import('./DoctorPortal'));
 const VendorPortal = lazy(() => import('./VendorPortal'));
+const LabPortal = lazy(() => import('./LabPortal'));
 const HealthShop = lazy(() => import('./HealthShop'));
 const Consultation = lazy(() => import('./Consultation'));
 const MedicineSchedule = lazy(() => import('./MedicineSchedule'));
@@ -78,6 +79,7 @@ function AppShell({ startAtEmailLogin }) {
   const [showAdmin, setShowAdmin] = useState(()=>window.location.hash==='#admin');
   const [showDoctorPortal, setShowDoctorPortal] = useState(()=>window.location.hash==='#doctor');
   const [showVendorPortal, setShowVendorPortal] = useState(()=>window.location.hash==='#vendor');
+  const [showLabPortal, setShowLabPortal] = useState(()=>window.location.hash==='#lab-portal');
   const [showOnboarding, setShowOnboarding] = useState(()=>!localStorage.getItem('afya_onboarded'));
   const [user, setUser] = useState(()=>{
     const saved = localStorage.getItem('afya_user');
@@ -98,7 +100,7 @@ function AppShell({ startAtEmailLogin }) {
   const t = T[lang] || T.en;
 
   useEffect(()=>{
-    function onHash(){ setShowAdmin(window.location.hash==='#admin'); setShowDoctorPortal(window.location.hash==='#doctor'); setShowVendorPortal(window.location.hash==='#vendor'); }
+    function onHash(){ setShowAdmin(window.location.hash==='#admin'); setShowDoctorPortal(window.location.hash==='#doctor'); setShowVendorPortal(window.location.hash==='#vendor'); setShowLabPortal(window.location.hash==='#lab-portal'); }
     window.addEventListener('hashchange', onHash);
     fetch(`${API}/`).catch(()=>{});
     const keepAlive = setInterval(()=>{
@@ -135,6 +137,12 @@ function AppShell({ startAtEmailLogin }) {
   if (showVendorPortal) return (
     <Suspense fallback={<Loader />}>
       <VendorPortal />
+    </Suspense>
+  );
+
+  if (showLabPortal) return (
+    <Suspense fallback={<Loader />}>
+      <LabPortal />
     </Suspense>
   );
 

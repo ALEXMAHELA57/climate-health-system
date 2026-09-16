@@ -357,15 +357,18 @@ class MenstrualSettings(Base):
 class Lab(Base):
     """A partner laboratory offering diagnostic tests. Placeholder
     entries until real partner labs are onboarded - same caution as
-    the placeholder doctors."""
+    the placeholder doctors. Labs don't self-register - admin creates
+    their login, same pattern as doctors and vendors."""
     __tablename__ = "labs"
-    id           = Column(Integer, primary_key=True, index=True)
-    name         = Column(String(200))
-    address      = Column(String(300), default="")
-    phone        = Column(String(20), default="")
-    district     = Column(String(100), default="")
-    active       = Column(Boolean, default=True)
-    created_at   = Column(DateTime, default=datetime.utcnow)
+    id             = Column(Integer, primary_key=True, index=True)
+    name           = Column(String(200))
+    address        = Column(String(300), default="")
+    phone          = Column(String(20), default="")
+    district       = Column(String(100), default="")
+    login_username = Column(String(100), unique=True, nullable=True)
+    password_hash  = Column(String(200), nullable=True)
+    active         = Column(Boolean, default=True)
+    created_at     = Column(DateTime, default=datetime.utcnow)
 
 class LabTest(Base):
     """A specific test a lab offers, and its price."""
@@ -609,6 +612,8 @@ _COLUMNS_ADDED_TO_EXISTING_TABLES = [
     ("doctors", "manual_availability", "VARCHAR(10)"),
     ("appointments", "payment_status", "VARCHAR(20) DEFAULT 'unpaid'"),
     ("appointments", "azampay_ref", "VARCHAR(100)"),
+    ("labs", "login_username", "VARCHAR(100)"),
+    ("labs", "password_hash", "VARCHAR(200)"),
 ]
 
 def _run_lightweight_migrations():
@@ -625,6 +630,7 @@ def _run_lightweight_migrations():
         try:
             conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_doctors_login_username ON doctors (login_username)"))
             conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_vendors_login_username ON vendors (login_username)"))
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_labs_login_username ON labs (login_username)"))
             conn.commit()
         except Exception as e:
             print(f"[migration] Could not add unique index on login_username columns: {e}")
