@@ -28,13 +28,14 @@ export default function LabDiagnostics({ lang, setPage, setAfyaTopic, setAfyaRet
   const [form, setForm] = useState({ for_profile_id: '', patient_name: user?.name || '', patient_phone: user?.phone || '', scheduled_date: '' });
   const [confirmedId, setConfirmedId] = useState('');
   const [error, setError] = useState('');
+  const [labSearch, setLabSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     fetch(`${API}/api/lab/categories`).then(r => r.json()).then(d => setCategories(d.categories || [])).catch(() => {});
     fetch(`${API}/api/lab/labs`).then(r => r.json()).then(d => {
       setLabs(d.labs || []);
-      if (d.labs?.length) setSelectedLab(d.labs[0]);
+      if (d.labs?.length === 1) setSelectedLab(d.labs[0]);
     }).catch(() => {});
     fetch(`${API}/api/family/profiles`, { headers: authHeaders() }).then(r => r.json()).then(d => setFamilyProfiles((d.profiles || []).filter(p => !p.is_linked))).catch(() => {});
   }, []);
@@ -117,7 +118,38 @@ export default function LabDiagnostics({ lang, setPage, setAfyaTopic, setAfyaRet
         </button>
       </div>
 
-      {view === 'browse' && (
+      {!selectedLab && labs.length > 1 && (
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: theme.text, marginBottom: 10 }}>{sw ? 'Chagua Maabara' : 'Choose a Lab'}</div>
+          <input value={labSearch} onChange={e => setLabSearch(e.target.value)} placeholder={sw ? 'Tafuta kwa jina au mkoa...' : 'Search by name or district...'}
+            style={{ width: '100%', padding: 10, marginBottom: 12, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.card, color: theme.text, fontSize: 14, boxSizing: 'border-box' }} />
+          {labs
+            .filter(l => !labSearch.trim() || `${l.name} ${l.district}`.toLowerCase().includes(labSearch.trim().toLowerCase()))
+            .map(l => (
+              <button key={l.id} onClick={() => setSelectedLab(l)}
+                style={{ width: '100%', textAlign: 'left', padding: 12, marginBottom: 8, borderRadius: 10, cursor: 'pointer', background: theme.card, border: `1px solid ${theme.border}` }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: theme.text }}>{l.name}</div>
+                <div style={{ fontSize: 12, color: theme.textMuted }}>{l.district}{l.address ? ` · ${l.address}` : ''}</div>
+              </button>
+            ))}
+          {labs.filter(l => !labSearch.trim() || `${l.name} ${l.district}`.toLowerCase().includes(labSearch.trim().toLowerCase())).length === 0 && (
+            <p style={{ textAlign: 'center', color: theme.textFaint, fontSize: 13, padding: 20 }}>{sw ? 'Hakuna maabara zinazolingana' : 'No labs match your search'}</p>
+          )}
+        </div>
+      )}
+
+      {selectedLab && view === 'browse' && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div style={{ fontSize: 12, color: theme.textMuted }}>{selectedLab.name}{selectedLab.district ? ` · ${selectedLab.district}` : ''}</div>
+          {labs.length > 1 && (
+            <button onClick={() => setSelectedLab(null)} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+              {sw ? 'Badilisha' : 'Change'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {selectedLab && view === 'browse' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {categories.map(c => {
             const Icon = CATEGORY_ICON[c.id] || FlaskConical;
