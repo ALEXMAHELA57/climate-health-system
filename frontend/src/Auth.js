@@ -70,7 +70,7 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
     try {
       const data = await api('/email/login', { email, password });
       if (!data.success) { setError(data.error || t('Login failed', 'Imeshindwa kuingia')); setLoading(false); return; }
-      if (data.needs_profile) { setMethod('email'); setStep('profile'); setLoading(false); return; }
+      if (data.needs_profile) { setStep('profile'); setLoading(false); return; }
       finishLogin(data);
     } catch { setError(t('Connection error', 'Hitilafu ya muunganisho')); }
     setLoading(false);
