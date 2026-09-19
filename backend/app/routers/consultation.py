@@ -203,6 +203,7 @@ class ConsultNowIn(BaseModel):
     payment_provider: str
     family_profile_id: Optional[int] = None
     reason: Optional[str] = ""
+    use_wallet: bool = False  # pay from AfyaWekeza balance instead of mobile money
 
 @router.post("/consult-now")
 async def consult_now(data: ConsultNowIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -223,9 +224,18 @@ async def consult_now(data: ConsultNowIn, user: User = Depends(get_current_user)
         if not profile:
             return {"success": False, "error": "You don't manage this family profile"}
 
-    payment = await azampay.checkout_mno(price, data.patient_phone, data.payment_provider, gen_id("PAY"), data.patient_name)
-    if not payment.get("success"):
-        return {"success": False, "error": payment.get("error", "Payment could not be started")}
+    azampay_ref = None
+    if data.use_wallet:
+        from app.routers.wallet import spend_from_wallet
+        if not spend_from_wallet(user, price, f"Consult Now - {doctor.name} ({data.consultation_type})", db):
+            return {"success": False, "error": f"Insufficient wallet balance - you have TZS {(user.wallet_balance or 0):,.0f}, need TZS {price:,.0f}"}
+    else:
+        payment = await azampay.checkout_mno(price, data.patient_phone, data.payment_provider, gen_id("PAY"), data.patient_name)
+        if not payment.get("success"):
+            return {"success": False, "error": payment.get("error", "Payment could not be started")}
+        azampay_ref = payment.get("transaction_id")
+        from app.routers.wallet import record_paid_service
+        record_paid_service(user, db)
 
     now = datetime.utcnow() + timedelta(hours=3)
     appt_id = gen_id("APT")
@@ -234,7 +244,7 @@ async def consult_now(data: ConsultNowIn, user: User = Depends(get_current_user)
         patient_name=data.patient_name, patient_phone=data.patient_phone, specialty=doctor.specialty, reason=data.reason,
         requested_date=now.strftime("%Y-%m-%d"), requested_time=now.strftime("%H:%M"),
         consultation_type=data.consultation_type, status="confirmed", payment_status="paid",
-        azampay_ref=payment.get("transaction_id"),
+        azampay_ref=azampay_ref,
     )
     db.add(appt)
     db.commit()

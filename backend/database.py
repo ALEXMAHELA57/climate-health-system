@@ -101,6 +101,9 @@ class User(Base):
     phone_verified = Column(Boolean, default=False)
     email_verified = Column(Boolean, default=False)
     photo_url      = Column(Text, nullable=True)  # optional profile photo, base64 data URI (small, compressed client-side)
+    wallet_balance = Column(Float, default=0)     # AfyaWekeza - restricted, non-cashable, spendable only within AfyaHewa
+    paid_services_count = Column(Integer, default=0)  # counts real completed payments, toward AfyaBonus eligibility
+    bonus_available = Column(Boolean, default=False)  # true once a 6-payment tier is reached and not yet claimed
     active         = Column(Boolean, default=True)
     created_at     = Column(DateTime, default=datetime.utcnow)
 
@@ -354,6 +357,23 @@ class MenstrualSettings(Base):
     avg_cycle_length   = Column(Integer, nullable=True)   # e.g. 28
     avg_period_length  = Column(Integer, nullable=True)   # e.g. 5
     updated_at         = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class WalletTransaction(Base):
+    """AfyaWekeza ledger entry. This is restricted, non-cashable credit -
+    it can only ever be spent on AfyaHewa's own services, never withdrawn
+    or sent to another user or account. That distinction is what keeps it
+    out of e-money/payment-instrument regulation (BOT licensing) - it's
+    a single-merchant prepayment, closer to a gift card or store credit
+    than a wallet, so this must never be extended to allow cash-out,
+    peer-to-peer transfer, or use outside AfyaHewa."""
+    __tablename__ = "wallet_transactions"
+    id             = Column(Integer, primary_key=True, index=True)
+    owner_user_id  = Column(Integer, index=True)
+    type           = Column(String(20))  # top_up | spend | bonus | refund
+    amount         = Column(Float)       # positive for top_up/bonus/refund, negative for spend
+    description    = Column(String(300), default="")
+    azampay_ref    = Column(String(100), nullable=True)
+    created_at     = Column(DateTime, default=datetime.utcnow)
 
 class Lab(Base):
     """A partner laboratory offering diagnostic tests. Placeholder
@@ -616,6 +636,9 @@ _COLUMNS_ADDED_TO_EXISTING_TABLES = [
     ("labs", "login_username", "VARCHAR(100)"),
     ("labs", "password_hash", "VARCHAR(200)"),
     ("users", "photo_url", "TEXT"),
+    ("users", "wallet_balance", "FLOAT DEFAULT 0"),
+    ("users", "paid_services_count", "INTEGER DEFAULT 0"),
+    ("users", "bonus_available", "BOOLEAN DEFAULT FALSE"),
 ]
 
 def _run_lightweight_migrations():

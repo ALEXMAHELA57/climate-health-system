@@ -58,7 +58,8 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
   const [affordableOnly, setAffordableOnly] = useState(false);
   const [showAllSpecialties, setShowAllSpecialties] = useState(!initialSpecialty);
   const [consultNowType, setConsultNowType] = useState(null);
-  const [consultNowForm, setConsultNowForm] = useState({ patient_name: user?.name || '', patient_phone: user?.phone || '', payment_provider: 'Mpesa' });
+  const [consultNowForm, setConsultNowForm] = useState({ patient_name: user?.name || '', patient_phone: user?.phone || '', payment_provider: 'Mpesa', use_wallet: false });
+  const [walletBalance, setWalletBalance] = useState(0);
   const [consultingNow, setConsultingNow] = useState(false);
   const [consultResult, setConsultResult] = useState(null);
   const [negotiatingDoctor, setNegotiatingDoctor] = useState(null);
@@ -79,6 +80,7 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
 
   useEffect(() => { fetch(`${API}/api/consultation/specialties`).then(r => r.json()).then(d => setSpecialties(d.specialties || [])).catch(() => {}); }, []);
   useEffect(() => { fetch(`${API}/api/family/profiles`, { headers: authHeaders() }).then(r => r.json()).then(d => setFamilyProfiles((d.profiles || []).filter(p => !p.is_linked))).catch(() => {}); }, []);
+  useEffect(() => { fetch(`${API}/api/wallet/balance`, { headers: authHeaders() }).then(r => r.json()).then(d => setWalletBalance(d.balance || 0)).catch(() => {}); }, []);
   useEffect(() => {
     if (initialSpecialty) { loadDoctors(initialSpecialty); setShowAllSpecialties(false); }
     else setShowAllSpecialties(true);
@@ -445,14 +447,30 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
                     style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.text, fontSize: 14 }} />
                   <input placeholder={sw ? 'Nambari ya simu' : 'Phone number'} value={consultNowForm.patient_phone} onChange={e => setConsultNowForm({ ...consultNowForm, patient_phone: e.target.value })}
                     style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.text, fontSize: 14 }} />
-                  <select value={consultNowForm.payment_provider} onChange={e => setConsultNowForm({ ...consultNowForm, payment_provider: e.target.value })}
-                    style={{ width: '100%', padding: 10, marginBottom: 10, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.text, fontSize: 14 }}>
-                    <option value="Mpesa">M-Pesa</option>
-                    <option value="Tigo">Tigo Pesa</option>
-                    <option value="Airtel">Airtel Money</option>
-                    <option value="Halopesa">HaloPesa</option>
-                    <option value="Azampesa">AzamPesa</option>
-                  </select>
+
+                  {walletBalance > 0 && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 12, marginBottom: 8, borderRadius: 8, border: `1px solid ${consultNowForm.use_wallet ? '#7c3aed' : theme.border}`, background: consultNowForm.use_wallet ? '#faf5ff' : theme.bg, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={consultNowForm.use_wallet} onChange={e => setConsultNowForm({ ...consultNowForm, use_wallet: e.target.checked })}
+                        disabled={walletBalance < (selectedDoctor.prices?.[consultNowType] || 0)} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: theme.text }}>👛 {sw ? 'Lipa na AfyaWekeza' : 'Pay with AfyaWekeza'}</div>
+                        <div style={{ fontSize: 11, color: walletBalance < (selectedDoctor.prices?.[consultNowType] || 0) ? '#ef4444' : theme.textMuted }}>
+                          {sw ? 'Salio' : 'Balance'}: TZS {walletBalance.toLocaleString()}{walletBalance < (selectedDoctor.prices?.[consultNowType] || 0) ? (sw ? ' (Haitoshi)' : ' (Insufficient)') : ''}
+                        </div>
+                      </div>
+                    </label>
+                  )}
+
+                  {!consultNowForm.use_wallet && (
+                    <select value={consultNowForm.payment_provider} onChange={e => setConsultNowForm({ ...consultNowForm, payment_provider: e.target.value })}
+                      style={{ width: '100%', padding: 10, marginBottom: 10, borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.bg, color: theme.text, fontSize: 14 }}>
+                      <option value="Mpesa">M-Pesa</option>
+                      <option value="Tigo">Tigo Pesa</option>
+                      <option value="Airtel">Airtel Money</option>
+                      <option value="Halopesa">HaloPesa</option>
+                      <option value="Azampesa">AzamPesa</option>
+                    </select>
+                  )}
                   {!!error && <p style={{ fontSize: 12, color: '#ef4444', marginBottom: 10 }}>{error}</p>}
                   <button onClick={submitConsultNow} disabled={consultingNow}
                     style={{ width: '100%', padding: 12, background: '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>

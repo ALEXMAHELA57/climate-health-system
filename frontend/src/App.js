@@ -19,6 +19,7 @@ const Health   = lazy(() => import('./Health'));
 const Care     = lazy(() => import('./Care'));
 const FamilyHealth = lazy(() => import('./FamilyHealth'));
 const MyHealth = lazy(() => import('./MyHealth'));
+const Wallet = lazy(() => import('./Wallet'));
 const LabDiagnostics = lazy(() => import('./LabDiagnostics'));
 const DoctorPortal = lazy(() => import('./DoctorPortal'));
 const VendorPortal = lazy(() => import('./VendorPortal'));
@@ -228,6 +229,7 @@ function AppShell({ startAtEmailLogin }) {
             {page==='profile'   && <UserProfile lang={lang} onLangChange={handleLangChange} onDistrictChange={handleDistrictChange} setPage={setPage} user={user} onLogout={handleLogout} />}
             {page==='family'    && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Afya ya Familia':'Family Health'}><FamilyHealth lang={lang} /></SubPage>}
             {page==='myhealth'  && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Afya Yangu':'My Health'}><MyHealth lang={lang} /></SubPage>}
+            {page==='wallet'    && <Wallet lang={lang} setPage={setPage} />}
             {page==='lab'       && <SubPage lang={lang} setPage={()=>setPage('health')} backLabel={lang==='sw'?'Rudi Afya':'Back to Health'} title={lang==='sw'?'Vipimo vya Maabara':'Lab & Diagnostics'}><LabDiagnostics lang={lang} setPage={setPage} setAfyaTopic={setAfyaTopic} setAfyaReturnPage={setAfyaReturnPage} /></SubPage>}
             {page==='shop'      && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Duka la Afya':'Health Shop'}><HealthShop lang={lang} /></SubPage>}
             {page==='report'    && <CommunityReport lang={lang} />}

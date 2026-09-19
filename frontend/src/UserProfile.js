@@ -220,6 +220,14 @@ export default function UserProfile({ lang = 'en', onLangChange, onDistrictChang
 
       {setPage && (
         <>
+          <button onClick={() => setPage('wallet')}
+            style={{ width: '100%', ...card, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', textAlign: 'left', marginBottom: 10 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>👛 AfyaWekeza</div>
+              <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{lang === 'sw' ? 'Salio na malipo' : 'Balance & payments'}</div>
+            </div>
+            <span style={{ color: '#9ca3af' }}>›</span>
+          </button>
           <button onClick={() => setPage('myhealth')}
             style={{ width: '100%', ...card, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', textAlign: 'left', marginBottom: 10 }}>
             <div>

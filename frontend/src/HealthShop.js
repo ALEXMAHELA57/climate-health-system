@@ -20,13 +20,15 @@ export default function HealthShop({ lang }) {
   const [orders, setOrders] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const [form, setForm] = useState({ delivery_name: user?.name || '', delivery_phone: user?.phone || '', delivery_address: '', payment_provider: 'Mpesa' });
+  const [form, setForm] = useState({ delivery_name: user?.name || '', delivery_phone: user?.phone || '', delivery_address: '', payment_provider: 'Mpesa', use_wallet: false });
+  const [walletBalance, setWalletBalance] = useState(0);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [confirmedOrder, setConfirmedOrder] = useState(null);
 
   useEffect(() => {
     fetch(`${API}/api/shop/categories`).then(r => r.json()).then(d => setCategories(d.categories || [])).catch(() => {});
+    fetch(`${API}/api/wallet/balance`, { headers: authHeaders() }).then(r => r.json()).then(d => setWalletBalance(d.balance || 0)).catch(() => {});
   }, []);
 
   async function openCategory(catId) {
@@ -186,13 +188,28 @@ export default function HealthShop({ lang }) {
           <input placeholder={sw ? 'Jina la mpokeaji' : 'Recipient name'} value={form.delivery_name} onChange={e => setForm({ ...form, delivery_name: e.target.value })} style={inputStyle} />
           <input placeholder={sw ? 'Nambari ya simu' : 'Phone number'} value={form.delivery_phone} onChange={e => setForm({ ...form, delivery_phone: e.target.value })} style={inputStyle} />
           <input placeholder={sw ? 'Anwani ya kutuma' : 'Delivery address'} value={form.delivery_address} onChange={e => setForm({ ...form, delivery_address: e.target.value })} style={inputStyle} />
-          <select value={form.payment_provider} onChange={e => setForm({ ...form, payment_provider: e.target.value })} style={inputStyle}>
-            <option value="Mpesa">M-Pesa</option>
-            <option value="Tigo">Tigo Pesa</option>
-            <option value="Airtel">Airtel Money</option>
-            <option value="Halopesa">HaloPesa</option>
-            <option value="Azampesa">AzamPesa</option>
-          </select>
+
+          {walletBalance > 0 && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 12, marginBottom: 10, borderRadius: 8, border: `1px solid ${form.use_wallet ? '#7c3aed' : theme.border}`, background: form.use_wallet ? '#faf5ff' : theme.card, cursor: 'pointer' }}>
+              <input type="checkbox" checked={form.use_wallet} onChange={e => setForm({ ...form, use_wallet: e.target.checked })} disabled={walletBalance < cartTotal} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: theme.text }}>👛 {sw ? 'Lipa na AfyaWekeza' : 'Pay with AfyaWekeza'}</div>
+                <div style={{ fontSize: 11, color: walletBalance < cartTotal ? '#ef4444' : theme.textMuted }}>
+                  {sw ? 'Salio' : 'Balance'}: TZS {walletBalance.toLocaleString()}{walletBalance < cartTotal ? (sw ? ' (Haitoshi)' : ' (Insufficient)') : ''}
+                </div>
+              </div>
+            </label>
+          )}
+
+          {!form.use_wallet && (
+            <select value={form.payment_provider} onChange={e => setForm({ ...form, payment_provider: e.target.value })} style={inputStyle}>
+              <option value="Mpesa">M-Pesa</option>
+              <option value="Tigo">Tigo Pesa</option>
+              <option value="Airtel">Airtel Money</option>
+              <option value="Halopesa">HaloPesa</option>
+              <option value="Azampesa">AzamPesa</option>
+            </select>
+          )}
           {!!error && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{error}</p>}
           <button onClick={submitCheckout} disabled={submitting} style={{ width: '100%', padding: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
             {submitting ? (sw ? 'Inatuma...' : 'Processing...') : (sw ? 'Lipa Sasa' : 'Pay Now')}
