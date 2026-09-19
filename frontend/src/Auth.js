@@ -11,13 +11,11 @@ const GENDERS = [
 ];
 
 const BACK_STEP = {
-  'phone-entry': 'method',
+  'phone-entry': 'auth',
   'phone-verify': 'phone-entry',
-  'email-entry': 'method',
-  'email-login': 'method',
-  'email-check-inbox': 'email-entry',
-  profile: 'method',
-  'minor-blocked': 'method',
+  'email-check-inbox': 'auth',
+  profile: 'auth',
+  'minor-blocked': 'auth',
 };
 
 export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmailLogin }) {
@@ -26,13 +24,12 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
 
   const lastMethod = localStorage.getItem('afya_last_method');
   const [step, setStep] = useState(() => {
-    if (startAtEmailLogin) return 'email-login';
+    if (startAtEmailLogin) return 'auth';
     if (lastMethod === 'phone') return 'phone-entry';
-    if (lastMethod === 'email') return 'email-login';
-    return 'method';
+    return 'auth';
   });
-  const [method, setMethod] = useState(startAtEmailLogin ? 'email' : (lastMethod || 'phone'));
-  const [authMode, setAuthMode] = useState(startAtEmailLogin ? 'login' : 'create'); // create | login
+  const [method, setMethod] = useState('email');
+  const [authMode, setAuthMode] = useState(startAtEmailLogin ? 'login' : (lastMethod ? 'login' : 'create')); // create | login
   const [phone, setPhone] = useState(() => localStorage.getItem('afya_last_phone') || '');
   const [email, setEmail] = useState(() => localStorage.getItem('afya_last_email') || '');
   const [password, setPassword] = useState('');
@@ -137,47 +134,69 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 24, background: theme.bg, maxWidth: 480, margin: '0 auto', boxSizing: 'border-box' }}>
-      <div style={{ textAlign: 'center', marginBottom: 28 }}>
-        <div style={{
-          width: 64, height: 64, borderRadius: '50%', background: 'linear-gradient(135deg,#2563eb,#0ea5e9)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px',
-          boxShadow: '0 4px 14px rgba(37,99,235,0.3)',
-        }}>
-          <HeartPulse size={30} color="#fff" />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{
+            width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg,#2563eb,#0ea5e9)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            <HeartPulse size={16} color="#fff" />
+          </div>
+          <span style={{ fontSize: 16, fontWeight: 700, color: theme.text }}>AfyaHewa</span>
         </div>
-        <div style={{ fontSize: 24, fontWeight: 700, color: theme.text }}>AfyaHewa</div>
-        <div style={{ fontSize: 13, color: theme.textMuted, marginTop: 4 }}>{t('Climate & health guidance for Tanzania', 'Mwongozo wa afya na hali ya hewa Tanzania')}</div>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 12 }}>
+        <div style={{ display: 'flex', gap: 6 }}>
           <button onClick={() => onLangChange('en')} style={{ padding: '3px 10px', borderRadius: 99, border: `1px solid ${!sw ? '#2563eb' : theme.border}`, background: !sw ? '#2563eb' : 'none', color: !sw ? '#fff' : theme.textMuted, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>EN</button>
           <button onClick={() => onLangChange('sw')} style={{ padding: '3px 10px', borderRadius: 99, border: `1px solid ${sw ? '#2563eb' : theme.border}`, background: sw ? '#2563eb' : 'none', color: sw ? '#fff' : theme.textMuted, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>SW</button>
         </div>
       </div>
 
-      {step !== 'method' && (
-        <button onClick={() => { setStep(BACK_STEP[step] || 'method'); setError(''); }} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 4 }}>
+      {step !== 'auth' && (
+        <button onClick={() => { setStep(BACK_STEP[step] || 'auth'); setError(''); }} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 4 }}>
           <ArrowLeft size={14} /> {t('Back', 'Rudi')}
         </button>
       )}
 
-      {step === 'method' && (
+      {step === 'auth' && (
         <>
-          <div style={{ display: 'flex', gap: 6, marginBottom: 20, background: theme.card, borderRadius: 12, padding: 4, border: `1px solid ${theme.border}` }}>
-            <button onClick={() => setAuthMode('create')}
-              style={{ flex: 1, padding: 10, borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, background: authMode === 'create' ? '#2563eb' : 'transparent', color: authMode === 'create' ? '#fff' : theme.textMuted }}>
-              {t('Create Account', 'Fungua Akaunti')}
-            </button>
-            <button onClick={() => setAuthMode('login')}
-              style={{ flex: 1, padding: 10, borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, background: authMode === 'login' ? '#2563eb' : 'transparent', color: authMode === 'login' ? '#fff' : theme.textMuted }}>
-              {t('Log In', 'Ingia')}
-            </button>
+          <div style={{ fontSize: 26, fontWeight: 700, color: theme.text, marginBottom: 4 }}>
+            {authMode === 'login' ? t('Welcome back', 'Karibu tena') : t('Create your account', 'Fungua akaunti yako')}
+          </div>
+          <div style={{ fontSize: 14, color: theme.textMuted, marginBottom: 24 }}>
+            {authMode === 'login' ? t('Please enter your details', 'Tafadhali weka taarifa zako') : t("Let's get you set up", 'Hebu tukuandae')}
           </div>
 
-          <button onClick={() => { setMethod('phone'); setStep('phone-entry'); }} style={{ ...btnStyle, marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <Phone size={16} /> {authMode === 'create' ? t('Continue with Phone', 'Endelea na Simu') : t('Log In with Phone', 'Ingia kwa Simu')}
+          <button onClick={() => { setMethod('phone'); setStep('phone-entry'); }} style={{ width: '100%', padding: 13, marginBottom: 18, background: theme.card, color: theme.text, border: `1px solid ${theme.border}`, borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <Phone size={16} /> {authMode === 'login' ? t('Log In with Phone', 'Ingia kwa Simu') : t('Continue with Phone', 'Endelea na Simu')}
           </button>
-          <button onClick={() => { setMethod('email'); setStep(authMode === 'create' ? 'email-entry' : 'email-login'); }} style={{ ...btnStyle, background: theme.card, color: theme.text, border: `1px solid ${theme.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <Mail size={16} /> {authMode === 'create' ? t('Continue with Email', 'Endelea na Barua Pepe') : t('Log In with Email', 'Ingia kwa Barua Pepe')}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <div style={{ flex: 1, height: 1, background: theme.border }} />
+            <span style={{ fontSize: 12, color: theme.textFaint }}>{t('or', 'au')}</span>
+            <div style={{ flex: 1, height: 1, background: theme.border }} />
+          </div>
+
+          <label style={{ fontSize: 13, fontWeight: 600, color: theme.text, display: 'block', marginBottom: 6 }}>{t('Email address', 'Barua pepe')}</label>
+          <input value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} />
+
+          <label style={{ fontSize: 13, fontWeight: 600, color: theme.text, display: 'block', marginBottom: 6 }}>{t('Password', 'Nenosiri')}</label>
+          <PasswordInput value={password} onChange={e => setPassword(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && (authMode === 'login' ? submitEmailLogin() : submitEmailRegister())}
+            style={inputStyle} />
+
+          {!!error && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{error}</p>}
+
+          <button onClick={authMode === 'login' ? submitEmailLogin : submitEmailRegister} disabled={loading} style={{ ...btnStyle, marginTop: 4, marginBottom: 16 }}>
+            {loading
+              ? (authMode === 'login' ? t('Signing in...', 'Inaingia...') : t('Creating...', 'Inaunda...'))
+              : (authMode === 'login' ? t('Sign In', 'Ingia') : t('Create Account', 'Unda Akaunti'))}
           </button>
+
+          <div style={{ textAlign: 'center', fontSize: 13, color: theme.textMuted }}>
+            {authMode === 'login' ? t("Don't have an account? ", 'Huna akaunti? ') : t('Already have an account? ', 'Una akaunti tayari? ')}
+            <button onClick={() => { setAuthMode(authMode === 'login' ? 'create' : 'login'); setError(''); }} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+              {authMode === 'login' ? t('Sign up', 'Jisajili') : t('Log in', 'Ingia')}
+            </button>
+          </div>
         </>
       )}
 
@@ -195,25 +214,6 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
           <input placeholder={t('6-digit code', 'Msimbo wa tarakimu 6')} value={otp} onChange={e => setOtp(e.target.value)} style={inputStyle} />
           {!!error && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{error}</p>}
           <button onClick={submitPhoneVerify} disabled={loading} style={btnStyle}>{loading ? t('Verifying...', 'Inathibitisha...') : t('Verify', 'Thibitisha')}</button>
-        </>
-      )}
-
-      {step === 'email-entry' && (
-        <>
-          <input placeholder={t('Email', 'Barua pepe')} value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} />
-          <PasswordInput placeholder={t('Password', 'Nenosiri')} value={password} onChange={e => setPassword(e.target.value)} style={inputStyle} />
-          {!!error && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{error}</p>}
-          <button onClick={submitEmailRegister} disabled={loading} style={{ ...btnStyle, marginBottom: 8 }}>{loading ? t('Creating...', 'Inaunda...') : t('Create Account', 'Unda Akaunti')}</button>
-          <button onClick={() => { setStep('email-login'); setError(''); }} style={{ background: 'none', border: 'none', color: theme.textMuted, fontSize: 13, cursor: 'pointer' }}>{t('Already have an account? Log in', 'Una akaunti tayari? Ingia')}</button>
-        </>
-      )}
-
-      {step === 'email-login' && (
-        <>
-          <input placeholder={t('Email', 'Barua pepe')} value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} />
-          <PasswordInput placeholder={t('Password', 'Nenosiri')} value={password} onChange={e => setPassword(e.target.value)} style={inputStyle} />
-          {!!error && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{error}</p>}
-          <button onClick={submitEmailLogin} disabled={loading} style={btnStyle}>{loading ? t('Logging in...', 'Inaingia...') : t('Log In', 'Ingia')}</button>
         </>
       )}
 
