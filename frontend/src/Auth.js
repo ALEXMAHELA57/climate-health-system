@@ -11,7 +11,6 @@ const GENDERS = [
 ];
 
 const BACK_STEP = {
-  method: 'language',
   'phone-entry': 'method',
   'phone-verify': 'phone-entry',
   'email-entry': 'method',
@@ -30,7 +29,7 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
     if (startAtEmailLogin) return 'email-login';
     if (lastMethod === 'phone') return 'phone-entry';
     if (lastMethod === 'email') return 'email-login';
-    return localStorage.getItem('afya_lang') ? 'method' : 'language';
+    return 'method';
   });
   const [method, setMethod] = useState(startAtEmailLogin ? 'email' : (lastMethod || 'phone'));
   const [phone, setPhone] = useState(() => localStorage.getItem('afya_last_phone') || '');
@@ -147,26 +146,16 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
         </div>
         <div style={{ fontSize: 24, fontWeight: 700, color: theme.text }}>AfyaHewa</div>
         <div style={{ fontSize: 13, color: theme.textMuted, marginTop: 4 }}>{t('Climate & health guidance for Tanzania', 'Mwongozo wa afya na hali ya hewa Tanzania')}</div>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 12 }}>
+          <button onClick={() => onLangChange('en')} style={{ padding: '3px 10px', borderRadius: 99, border: `1px solid ${!sw ? '#2563eb' : theme.border}`, background: !sw ? '#2563eb' : 'none', color: !sw ? '#fff' : theme.textMuted, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>EN</button>
+          <button onClick={() => onLangChange('sw')} style={{ padding: '3px 10px', borderRadius: 99, border: `1px solid ${sw ? '#2563eb' : theme.border}`, background: sw ? '#2563eb' : 'none', color: sw ? '#fff' : theme.textMuted, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>SW</button>
+        </div>
       </div>
 
-      {step !== 'language' && (
+      {step !== 'method' && (
         <button onClick={() => { setStep(BACK_STEP[step] || 'method'); setError(''); }} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 4 }}>
           <ArrowLeft size={14} /> {t('Back', 'Rudi')}
         </button>
-      )}
-
-      {step === 'language' && (
-        <>
-          <p style={{ textAlign: 'center', fontSize: 13, color: theme.textMuted, marginBottom: 16 }}>
-            {lang === 'sw' ? 'Chagua lugha unayopendelea' : 'Choose your preferred language'}
-          </p>
-          <button onClick={() => { onLangChange('en'); setStep('method'); }} style={{ ...btnStyle, marginBottom: 10 }}>
-            English
-          </button>
-          <button onClick={() => { onLangChange('sw'); setStep('method'); }} style={{ ...btnStyle, background: theme.card, color: theme.text, border: `1px solid ${theme.border}` }}>
-            Kiswahili
-          </button>
-        </>
       )}
 
       {step === 'method' && (
