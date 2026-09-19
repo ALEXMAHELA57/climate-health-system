@@ -227,6 +227,17 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
               </button>
             ))}
           </div>
+          <label style={{ fontSize: 12, color: theme.textMuted, display: 'block', marginBottom: 6 }}>{t('Preferred language', 'Lugha unayopendelea')}</label>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <button onClick={() => onLangChange('en')}
+              style={{ flex: 1, padding: 10, borderRadius: 10, border: `1px solid ${!sw ? '#2563eb' : theme.border}`, background: !sw ? '#eff6ff' : theme.card, color: !sw ? '#2563eb' : theme.text, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+              English
+            </button>
+            <button onClick={() => onLangChange('sw')}
+              style={{ flex: 1, padding: 10, borderRadius: 10, border: `1px solid ${sw ? '#2563eb' : theme.border}`, background: sw ? '#eff6ff' : theme.card, color: sw ? '#2563eb' : theme.text, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+              Kiswahili
+            </button>
+          </div>
           {!!error && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{error}</p>}
           <button onClick={submitProfile} disabled={loading} style={btnStyle}>{loading ? t('Saving...', 'Inahifadhi...') : t('Finish', 'Maliza')}</button>
         </>
