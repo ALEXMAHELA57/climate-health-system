@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Phone, Mail, ArrowLeft, User, Calendar, Users, HeartPulse } from 'lucide-react';
-import { API, validateName, validatePhone, validateEmail, validatePassword } from './constants';
+import { Mail, ArrowLeft, Users, HeartPulse } from 'lucide-react';
+import { API, validateName, validateEmail, validatePassword } from './constants';
 import { useTheme } from './ThemeContext';
 import PasswordInput from './PasswordInput';
 
@@ -11,8 +11,6 @@ const GENDERS = [
 ];
 
 const BACK_STEP = {
-  'phone-entry': 'auth',
-  'phone-verify': 'phone-entry',
   'email-check-inbox': 'auth',
   profile: 'auth',
   'minor-blocked': 'auth',
@@ -23,17 +21,10 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
   const sw = lang === 'sw';
 
   const lastMethod = localStorage.getItem('afya_last_method');
-  const [step, setStep] = useState(() => {
-    if (startAtEmailLogin) return 'auth';
-    if (lastMethod === 'phone') return 'phone-entry';
-    return 'auth';
-  });
-  const [method, setMethod] = useState('email');
+  const [step, setStep] = useState('auth');
   const [authMode, setAuthMode] = useState(startAtEmailLogin ? 'login' : (lastMethod ? 'login' : 'create')); // create | login
-  const [phone, setPhone] = useState(() => localStorage.getItem('afya_last_phone') || '');
   const [email, setEmail] = useState(() => localStorage.getItem('afya_last_email') || '');
   const [password, setPassword] = useState('');
-  const [otp, setOtp] = useState('');
   const [name, setName] = useState('');
   const [dob, setDob] = useState('');
   const [gender, setGender] = useState('');
@@ -53,34 +44,9 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
   function finishLogin(data) {
     localStorage.setItem('afya_token', data.token);
     localStorage.setItem('afya_user', JSON.stringify(data.user));
-    localStorage.setItem('afya_last_method', method);
-    if (method === 'phone' && phone) localStorage.setItem('afya_last_phone', phone);
-    if (method === 'email' && email) localStorage.setItem('afya_last_email', email);
+    localStorage.setItem('afya_last_method', 'email');
+    if (email) localStorage.setItem('afya_last_email', email);
     onAuthenticated(data.user);
-  }
-
-  async function submitPhoneStart() {
-    const err = validatePhone(phone, { sw });
-    if (err) { setError(err); return; }
-    setLoading(true); setError('');
-    try {
-      const data = await api('/phone/start', { phone });
-      if (data.success) setStep('phone-verify');
-      else setError(data.error || t('Something went wrong', 'Hitilafu imetokea'));
-    } catch { setError(t('Connection error', 'Hitilafu ya muunganisho')); }
-    setLoading(false);
-  }
-
-  async function submitPhoneVerify() {
-    if (!otp.trim()) { setError(t('Enter the code sent to your phone', 'Weka msimbo uliotumwa kwenye simu yako')); return; }
-    setLoading(true); setError('');
-    try {
-      const data = await api('/phone/verify', { phone, code: otp });
-      if (!data.success) { setError(data.error || t('Invalid code', 'Msimbo si sahihi')); setLoading(false); return; }
-      if (data.existing_user) { finishLogin(data); return; }
-      setStep('profile');
-    } catch { setError(t('Connection error', 'Hitilafu ya muunganisho')); }
-    setLoading(false);
   }
 
   async function submitEmailRegister() {
@@ -117,11 +83,7 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
     if (!gender) { setError(t('Please select your gender', 'Tafadhali chagua jinsia')); return; }
     setLoading(true); setError('');
     try {
-      const path = method === 'phone' ? '/phone/complete-profile' : '/email/complete-profile';
-      const body = method === 'phone'
-        ? { phone, name, date_of_birth: dob, gender, language: lang }
-        : { email, name, date_of_birth: dob, gender, language: lang };
-      const data = await api(path, body);
+      const data = await api('/email/complete-profile', { email, name, date_of_birth: dob, gender, language: lang });
       if (data.minor) { setStep('minor-blocked'); setLoading(false); return; }
       if (!data.success) { setError(data.error || t('Something went wrong', 'Hitilafu imetokea')); setLoading(false); return; }
       finishLogin(data);
@@ -165,16 +127,6 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
             {authMode === 'login' ? t('Please enter your details', 'Tafadhali weka taarifa zako') : t("Let's get you set up", 'Hebu tukuandae')}
           </div>
 
-          <button onClick={() => { setMethod('phone'); setStep('phone-entry'); }} style={{ width: '100%', padding: 13, marginBottom: 18, background: theme.card, color: theme.text, border: `1px solid ${theme.border}`, borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <Phone size={16} /> {authMode === 'login' ? t('Log In with Phone', 'Ingia kwa Simu') : t('Continue with Phone', 'Endelea na Simu')}
-          </button>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-            <div style={{ flex: 1, height: 1, background: theme.border }} />
-            <span style={{ fontSize: 12, color: theme.textFaint }}>{t('or', 'au')}</span>
-            <div style={{ flex: 1, height: 1, background: theme.border }} />
-          </div>
-
           <label style={{ fontSize: 13, fontWeight: 600, color: theme.text, display: 'block', marginBottom: 6 }}>{t('Email address', 'Barua pepe')}</label>
           <input value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} />
 
@@ -197,23 +149,6 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
               {authMode === 'login' ? t('Sign up', 'Jisajili') : t('Log in', 'Ingia')}
             </button>
           </div>
-        </>
-      )}
-
-      {step === 'phone-entry' && (
-        <>
-          <input placeholder={t('Phone number (e.g. +255712345678)', 'Nambari ya simu')} value={phone} onChange={e => setPhone(e.target.value)} style={inputStyle} />
-          {!!error && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{error}</p>}
-          <button onClick={submitPhoneStart} disabled={loading} style={btnStyle}>{loading ? t('Sending...', 'Inatuma...') : t('Send Code', 'Tuma Msimbo')}</button>
-        </>
-      )}
-
-      {step === 'phone-verify' && (
-        <>
-          <p style={{ fontSize: 13, color: theme.textMuted, marginBottom: 10 }}>{t(`Enter the code sent to ${phone}`, `Weka msimbo uliotumwa ${phone}`)}</p>
-          <input placeholder={t('6-digit code', 'Msimbo wa tarakimu 6')} value={otp} onChange={e => setOtp(e.target.value)} style={inputStyle} />
-          {!!error && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{error}</p>}
-          <button onClick={submitPhoneVerify} disabled={loading} style={btnStyle}>{loading ? t('Verifying...', 'Inathibitisha...') : t('Verify', 'Thibitisha')}</button>
         </>
       )}
 
