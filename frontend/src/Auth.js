@@ -32,6 +32,7 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
     return 'method';
   });
   const [method, setMethod] = useState(startAtEmailLogin ? 'email' : (lastMethod || 'phone'));
+  const [authMode, setAuthMode] = useState(startAtEmailLogin ? 'login' : 'create'); // create | login
   const [phone, setPhone] = useState(() => localStorage.getItem('afya_last_phone') || '');
   const [email, setEmail] = useState(() => localStorage.getItem('afya_last_email') || '');
   const [password, setPassword] = useState('');
@@ -160,11 +161,22 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
 
       {step === 'method' && (
         <>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 20, background: theme.card, borderRadius: 12, padding: 4, border: `1px solid ${theme.border}` }}>
+            <button onClick={() => setAuthMode('create')}
+              style={{ flex: 1, padding: 10, borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, background: authMode === 'create' ? '#2563eb' : 'transparent', color: authMode === 'create' ? '#fff' : theme.textMuted }}>
+              {t('Create Account', 'Fungua Akaunti')}
+            </button>
+            <button onClick={() => setAuthMode('login')}
+              style={{ flex: 1, padding: 10, borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, background: authMode === 'login' ? '#2563eb' : 'transparent', color: authMode === 'login' ? '#fff' : theme.textMuted }}>
+              {t('Log In', 'Ingia')}
+            </button>
+          </div>
+
           <button onClick={() => { setMethod('phone'); setStep('phone-entry'); }} style={{ ...btnStyle, marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <Phone size={16} /> {t('Continue with Phone', 'Endelea na Simu')}
+            <Phone size={16} /> {authMode === 'create' ? t('Continue with Phone', 'Endelea na Simu') : t('Log In with Phone', 'Ingia kwa Simu')}
           </button>
-          <button onClick={() => { setMethod('email'); setStep('email-entry'); }} style={{ ...btnStyle, background: theme.card, color: theme.text, border: `1px solid ${theme.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <Mail size={16} /> {t('Continue with Email', 'Endelea na Barua Pepe')}
+          <button onClick={() => { setMethod('email'); setStep(authMode === 'create' ? 'email-entry' : 'email-login'); }} style={{ ...btnStyle, background: theme.card, color: theme.text, border: `1px solid ${theme.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <Mail size={16} /> {authMode === 'create' ? t('Continue with Email', 'Endelea na Barua Pepe') : t('Log In with Email', 'Ingia kwa Barua Pepe')}
           </button>
         </>
       )}
