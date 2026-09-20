@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { Home as HomeIcon, Cloud, Stethoscope, User, Globe, MapPin, Wifi, WifiOff, Sun, Moon, HeartPulse, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { Home as HomeIcon, Cloud, Stethoscope, User, Globe, MapPin, WifiOff, Sun, Moon, HeartPulse, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { API, T } from './constants';
 import { ThemeProvider, useTheme } from './ThemeContext';
 import UserProfile from './UserProfile';
@@ -195,10 +195,6 @@ function AppShell({ startAtEmailLogin }) {
             style={{ background:'rgba(255,255,255,0.2)', border:'none', color:'#fff', borderRadius:99, padding:'4px 10px', fontSize:12, cursor:'pointer', fontWeight:600 }}>
             {lang==='en'?'SW':'EN'}
           </button>
-          <div title={isOnline ? (lang==='sw'?'Mtandaoni':'Online') : (lang==='sw'?'Nje ya mtandao':'Offline')}
-            style={{ fontSize:11, background:'rgba(255,255,255,0.2)', padding:'3px 8px', borderRadius:99, display:'flex', alignItems:'center' }}>
-            {isOnline ? <Wifi size={13} /> : <WifiOff size={13} />}
-          </div>
         </div>
       </div>
 
