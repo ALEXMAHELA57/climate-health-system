@@ -1,4 +1,8 @@
 export const API = 'https://climate-health-system-backend.onrender.com';
+// Public Google OAuth Client ID (safe to expose in frontend code) - set via
+// the REACT_APP_GOOGLE_CLIENT_ID env var on Vercel; Google Sign-In hides
+// itself if this is left blank.
+export const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID || '';
 
 export const DISTRICTS = [
   'Arusha','Dar es Salaam','Dodoma','Geita','Iringa','Kagera','Katavi',

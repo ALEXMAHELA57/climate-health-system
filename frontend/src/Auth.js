@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Mail, ArrowLeft, Users, HeartPulse } from 'lucide-react';
-import { API, validateName, validateEmail, validatePassword } from './constants';
+import { API, GOOGLE_CLIENT_ID, validateName, validateEmail, validatePassword } from './constants';
 import { useTheme } from './ThemeContext';
 import PasswordInput from './PasswordInput';
 
@@ -31,6 +31,7 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [pendingUserId, setPendingUserId] = useState(null);
+  const googleBtnRef = useRef(null);
 
   const t = (en, swText) => (sw ? swText : en);
 
@@ -41,13 +42,52 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
     return res.json();
   }
 
-  function finishLogin(data) {
+  function finishLogin(data, method = 'email') {
     localStorage.setItem('afya_token', data.token);
     localStorage.setItem('afya_user', JSON.stringify(data.user));
-    localStorage.setItem('afya_last_method', 'email');
-    if (email) localStorage.setItem('afya_last_email', email);
+    localStorage.setItem('afya_last_method', method);
+    if (data.user?.email) localStorage.setItem('afya_last_email', data.user.email);
     onAuthenticated(data.user);
   }
+
+  async function handleGoogleCredential(response) {
+    setLoading(true); setError('');
+    try {
+      const data = await api('/google', { credential: response.credential, language: lang });
+      if (!data.success) { setError(data.error || t('Google sign-in failed', 'Imeshindwa kuingia na Google')); setLoading(false); return; }
+      if (data.needs_profile) {
+        setEmail(data.email || '');
+        if (data.suggested_name) setName(data.suggested_name);
+        setStep('profile');
+        setLoading(false);
+        return;
+      }
+      finishLogin(data, 'google');
+    } catch { setError(t('Connection error', 'Hitilafu ya muunganisho')); setLoading(false); }
+  }
+
+  // Load the Google Identity Services script once, then render the button
+  // into googleBtnRef whenever the 'auth' step is showing.
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return;
+    function renderButton() {
+      if (!window.google || !googleBtnRef.current) return;
+      window.google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential });
+      googleBtnRef.current.innerHTML = '';
+      window.google.accounts.id.renderButton(googleBtnRef.current, {
+        theme: theme.mode === 'dark' ? 'filled_black' : 'outline', size: 'large', width: 360, text: 'continue_with',
+      });
+    }
+    if (window.google?.accounts?.id) { renderButton(); return; }
+    const existing = document.getElementById('google-identity-script');
+    if (existing) { existing.addEventListener('load', renderButton); return; }
+    const script = document.createElement('script');
+    script.id = 'google-identity-script';
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true; script.defer = true;
+    script.onload = renderButton;
+    document.body.appendChild(script);
+  }, [step, theme.mode]);
 
   async function submitEmailRegister() {
     const emailErr = validateEmail(email, { sw });
@@ -142,6 +182,17 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
               ? (authMode === 'login' ? t('Signing in...', 'Inaingia...') : t('Creating...', 'Inaunda...'))
               : (authMode === 'login' ? t('Sign In', 'Ingia') : t('Create Account', 'Unda Akaunti'))}
           </button>
+
+          {!!GOOGLE_CLIENT_ID && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 16px' }}>
+                <div style={{ flex: 1, height: 1, background: theme.border }} />
+                <span style={{ fontSize: 12, color: theme.textFaint }}>{t('or', 'au')}</span>
+                <div style={{ flex: 1, height: 1, background: theme.border }} />
+              </div>
+              <div ref={googleBtnRef} style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }} />
+            </>
+          )}
 
           <div style={{ textAlign: 'center', fontSize: 13, color: theme.textMuted }}>
             {authMode === 'login' ? t("Don't have an account? ", 'Huna akaunti? ') : t('Already have an account? ', 'Una akaunti tayari? ')}

@@ -8,6 +8,8 @@ import string
 import os
 import jwt
 from passlib.context import CryptContext
+from google.oauth2 import id_token as google_id_token
+from google.auth.transport import requests as google_requests
 from database import get_db, User, OTPCode, EmailVerificationToken
 
 router = APIRouter()
@@ -16,6 +18,8 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 JWT_SECRET = os.getenv("JWT_SECRET", "change-this-in-production-env-var")
 JWT_ALGO = "HS256"
 JWT_EXPIRY_DAYS = 90  # stay logged in like a normal mobile app
+
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://climate-health-system.vercel.app")
@@ -114,6 +118,10 @@ class EmailRegister(BaseModel):
 class EmailLogin(BaseModel):
     email: EmailStr
     password: str
+
+class GoogleAuthIn(BaseModel):
+    credential: str  # the Google ID token (JWT) from Google Identity Services
+    language: Optional[str] = "en"
 
 # ── Phone + OTP flow ───────────────────────────────────────────────────────
 
@@ -240,6 +248,55 @@ def email_login(data: EmailLogin, db: Session = Depends(get_db)):
         return {"success": False, "error": "Please verify your email before logging in", "needs_email_verification": True}
     if not user.name or not user.date_of_birth:
         return {"success": True, "needs_profile": True}
+    return {"success": True, "token": create_jwt(user.id), "user": user_public(user)}
+
+# ── Google Sign-In ───────────────────────────────────────────────────────────
+
+@router.post("/google")
+def google_auth(data: GoogleAuthIn, db: Session = Depends(get_db)):
+    if not GOOGLE_CLIENT_ID:
+        return {"success": False, "error": "Google Sign-In is not configured on this server"}
+    try:
+        info = google_id_token.verify_oauth2_token(data.credential, google_requests.Request(), GOOGLE_CLIENT_ID)
+    except ValueError:
+        return {"success": False, "error": "Google sign-in could not be verified"}
+
+    google_sub = info.get("sub")
+    google_email = info.get("email")
+    google_name = info.get("name") or ""
+    email_verified = bool(info.get("email_verified"))
+    if not google_sub or not google_email:
+        return {"success": False, "error": "Google account did not provide the required details"}
+
+    # Match by google_id first (returning Google user), then by email
+    # (an existing password account signing in with Google for the first
+    # time - link it rather than creating a duplicate account).
+    user = db.query(User).filter(User.google_id == google_sub).first()
+    if not user:
+        user = db.query(User).filter(User.email == google_email).first()
+
+    if user:
+        if not user.google_id:
+            user.google_id = google_sub
+        if email_verified and not user.email_verified:
+            user.email_verified = True
+        db.commit()
+        db.refresh(user)
+    else:
+        user = User(
+            email=google_email, google_id=google_sub,
+            email_verified=email_verified, language=data.language or "en",
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    if not user.name or not user.date_of_birth:
+        # Same profile-completion step as email signup (name/DOB/gender) -
+        # this is what enforces the under-18 independent-account block, so
+        # a Google account cannot skip that safety check.
+        return {"success": True, "needs_profile": True, "email": user.email, "suggested_name": google_name}
+
     return {"success": True, "token": create_jwt(user.id), "user": user_public(user)}
 
 # ── Current user ───────────────────────────────────────────────────────────

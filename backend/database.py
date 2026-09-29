@@ -103,7 +103,8 @@ class User(Base):
     id             = Column(Integer, primary_key=True, index=True)
     phone          = Column(String(20), unique=True, index=True, nullable=True)
     email          = Column(String(200), unique=True, index=True, nullable=True)
-    password_hash  = Column(String(200), nullable=True)  # only set for email accounts
+    password_hash  = Column(String(200), nullable=True)  # only set for email/password accounts
+    google_id      = Column(String(100), unique=True, index=True, nullable=True)  # Google "sub" claim, for Sign in with Google
     name           = Column(String(200), nullable=True)
     date_of_birth  = Column(String(10), nullable=True)    # "YYYY-MM-DD"
     gender         = Column(String(20), nullable=True)     # male | female | other
@@ -649,6 +650,7 @@ _COLUMNS_ADDED_TO_EXISTING_TABLES = [
     ("users", "wallet_balance", "FLOAT DEFAULT 0"),
     ("users", "paid_services_count", "INTEGER DEFAULT 0"),
     ("users", "bonus_available", "BOOLEAN DEFAULT FALSE"),
+    ("users", "google_id", "VARCHAR(100)"),
 ]
 
 def _run_lightweight_migrations():
@@ -666,6 +668,7 @@ def _run_lightweight_migrations():
             conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_doctors_login_username ON doctors (login_username)"))
             conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_vendors_login_username ON vendors (login_username)"))
             conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_labs_login_username ON labs (login_username)"))
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_id ON users (google_id)"))
             conn.commit()
         except Exception as e:
             print(f"[migration] Could not add unique index on login_username columns: {e}")
