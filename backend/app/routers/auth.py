@@ -69,7 +69,7 @@ def user_public(u: User) -> dict:
     }
 
 async def send_otp_sms(phone: str, code: str):
-    from sms import send_beem_sms, normalize_phone
+    from app.routers.sms import send_beem_sms, normalize_phone
     message = f"Your AfyaHewa verification code is {code}. It expires in 10 minutes."
     await send_beem_sms([{"recipient_id": "1", "dest_addr": normalize_phone(phone)}], message)
 

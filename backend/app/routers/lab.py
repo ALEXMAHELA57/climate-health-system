@@ -202,7 +202,7 @@ async def upload_result(booking_id: str, data: ResultIn, admin: Admin = Depends(
 
     if booking.patient_phone:
         try:
-            from sms import send_beem_sms, normalize_phone
+            from app.routers.sms import send_beem_sms, normalize_phone
             test = db.query(LabTest).filter(LabTest.id == booking.test_id).first()
             # Keep the message generic for sensitive tests (HIV/STI) - a named
             # test in an SMS someone else glimpses could out a diagnosis.
@@ -295,7 +295,7 @@ async def lab_upload_result(booking_id: str, data: ResultIn, lab: Lab = Depends(
 
     if booking.patient_phone:
         try:
-            from sms import send_beem_sms, normalize_phone
+            from app.routers.sms import send_beem_sms, normalize_phone
             test = db.query(LabTest).filter(LabTest.id == booking.test_id).first()
             # Keep the message generic for sensitive tests (HIV/STI) - a named
             # test in an SMS someone else glimpses could out a diagnosis.

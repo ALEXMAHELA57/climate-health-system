@@ -103,7 +103,7 @@ async def fetch_weather_risk(region: str, coords: dict) -> dict:
 
 async def send_sms_to_region(db: Session, region: str, message_en: str, message_sw: str, alert_type: str):
     """Send SMS to all active subscribers in a region."""
-    from sms import send_beem_sms  # import here to avoid circular import
+    from app.routers.sms import send_beem_sms  # import here to avoid circular import
     subscribers = db.query(Subscriber).filter(
         Subscriber.active == True,
         Subscriber.region == region
@@ -228,7 +228,7 @@ async def check_medicine_reminders():
     even if they don't have the app open, are offline, or don't have a
     smartphone at all. The mobile app handles the on-device alarm
     separately via local notifications; this is purely the SMS backstop."""
-    from sms import send_beem_sms  # import here to avoid circular import
+    from app.routers.sms import send_beem_sms  # import here to avoid circular import
 
     now_tz = datetime.utcnow() + timedelta(hours=3)  # Tanzania time
     today = now_tz.strftime('%Y-%m-%d')
@@ -288,7 +288,7 @@ MEASUREMENT_SMS_TEMPLATES = {
 async def check_measurement_reminders():
     """Same pattern as check_medicine_reminders, for health measurement
     logging reminders (e.g. morning/evening blood pressure checks)."""
-    from sms import send_beem_sms
+    from app.routers.sms import send_beem_sms
 
     now_tz = datetime.utcnow() + timedelta(hours=3)
     today = now_tz.strftime('%Y-%m-%d')

@@ -113,7 +113,7 @@ async def notify_offline_party(appointment_id: str, sender_type: str, db: Sessio
     if not appt:
         return
     try:
-        from sms import send_beem_sms, normalize_phone
+        from app.routers.sms import send_beem_sms, normalize_phone
         if sender_type == "patient":
             doctor = db.query(Doctor).filter(Doctor.id == appt.doctor_id).first()
             if doctor and doctor.phone:

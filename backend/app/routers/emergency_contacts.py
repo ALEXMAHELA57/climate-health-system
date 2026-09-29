@@ -65,7 +65,7 @@ async def trigger_alert(data: TriggerAlertIn, user: User = Depends(get_current_u
 
     sent_count = 0
     try:
-        from sms import send_beem_sms, normalize_phone
+        from app.routers.sms import send_beem_sms, normalize_phone
         for c in contacts:
             try:
                 await send_beem_sms([{"recipient_id": "1", "dest_addr": normalize_phone(c.phone)}], message[:160])

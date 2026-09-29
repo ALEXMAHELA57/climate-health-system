@@ -96,7 +96,7 @@ async def send_link_request(data: LinkRequestIn, user: User = Depends(get_curren
     inviter_name = user.name or (user.phone or user.email or "Someone")
     if data.target_phone:
         try:
-            from sms import send_beem_sms, normalize_phone
+            from app.routers.sms import send_beem_sms, normalize_phone
             message = (
                 f"{inviter_name} invited you on AfyaHewa as their {data.relationship_type}. "
                 f"Open AfyaHewa and log in with this phone number to accept or decline."
