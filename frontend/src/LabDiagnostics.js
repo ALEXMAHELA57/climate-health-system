@@ -10,7 +10,7 @@ function authHeaders() {
 
 const CATEGORY_ICON = { blood: Droplet, diabetes: FlaskConical, hiv_sti: TestTube, pregnancy: Baby, cholesterol: HeartPulse, kidney_liver: FlaskConical, other: FlaskConical };
 
-export default function LabDiagnostics({ lang, setPage, setAfyaTopic, setAfyaReturnPage }) {
+export default function LabDiagnostics({ lang, setPage, setAfyaTopic, setAfyaReturnPage, registerBack }) {
   const { theme } = useTheme();
   const sw = lang === 'sw';
   const user = JSON.parse(localStorage.getItem('afya_user') || 'null');
@@ -30,6 +30,22 @@ export default function LabDiagnostics({ lang, setPage, setAfyaTopic, setAfyaRet
   const [error, setError] = useState('');
   const [labSearch, setLabSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Let the app's header back button step back through this page's own
+  // navigation (lab -> category -> test -> booking) instead of jumping
+  // straight out to Health, which used to skip past the lab-selection
+  // step entirely whenever a lab was already chosen.
+  useEffect(() => {
+    if (!registerBack) return;
+    registerBack(() => {
+      if (view === 'tests') { setView('browse'); return true; }
+      if (view === 'consent') { setView('tests'); return true; }
+      if (view === 'book') { setView(selectedTest?.sensitive ? 'consent' : 'tests'); return true; }
+      if (view === 'mine') { setView('browse'); return true; }
+      if (view === 'browse' && selectedLab && labs.length > 1) { setSelectedLab(null); return true; }
+      return false; // nothing left to step back through - let it exit to Health
+    });
+  }, [registerBack, view, selectedLab, selectedTest, labs]);
 
   useEffect(() => {
     fetch(`${API}/api/lab/categories`).then(r => r.json()).then(d => setCategories(d.categories || [])).catch(() => {});

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Home as HomeIcon, Cloud, Stethoscope, User, Globe, MapPin, WifiOff, Sun, Moon, HeartPulse, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { API, T } from './constants';
 import { ThemeProvider, useTheme } from './ThemeContext';
@@ -82,6 +82,7 @@ function AppShell({ startAtEmailLogin }) {
   const [showVendorPortal, setShowVendorPortal] = useState(()=>window.location.hash==='#vendor');
   const [showLabPortal, setShowLabPortal] = useState(()=>window.location.hash==='#lab-portal');
   const [showOnboarding, setShowOnboarding] = useState(()=>!localStorage.getItem('afya_onboarded'));
+  const labBackRef = useRef(null);
   const [user, setUser] = useState(()=>{
     const saved = localStorage.getItem('afya_user');
     return saved ? JSON.parse(saved) : null;
@@ -226,7 +227,7 @@ function AppShell({ startAtEmailLogin }) {
             {page==='family'    && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Afya ya Familia':'Family Health'}><FamilyHealth lang={lang} /></SubPage>}
             {page==='myhealth'  && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Afya Yangu':'My Health'}><MyHealth lang={lang} /></SubPage>}
             {page==='wallet'    && <Wallet lang={lang} setPage={setPage} />}
-            {page==='lab'       && <SubPage lang={lang} setPage={()=>setPage('health')} backLabel={lang==='sw'?'Rudi Afya':'Back to Health'} title={lang==='sw'?'Vipimo vya Maabara':'Lab & Diagnostics'}><LabDiagnostics lang={lang} setPage={setPage} setAfyaTopic={setAfyaTopic} setAfyaReturnPage={setAfyaReturnPage} /></SubPage>}
+            {page==='lab'       && <SubPage lang={lang} setPage={()=>{ if (labBackRef.current && labBackRef.current()) return; setPage('health'); }} backLabel={lang==='sw'?'Rudi Afya':'Back to Health'} title={lang==='sw'?'Vipimo vya Maabara':'Lab & Diagnostics'}><LabDiagnostics lang={lang} setPage={setPage} setAfyaTopic={setAfyaTopic} setAfyaReturnPage={setAfyaReturnPage} registerBack={fn => { labBackRef.current = fn; }} /></SubPage>}
             {page==='shop'      && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Duka la Afya':'Health Shop'}><HealthShop lang={lang} /></SubPage>}
             {page==='report'    && <CommunityReport lang={lang} />}
             {page==='emergency' && <EmergencyPage lang={lang} setPage={setPage} />}
