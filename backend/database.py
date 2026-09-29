@@ -9,6 +9,16 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 
+# Force the psycopg2 driver explicitly. Newer SQLAlchemy versions (2.1+)
+# default a bare "postgresql://" URL to the psycopg (v3) driver, which we
+# don't install (we install psycopg2-binary) - that mismatch crashes the
+# whole app at import time with "ModuleNotFoundError: No module named 'psycopg'".
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
+elif DATABASE_URL.startswith("postgres://"):
+    # Some providers (Supabase/Heroku-style) hand out the legacy "postgres://" scheme.
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg2://", 1)
+
 # Add SSL and pooler-compatible settings
 connect_args = {"sslmode": "require"} if DATABASE_URL.startswith("postgresql") else {}
 engine = create_engine(

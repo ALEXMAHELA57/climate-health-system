@@ -6,7 +6,7 @@ anthropic
 python-dotenv
 pydantic
 email-validator
-sqlalchemy
+sqlalchemy<2.1
 psycopg2-binary
 apscheduler
 passlib[bcrypt]==1.7.4
