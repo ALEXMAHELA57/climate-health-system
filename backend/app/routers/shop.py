@@ -177,6 +177,23 @@ async def checkout(data: CheckoutIn, user: User = Depends(get_current_user), db:
         db.commit()
         return {"success": True, "order_id": order_id, "message": "Paid from your AfyaWekeza balance"}
 
+    if not azampay.is_configured():
+        # TEMPORARY: AzamPay credentials aren't set up yet, so there's no way
+        # to actually collect mobile money right now. Mark paid directly so
+        # orders can go through and the rest of the flow (vendor fulfillment,
+        # payouts) can be tested. Remove this branch once AZAMPAY_* env vars
+        # are configured for real.
+        for item in data.items:
+            product = db.query(Product).filter(Product.id == item.product_id).first()
+            if product:
+                product.stock -= item.quantity
+        order.payment_status = "paid"
+        order.azampay_ref = f"UNPAID-NOGATEWAY-{order_id}"
+        from app.routers.wallet import record_paid_service
+        record_paid_service(user, db)
+        db.commit()
+        return {"success": True, "order_id": order_id, "message": "Order placed"}
+
     payment = await azampay.checkout_mno(total, data.delivery_phone, data.payment_provider, order_id, data.delivery_name)
 
     if payment.get("success"):
