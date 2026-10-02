@@ -1,18 +1,34 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, User } from 'lucide-react';
 
-// Full-screen video/voice call, embedded via Daily.co's call frame.
+// Full-screen video/voice call - built directly on Daily.co's low-level
+// "call object" API (no Daily Prebuilt iframe), so the UI is just ours:
+// one video tile, a small self-preview, and three buttons - mute, camera,
+// hang up. No device-check screen, no conferencing toolbar, no "More"
+// menu - closer to a phone/WhatsApp call than a meeting app.
+//
 // Used by both the patient app (Consultation.js) and the Doctor Portal.
-// For a 'voice' consultation, camera is not just off by default - it is
-// actively kept off for the whole call (see the participant-updated
-// listener below), because voice and video are billed at different
-// prices: paying for voice must not get you a video call.
+// For a 'voice' consultation, camera is never requested or shown at all -
+// voice and video are billed at different prices, so paying for voice
+// must not get you a video call.
 export default function CallRoom({ roomUrl, token, consultationType, onLeave }) {
-  const containerRef = useRef(null);
-  const callFrameRef = useRef(null);
+  const callRef = useRef(null);
+  const localVideoRef = useRef(null);
+  const remoteVideoRef = useRef(null);
+  const remoteAudioRef = useRef(null);
+  const timerRef = useRef(null);
+  const isVoice = consultationType === 'voice';
+
   const [scriptReady, setScriptReady] = useState(!!window.DailyIframe);
   const [error, setError] = useState('');
+  const [joined, setJoined] = useState(false);
+  const [remoteJoined, setRemoteJoined] = useState(false);
+  const [remoteName, setRemoteName] = useState('');
+  const [remoteHasVideo, setRemoteHasVideo] = useState(false);
+  const [micOn, setMicOn] = useState(true);
+  const [camOn, setCamOn] = useState(!isVoice);
   const [voiceOnlyNotice, setVoiceOnlyNotice] = useState(false);
+  const [seconds, setSeconds] = useState(0);
 
   useEffect(() => {
     if (window.DailyIframe) { setScriptReady(true); return; }
@@ -28,55 +44,192 @@ export default function CallRoom({ roomUrl, token, consultationType, onLeave }) 
   }, []);
 
   useEffect(() => {
-    if (!scriptReady || !containerRef.current || callFrameRef.current) return;
+    if (!scriptReady || callRef.current) return;
+    let call;
     try {
-      const frame = window.DailyIframe.createFrame(containerRef.current, {
-        iframeStyle: { width: '100%', height: '100%', border: '0' },
-        showLeaveButton: true,
-        startVideoOff: consultationType === 'voice',
+      call = window.DailyIframe.createCallObject({
+        audioSource: true,
+        videoSource: !isVoice,
       });
-      callFrameRef.current = frame;
-      frame.on('left-meeting', () => onLeave && onLeave());
-      if (consultationType === 'voice') {
-        // Enforce voice-only for the whole call, not just at join: if the
-        // camera track ever comes on (local toggle, device auto-resume,
-        // etc.) turn it straight back off. This is what actually stops a
-        // voice booking from becoming a free video call, not just the
-        // startVideoOff default below.
-        frame.on('participant-updated', (e) => {
-          if (e?.participant?.local && e.participant.video) {
-            frame.setLocalVideo(false);
-            setVoiceOnlyNotice(true);
-            setTimeout(() => setVoiceOnlyNotice(false), 3000);
+      callRef.current = call;
+
+      call.on('joined-meeting', () => setJoined(true));
+
+      call.on('track-started', (e) => {
+        const p = e?.participant;
+        const track = e?.track;
+        if (!p || !track) return;
+        if (p.local) {
+          if (track.kind === 'video' && localVideoRef.current) {
+            localVideoRef.current.srcObject = new MediaStream([track]);
           }
-        });
-      }
-      frame.join({ url: roomUrl, token }).catch(() => setError('Could not join the call. Please try again.'));
+          return;
+        }
+        setRemoteJoined(true);
+        setRemoteName(p.user_name || '');
+        if (track.kind === 'video') {
+          setRemoteHasVideo(true);
+          if (remoteVideoRef.current) remoteVideoRef.current.srcObject = new MediaStream([track]);
+        } else if (track.kind === 'audio' && remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = new MediaStream([track]);
+        }
+      });
+
+      call.on('track-stopped', (e) => {
+        const p = e?.participant;
+        if (p && !p.local && e?.track?.kind === 'video') setRemoteHasVideo(false);
+      });
+
+      call.on('participant-left', (e) => {
+        if (!e?.participant?.local) { setRemoteJoined(false); setRemoteHasVideo(false); }
+      });
+
+      call.on('participant-updated', (e) => {
+        const p = e?.participant;
+        if (!p) return;
+        if (isVoice && p.local && p.video) {
+          // Enforce voice-only for the whole call, not just at join: if the
+          // camera track ever comes on (local toggle, device auto-resume,
+          // etc.) turn it straight back off.
+          call.setLocalVideo(false);
+          setVoiceOnlyNotice(true);
+          setTimeout(() => setVoiceOnlyNotice(false), 3000);
+        }
+      });
+
+      call.on('left-meeting', () => onLeave && onLeave());
+      call.on('error', () => setError('Call error - please try again.'));
+
+      call.join({ url: roomUrl, token }).catch(() => setError('Could not join the call. Please try again.'));
     } catch {
       setError('Could not start the call on this device.');
     }
     return () => {
-      if (callFrameRef.current) { callFrameRef.current.destroy(); callFrameRef.current = null; }
+      if (callRef.current) { callRef.current.destroy(); callRef.current = null; }
     };
     // eslint-disable-next-line
   }, [scriptReady, roomUrl, token]);
 
+  // Call duration timer, starts once the other person actually joins.
+  useEffect(() => {
+    if (remoteJoined && !timerRef.current) {
+      timerRef.current = setInterval(() => setSeconds(s => s + 1), 1000);
+    }
+    return () => { if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; } };
+  }, [remoteJoined]);
+
+  function formatDuration(total) {
+    const m = Math.floor(total / 60).toString().padStart(2, '0');
+    const s = (total % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  }
+
+  function toggleMic() {
+    if (!callRef.current) return;
+    const next = !micOn;
+    callRef.current.setLocalAudio(next);
+    setMicOn(next);
+  }
+
+  function toggleCam() {
+    if (isVoice || !callRef.current) return;
+    const next = !camOn;
+    callRef.current.setLocalVideo(next);
+    setCamOn(next);
+  }
+
+  function hangUp() {
+    if (callRef.current) callRef.current.leave().catch(() => {});
+    onLeave && onLeave();
+  }
+
+  const statusLabel = !joined ? 'Connecting...' : remoteJoined ? formatDuration(seconds) : 'Ringing...';
+  const showRemoteVideo = !isVoice && remoteJoined && remoteHasVideo;
+  const showLocalPreview = !isVoice && camOn;
+
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 1000, display: 'flex', flexDirection: 'column' }}>
-      <button onClick={() => onLeave && onLeave()}
-        style={{ position: 'absolute', top: 12, right: 12, zIndex: 1001, width: 34, height: 34, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-        <X size={18} />
-      </button>
-      {voiceOnlyNotice && (
-        <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 1001, background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 12, padding: '8px 14px', borderRadius: 8, maxWidth: '80%', textAlign: 'center' }}>
-          This is a voice call - video isn't included. Book a video consultation to enable your camera.
-        </div>
-      )}
+    <div style={{ position: 'fixed', inset: 0, background: '#111827', zIndex: 1000, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <audio ref={remoteAudioRef} autoPlay playsInline />
+
       {error ? (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, padding: 24, textAlign: 'center' }}>{error}</div>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, padding: 24, textAlign: 'center' }}>
+          {error}
+        </div>
       ) : (
-        <div ref={containerRef} style={{ flex: 1 }} />
+        <>
+          <div style={{ flex: 1, position: 'relative' }}>
+            {showRemoteVideo ? (
+              <video ref={remoteVideoRef} autoPlay playsInline
+                style={{ width: '100%', height: '100%', objectFit: 'cover', background: '#000' }} />
+            ) : (
+              <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+                <div style={{
+                  width: 108, height: 108, borderRadius: '50%', background: '#374151',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: !remoteJoined ? '0 0 0 0 rgba(255,255,255,0.25)' : 'none',
+                  animation: !remoteJoined ? 'callroom-pulse 1.8s ease-out infinite' : 'none',
+                }}>
+                  <User size={48} color="#9ca3af" />
+                </div>
+                <div style={{ color: '#fff', fontSize: 18, fontWeight: 700 }}>{remoteName || (isVoice ? 'Voice Call' : 'Video Call')}</div>
+              </div>
+            )}
+
+            {/* Always-visible status bar at the top */}
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: '16px 16px 40px', textAlign: 'center',
+              background: showRemoteVideo ? 'linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0))' : 'none' }}>
+              {showRemoteVideo && <div style={{ color: '#fff', fontSize: 16, fontWeight: 700, marginBottom: 2 }}>{remoteName}</div>}
+              <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: 500 }}>{statusLabel}</div>
+            </div>
+
+            {showLocalPreview && (
+              <video ref={localVideoRef} autoPlay playsInline muted
+                style={{ position: 'absolute', top: 16, right: 16, width: 96, height: 128, borderRadius: 12, objectFit: 'cover',
+                  background: '#000', border: '2px solid rgba(255,255,255,0.2)' }} />
+            )}
+
+            {voiceOnlyNotice && (
+              <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 1001,
+                background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 12, padding: '8px 14px', borderRadius: 8, maxWidth: '80%', textAlign: 'center' }}>
+                This is a voice call - video isn't included. Book a video consultation to enable your camera.
+              </div>
+            )}
+          </div>
+
+          {/* Bottom control bar */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 28, padding: '20px 16px 36px' }}>
+            <button onClick={toggleMic}
+              style={{ width: 54, height: 54, borderRadius: '50%', border: 'none', cursor: 'pointer',
+                background: micOn ? 'rgba(255,255,255,0.15)' : '#fff', color: micOn ? '#fff' : '#111827',
+                display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {micOn ? <Mic size={22} /> : <MicOff size={22} />}
+            </button>
+
+            <button onClick={hangUp}
+              style={{ width: 64, height: 64, borderRadius: '50%', border: 'none', cursor: 'pointer',
+                background: '#ef4444', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <PhoneOff size={26} />
+            </button>
+
+            {!isVoice && (
+              <button onClick={toggleCam}
+                style={{ width: 54, height: 54, borderRadius: '50%', border: 'none', cursor: 'pointer',
+                  background: camOn ? 'rgba(255,255,255,0.15)' : '#fff', color: camOn ? '#fff' : '#111827',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {camOn ? <Video size={22} /> : <VideoOff size={22} />}
+              </button>
+            )}
+          </div>
+        </>
       )}
+
+      <style>{`
+        @keyframes callroom-pulse {
+          0% { box-shadow: 0 0 0 0 rgba(255,255,255,0.25); }
+          70% { box-shadow: 0 0 0 22px rgba(255,255,255,0); }
+          100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+        }
+      `}</style>
     </div>
   );
 }
