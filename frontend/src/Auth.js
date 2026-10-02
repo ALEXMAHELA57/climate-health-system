@@ -144,7 +144,16 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
     if (!GOOGLE_CLIENT_ID) return;
     function renderButton() {
       if (!window.google || !googleBtnRef.current) return;
-      window.google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential });
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential,
+        // Opt the button out of the browser's FedCM account-chooser UI
+        // ("Continue as <name>" with avatar + email baked in) and keep the
+        // plain, consistently-styled "Continue with Google" button instead,
+        // regardless of whether the visitor's already signed into Google
+        // in that browser.
+        use_fedcm_for_button: false,
+        itp_support: false,
+      });
       googleBtnRef.current.innerHTML = '';
       window.google.accounts.id.renderButton(googleBtnRef.current, {
         theme: isDark ? 'filled_black' : 'outline', size: 'large', width: 360, text: 'continue_with', shape: 'pill',
