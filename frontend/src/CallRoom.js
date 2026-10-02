@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, User } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, User, Maximize, Minimize } from 'lucide-react';
 
 // Full-screen video/voice call - built directly on Daily.co's low-level
 // "call object" API (no Daily Prebuilt iframe), so the UI is just ours:
@@ -12,6 +12,7 @@ import { Mic, MicOff, Video, VideoOff, PhoneOff, User } from 'lucide-react';
 // voice and video are billed at different prices, so paying for voice
 // must not get you a video call.
 export default function CallRoom({ roomUrl, token, consultationType, onLeave }) {
+  const containerRef = useRef(null);
   const callRef = useRef(null);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -29,6 +30,7 @@ export default function CallRoom({ roomUrl, token, consultationType, onLeave }) 
   const [camOn, setCamOn] = useState(!isVoice);
   const [voiceOnlyNotice, setVoiceOnlyNotice] = useState(false);
   const [seconds, setSeconds] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     if (window.DailyIframe) { setScriptReady(true); return; }
@@ -100,7 +102,13 @@ export default function CallRoom({ roomUrl, token, consultationType, onLeave }) 
       call.on('left-meeting', () => onLeave && onLeave());
       call.on('error', () => setError('Call error - please try again.'));
 
-      call.join({ url: roomUrl, token }).catch(() => setError('Could not join the call. Please try again.'));
+      call.join({ url: roomUrl, token }).then(() => {
+        // AI noise cancellation (Krisp) - filters out background noise
+        // (traffic, fans, crowds, etc.) so only the speaker's voice comes
+        // through. Not supported on every Daily plan, so fail silently if
+        // it's unavailable rather than breaking the call.
+        call.updateInputSettings({ audio: { processor: { type: 'noise-cancellation' } } }).catch(() => {});
+      }).catch(() => setError('Could not join the call. Please try again.'));
     } catch {
       setError('Could not start the call on this device.');
     }
@@ -143,12 +151,26 @@ export default function CallRoom({ roomUrl, token, consultationType, onLeave }) 
     onLeave && onLeave();
   }
 
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen?.().catch(() => {});
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  }
+
   const statusLabel = !joined ? 'Connecting...' : remoteJoined ? formatDuration(seconds) : 'Ringing...';
   const showRemoteVideo = !isVoice && remoteJoined && remoteHasVideo;
   const showLocalPreview = !isVoice && camOn;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#111827', zIndex: 1000, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div ref={containerRef} style={{ position: 'fixed', inset: 0, background: '#111827', zIndex: 1000, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <audio ref={remoteAudioRef} autoPlay playsInline />
 
       {error ? (
@@ -181,6 +203,12 @@ export default function CallRoom({ roomUrl, token, consultationType, onLeave }) 
               {showRemoteVideo && <div style={{ color: '#fff', fontSize: 16, fontWeight: 700, marginBottom: 2 }}>{remoteName}</div>}
               <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: 500 }}>{statusLabel}</div>
             </div>
+
+            <button onClick={toggleFullscreen} aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+              style={{ position: 'absolute', top: 16, left: 16, width: 38, height: 38, borderRadius: '50%', border: 'none', cursor: 'pointer',
+                background: 'rgba(0,0,0,0.4)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {isFullscreen ? <Minimize size={17} /> : <Maximize size={17} />}
+            </button>
 
             {showLocalPreview && (
               <video ref={localVideoRef} autoPlay playsInline muted
