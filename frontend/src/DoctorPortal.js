@@ -19,7 +19,22 @@ export default function DoctorPortal() {
 
   const [appointments, setAppointments] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
-  const [activeCall, setActiveCall] = useState(null); // { roomUrl, token, consultationType, appointmentId }
+  // { roomUrl, token, consultationType, appointmentId } - persisted so a
+  // refresh or accidental reload mid-call doesn't strand the doctor outside
+  // the call screen with no way back in.
+  const [activeCall, setActiveCallState] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('afya_doctor_active_call');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
+  function setActiveCall(call) {
+    try {
+      if (call) sessionStorage.setItem('afya_doctor_active_call', JSON.stringify(call));
+      else sessionStorage.removeItem('afya_doctor_active_call');
+    } catch {}
+    setActiveCallState(call);
+  }
   const [joiningCallId, setJoiningCallId] = useState(null);
   const [callError, setCallError] = useState('');
   const [view, setView] = useState('appointments'); // appointments | settings
@@ -193,7 +208,7 @@ export default function DoctorPortal() {
   if (activeCall) {
     return (
       <CallRoom roomUrl={activeCall.roomUrl} token={activeCall.token} consultationType={activeCall.consultationType}
-        appointmentId={activeCall.appointmentId} authToken={token}
+        appointmentId={activeCall.appointmentId} authToken={token} role="doctor"
         onLeave={() => setActiveCall(null)} />
     );
   }
@@ -261,7 +276,7 @@ export default function DoctorPortal() {
               {a.status === 'confirmed' && a.payment_status === 'paid' && (a.consultation_type === 'voice' || a.consultation_type === 'video') && (
                 <button onClick={() => joinCall(a.appointment_id)} disabled={joiningCallId === a.appointment_id}
                   style={{ width: '100%', marginTop: 8, padding: 8, background: joiningCallId === a.appointment_id ? '#86efac' : '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: joiningCallId === a.appointment_id ? 'default' : 'pointer' }}>
-                  {joiningCallId === a.appointment_id ? 'Connecting...' : `Join ${a.consultation_type === 'video' ? 'Video' : 'Voice'} Call`}
+                  {joiningCallId === a.appointment_id ? 'Calling...' : `Call (${a.consultation_type === 'video' ? 'Video' : 'Voice'})`}
                 </button>
               )}
             </div>

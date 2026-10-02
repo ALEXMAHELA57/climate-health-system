@@ -142,6 +142,17 @@ async def decline_call_as_doctor(appointment_id: str, doctor: Doctor = Depends(g
     await notify_call_declined(appt, "doctor")
     return {"success": True}
 
+@router.post("/appointments/{appointment_id}/call/cancel")
+async def cancel_call_as_doctor(appointment_id: str, doctor: Doctor = Depends(get_current_doctor), db: Session = Depends(get_db)):
+    """Doctor hangs up their own outgoing call before the patient answers -
+    dismiss the patient's Incoming Call screen instead of leaving it ringing."""
+    from app.routers.call import notify_call_cancelled
+    appt = db.query(Appointment).filter(Appointment.appointment_id == appointment_id, Appointment.doctor_id == doctor.id).first()
+    if not appt:
+        return {"success": False, "error": "Appointment not found"}
+    await notify_call_cancelled(appt, "doctor")
+    return {"success": True}
+
 # ── Change requests (price/availability) - proposed, pending admin approval ──
 
 @router.post("/change-requests")

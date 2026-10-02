@@ -334,6 +334,20 @@ async def decline_call_as_patient(appointment_id: str, user: User = Depends(get_
     await notify_call_declined(appt, "patient")
     return {"success": True}
 
+@router.post("/appointments/{appointment_id}/call/cancel")
+async def cancel_call_as_patient(appointment_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Patient hangs up their own outgoing call before the doctor answers -
+    dismiss the doctor's Incoming Call screen instead of leaving it ringing."""
+    from app.routers.call import notify_call_cancelled
+    appt = db.query(Appointment).filter(Appointment.appointment_id == appointment_id).first()
+    if not appt:
+        return {"success": False, "error": "Appointment not found"}
+    owns = (appt.owner_user_id == user.id) if appt.owner_user_id is not None else (user.phone and user.phone == appt.patient_phone)
+    if not owns:
+        return {"success": False, "error": "This isn't your appointment"}
+    await notify_call_cancelled(appt, "patient")
+    return {"success": True}
+
 @router.get("/appointments/mine")
 def get_my_appointments(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Everything the logged-in account holder can see: their own

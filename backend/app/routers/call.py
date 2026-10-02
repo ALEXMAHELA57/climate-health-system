@@ -181,6 +181,18 @@ async def notify_call_declined(appt: Appointment, declining_role: str):
     })
 
 
+async def notify_call_cancelled(appt: Appointment, cancelling_role: str):
+    """Tell the callee the caller hung up before anyone answered, so their
+    Incoming Call screen dismisses instead of ringing until it times out."""
+    target_role, target_id = _other_party(appt, cancelling_role)
+    if not target_role:
+        return
+    await signal_manager.send(target_role, target_id, {
+        "type": "call_cancelled",
+        "appointment_id": appt.appointment_id,
+    })
+
+
 @router.websocket("/ws")
 async def call_signal_ws(websocket: WebSocket, token: str = Query(...)):
     role, uid = _identify(token)

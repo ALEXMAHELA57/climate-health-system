@@ -38,7 +38,7 @@ function authHeaders() {
   return token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
 }
 
-export default function Consultation({ lang, initialSpecialty, hideTabs, externalView }) {
+export default function Consultation({ lang, initialSpecialty, hideTabs, externalView, onCallStarted }) {
   const { theme } = useTheme();
   const sw = lang === 'sw';
   const user = JSON.parse(localStorage.getItem('afya_user') || 'null');
@@ -128,8 +128,10 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
     try {
       const res = await fetch(`${API}/api/consultation/appointments/${appointmentId}/call`, { method: 'POST', headers: authHeaders() });
       const data = await res.json();
-      if (data.success) setActiveCall({ roomUrl: data.room_url, token: data.token, consultationType: data.consultation_type, appointmentId });
-      else setError(data.error || (sw ? 'Imeshindwa kuunganisha' : 'Could not start the call'));
+      if (data.success) {
+        const call = { roomUrl: data.room_url, token: data.token, consultationType: data.consultation_type, appointmentId };
+        if (onCallStarted) onCallStarted(call); else setActiveCall(call);
+      } else setError(data.error || (sw ? 'Imeshindwa kuunganisha' : 'Could not start the call'));
     } catch { setError(sw ? 'Hitilafu ya muunganisho' : 'Connection error'); }
     setJoiningCallId(null);
   }
@@ -255,7 +257,7 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
   if (activeCall) {
     return (
       <CallRoom roomUrl={activeCall.roomUrl} token={activeCall.token} consultationType={activeCall.consultationType}
-        appointmentId={activeCall.appointmentId} authToken={token}
+        appointmentId={activeCall.appointmentId} authToken={token} role="patient"
         onLeave={() => setActiveCall(null)} />
     );
   }
@@ -525,7 +527,7 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
             <button onClick={() => joinCall(consultResult.appointment_id)} disabled={joiningCallId === consultResult.appointment_id}
               style={{ width: '100%', maxWidth: 280, margin: '0 auto 10px', padding: 11, background: joiningCallId === consultResult.appointment_id ? '#86efac' : '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: joiningCallId === consultResult.appointment_id ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
               {consultResult.consultation_type === 'video' ? <Video size={15} /> : <Phone size={15} />}
-              {joiningCallId === consultResult.appointment_id ? (sw ? 'Inaunganisha...' : 'Connecting...') : (sw ? 'Ingia kwenye Simu Sasa' : 'Join Call Now')}
+              {joiningCallId === consultResult.appointment_id ? (sw ? 'Inapiga simu...' : 'Calling...') : (sw ? 'Piga Simu Sasa' : 'Call Now')}
             </button>
           )}
           {!consultResult.open_chat_now && (
@@ -679,7 +681,7 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
                   <button onClick={() => joinCall(a.appointment_id)} disabled={joiningCallId === a.appointment_id}
                     style={{ width: '100%', marginTop: 10, padding: 8, background: joiningCallId === a.appointment_id ? '#86efac' : '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: joiningCallId === a.appointment_id ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
                     {a.consultation_type === 'video' ? <Video size={13} /> : <Phone size={13} />}
-                    {joiningCallId === a.appointment_id ? (sw ? 'Inaunganisha...' : 'Connecting...') : (sw ? 'Ingia kwenye Simu' : 'Join Call')}
+                    {joiningCallId === a.appointment_id ? (sw ? 'Inapiga simu...' : 'Calling...') : (sw ? 'Piga Simu' : 'Call')}
                   </button>
                 )}
                 {a.status !== 'cancelled' && a.consultation_type !== 'chat' && (

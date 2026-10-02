@@ -45,6 +45,12 @@ export default function IncomingCallOverlay({ role, authToken, disabled, onAccep
           setIncoming({ appointment_id: msg.appointment_id, consultation_type: msg.consultation_type, caller_name: msg.caller_name });
           if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
           dismissTimerRef.current = setTimeout(() => setIncoming(null), 45000); // auto-dismiss if left unanswered
+        } else if (msg.type === 'call_cancelled') {
+          // The caller hung up before we answered - dismiss the ring.
+          if (incomingRef.current && incomingRef.current.appointment_id === msg.appointment_id) {
+            if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
+            setIncoming(null);
+          }
         } else if (msg.type === 'call_declined') {
           // Relevant to the caller's own CallRoom screen, not this overlay -
           // CallRoom listens for this itself while it's open and ringing.

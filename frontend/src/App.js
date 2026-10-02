@@ -100,7 +100,23 @@ function AppShell({ startAtEmailLogin }) {
   const [selectedHealthDomainId, setSelectedHealthDomainId] = useState(null);
   const [careView, setCareView] = useState('expert');
   const [afyaTopic, setAfyaTopic] = useState('');
-  const [globalActiveCall, setGlobalActiveCall] = useState(null); // { roomUrl, token, consultationType, appointmentId }
+  // { roomUrl, token, consultationType, appointmentId } - persisted so a
+  // refresh or accidental reload mid-call doesn't strand the person outside
+  // the call screen with no way back in. Restored once on first mount below.
+  const [globalActiveCall, setGlobalActiveCall] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('afya_active_call');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
+  function startCall(call) {
+    try { sessionStorage.setItem('afya_active_call', JSON.stringify(call)); } catch {}
+    setGlobalActiveCall(call);
+  }
+  function endCall() {
+    try { sessionStorage.removeItem('afya_active_call'); } catch {}
+    setGlobalActiveCall(null);
+  }
 
   const t = T[lang] || T.en;
 
@@ -163,8 +179,8 @@ function AppShell({ startAtEmailLogin }) {
     return (
       <Suspense fallback={<Loader />}>
         <CallRoom roomUrl={globalActiveCall.roomUrl} token={globalActiveCall.token} consultationType={globalActiveCall.consultationType}
-          appointmentId={globalActiveCall.appointmentId} authToken={localStorage.getItem('afya_token')}
-          onLeave={() => setGlobalActiveCall(null)} />
+          appointmentId={globalActiveCall.appointmentId} authToken={localStorage.getItem('afya_token')} role="patient"
+          onLeave={endCall} />
       </Suspense>
     );
   }
@@ -182,7 +198,7 @@ function AppShell({ startAtEmailLogin }) {
   return (
     <div style={{ maxWidth:480, margin:'0 auto', minHeight:'100vh', display:'flex', flexDirection:'column', background: theme.bg }}>
       <IncomingCallOverlay role="patient" authToken={localStorage.getItem('afya_token')}
-        onAccept={(call) => setGlobalActiveCall(call)} />
+        onAccept={startCall} />
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
@@ -236,7 +252,7 @@ function AppShell({ startAtEmailLogin }) {
             {page==='weather'   && <Weather  t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} />}
             {page==='clinics'   && <Clinics  t={t} lang={lang} district={district} onDistrictChange={handleDistrictChange} />}
             {page==='map'       && <RiskMap  t={t} lang={lang} />}
-            {page==='consultation' && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Ushauri wa Daktari':'Doctor Consultation'}><Consultation lang={lang} /></SubPage>}
+            {page==='consultation' && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Ushauri wa Daktari':'Doctor Consultation'}><Consultation lang={lang} onCallStarted={startCall} /></SubPage>}
             {page==='medicine'  && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Ratiba ya Dawa':'Medicine Schedule'}><MedicineSchedule lang={lang} /></SubPage>}
             {page==='profile'   && <UserProfile lang={lang} onLangChange={handleLangChange} onDistrictChange={handleDistrictChange} setPage={setPage} user={user} onLogout={handleLogout} />}
             {page==='family'    && <SubPage lang={lang} setPage={setPage} title={lang==='sw'?'Afya ya Familia':'Family Health'}><FamilyHealth lang={lang} /></SubPage>}

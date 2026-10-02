@@ -16,7 +16,7 @@ function wsUrl() {
 // For a 'voice' consultation, camera is never requested or shown at all -
 // voice and video are billed at different prices, so paying for voice
 // must not get you a video call.
-export default function CallRoom({ roomUrl, token, consultationType, onLeave, appointmentId, authToken }) {
+export default function CallRoom({ roomUrl, token, consultationType, onLeave, appointmentId, authToken, role }) {
   const containerRef = useRef(null);
   const callRef = useRef(null);
   const localVideoRef = useRef(null);
@@ -173,6 +173,15 @@ export default function CallRoom({ roomUrl, token, consultationType, onLeave, ap
   }
 
   function hangUp() {
+    // If nobody answered yet, let the other side know the call is off so
+    // their Incoming Call screen dismisses instead of ringing until it
+    // times out on its own.
+    if (!remoteJoinedRef.current && appointmentId && authToken && role) {
+      const endpoint = role === 'doctor' ? '/api/doctor/appointments' : '/api/consultation/appointments';
+      fetch(`${API}${endpoint}/${appointmentId}/call/cancel`, {
+        method: 'POST', headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+      }).catch(() => {});
+    }
     if (callRef.current) callRef.current.leave().catch(() => {});
     onLeave && onLeave();
   }
@@ -206,11 +215,14 @@ export default function CallRoom({ roomUrl, token, consultationType, onLeave, ap
       ) : (
         <>
           <div style={{ flex: 1, position: 'relative' }}>
-            {showRemoteVideo ? (
-              <video ref={remoteVideoRef} autoPlay playsInline
-                style={{ width: '100%', height: '100%', objectFit: 'cover', background: '#000' }} />
-            ) : (
-              <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+            {/* Always mounted (even when hidden) so the video element exists
+                the instant a remote track arrives - a track that starts
+                while this tag is unmounted has nowhere to attach to. */}
+            <video ref={remoteVideoRef} autoPlay playsInline
+              style={{ width: '100%', height: '100%', objectFit: 'cover', background: '#000',
+                display: showRemoteVideo ? 'block' : 'none' }} />
+            {!showRemoteVideo && (
+              <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, position: 'absolute', inset: 0 }}>
                 <div style={{
                   width: 108, height: 108, borderRadius: '50%', background: '#374151',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -236,10 +248,11 @@ export default function CallRoom({ roomUrl, token, consultationType, onLeave, ap
               {isFullscreen ? <Minimize size={17} /> : <Maximize size={17} />}
             </button>
 
-            {showLocalPreview && (
+            {!isVoice && (
               <video ref={localVideoRef} autoPlay playsInline muted
                 style={{ position: 'absolute', top: 16, right: 16, width: 96, height: 128, borderRadius: 12, objectFit: 'cover',
-                  background: '#000', border: '2px solid rgba(255,255,255,0.2)' }} />
+                  background: '#000', border: '2px solid rgba(255,255,255,0.2)',
+                  display: showLocalPreview ? 'block' : 'none' }} />
             )}
 
             {voiceOnlyNotice && (
