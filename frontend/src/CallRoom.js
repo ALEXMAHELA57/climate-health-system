@@ -36,7 +36,9 @@ export default function CallRoom({ roomUrl, token, consultationType, onLeave, ap
   const [voiceOnlyNotice, setVoiceOnlyNotice] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [declined, setDeclined] = useState(false);
+  // null while the call is ongoing; 'declined' or 'left' once it's over for
+  // a reason the other side caused (as opposed to us hanging up ourselves).
+  const [endedReason, setEndedReason] = useState(null);
   const remoteJoinedRef = useRef(false);
   remoteJoinedRef.current = remoteJoined;
 
@@ -91,7 +93,18 @@ export default function CallRoom({ roomUrl, token, consultationType, onLeave, ap
       });
 
       call.on('participant-left', (e) => {
-        if (!e?.participant?.local) { setRemoteJoined(false); setRemoteHasVideo(false); }
+        if (e?.participant?.local) return;
+        // The other person leaving mid-call is the call ending, not a
+        // reason to fall back to "Ringing..." - that label is only for
+        // before anyone has joined yet. Show "Call ended" and leave the
+        // Daily room ourselves shortly after, the same way a decline does.
+        const wasConnected = remoteJoinedRef.current;
+        setRemoteJoined(false);
+        setRemoteHasVideo(false);
+        if (wasConnected) {
+          setEndedReason('left');
+          setTimeout(() => { onLeave && onLeave(); }, 2000);
+        }
       });
 
       call.on('participant-updated', (e) => {
@@ -142,7 +155,7 @@ export default function CallRoom({ roomUrl, token, consultationType, onLeave, ap
     const onDeclined = () => {
       if (stopped || remoteJoinedRef.current) return;
       stopped = true;
-      setDeclined(true);
+      setEndedReason('declined');
       setTimeout(() => { onLeave && onLeave(); }, 2000);
     };
 
@@ -228,7 +241,10 @@ export default function CallRoom({ roomUrl, token, consultationType, onLeave, ap
     }
   }
 
-  const statusLabel = declined ? 'Call declined' : !joined ? 'Connecting...' : remoteJoined ? formatDuration(seconds) : 'Ringing...';
+  const statusLabel = endedReason === 'declined' ? 'Call declined'
+    : endedReason === 'left' ? 'Call ended'
+    : !joined ? 'Connecting...'
+    : remoteJoined ? formatDuration(seconds) : 'Ringing...';
   const showRemoteVideo = !isVoice && remoteJoined && remoteHasVideo;
   const showLocalPreview = !isVoice && camOn;
 
