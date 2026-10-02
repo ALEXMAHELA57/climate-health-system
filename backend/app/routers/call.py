@@ -156,6 +156,21 @@ class CallSignalManager:
 
 signal_manager = CallSignalManager()
 
+# Best-effort fallback for decline/cancel, in case the WebSocket push above
+# is missed - e.g. the caller's own "listen for decline" socket is still
+# mid-handshake (slow network, a backend that just cold-started) at the
+# instant the other side taps Decline, so there's nothing connected yet to
+# push to and the message is silently dropped. Rather than retry/queue on
+# the WebSocket itself, the declining/cancelling side also stamps a tiny
+# in-memory record here that the caller's screen can poll as a safety net.
+_last_signal: Dict[str, Dict[str, float]] = {}  # appointment_id -> {"type": ..., "ts": ...}
+_SIGNAL_TTL_SECONDS = 180
+
+
+def _record_signal(appointment_id: str, signal_type: str):
+    import time
+    _last_signal[str(appointment_id)] = {"type": signal_type, "ts": time.time()}
+
 
 async def notify_incoming_call(appt: Appointment, from_role: str, caller_name: str):
     """Ring the OTHER party that a call is starting for this appointment."""
@@ -172,6 +187,7 @@ async def notify_incoming_call(appt: Appointment, from_role: str, caller_name: s
 
 async def notify_call_declined(appt: Appointment, declining_role: str):
     """Tell the caller their call was declined, if they're connected."""
+    _record_signal(appt.appointment_id, "declined")
     target_role, target_id = _other_party(appt, declining_role)
     if not target_role:
         return
@@ -184,6 +200,7 @@ async def notify_call_declined(appt: Appointment, declining_role: str):
 async def notify_call_cancelled(appt: Appointment, cancelling_role: str):
     """Tell the callee the caller hung up before anyone answered, so their
     Incoming Call screen dismisses instead of ringing until it times out."""
+    _record_signal(appt.appointment_id, "cancelled")
     target_role, target_id = _other_party(appt, cancelling_role)
     if not target_role:
         return
@@ -191,6 +208,21 @@ async def notify_call_cancelled(appt: Appointment, cancelling_role: str):
         "type": "call_cancelled",
         "appointment_id": appt.appointment_id,
     })
+
+
+@router.get("/{appointment_id}/status")
+async def call_signal_status(appointment_id: str):
+    """Polling fallback for the WebSocket push above. CallRoom polls this
+    every couple of seconds while it's ringing, so a decline/cancel still
+    gets through within a couple of seconds even if the push was missed."""
+    import time
+    entry = _last_signal.get(str(appointment_id))
+    if not entry or (time.time() - entry["ts"]) > _SIGNAL_TTL_SECONDS:
+        return {"declined": False, "cancelled": False}
+    return {
+        "declined": entry["type"] == "declined",
+        "cancelled": entry["type"] == "cancelled",
+    }
 
 
 @router.websocket("/ws")

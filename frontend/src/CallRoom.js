@@ -108,7 +108,14 @@ export default function CallRoom({ roomUrl, token, consultationType, onLeave, ap
       });
 
       call.on('left-meeting', () => onLeave && onLeave());
-      call.on('error', () => setError('Call error - please try again.'));
+      // Daily fires 'error' for plenty of non-fatal hiccups mid-call (a
+      // brief network blip, a camera glitch, etc.) that it recovers from on
+      // its own - so this only shows a passing banner, never a page that
+      // kicks out the controls (hang-up must always stay reachable).
+      call.on('error', (e) => {
+        setError((e && (e.errorMsg || e.error)) || 'Call error - please try again.');
+        setTimeout(() => setError(''), 6000);
+      });
 
       call.join({ url: roomUrl, token }).then(() => {
         // AI noise cancellation (Krisp) - filters out background noise
@@ -131,16 +138,37 @@ export default function CallRoom({ roomUrl, token, consultationType, onLeave, ap
   // Decline on their Incoming Call screen.
   useEffect(() => {
     if (!appointmentId || !authToken) return;
+    let stopped = false;
+    const onDeclined = () => {
+      if (stopped || remoteJoinedRef.current) return;
+      stopped = true;
+      setDeclined(true);
+      setTimeout(() => { onLeave && onLeave(); }, 2000);
+    };
+
     const ws = new WebSocket(`${wsUrl()}/api/calls/ws?token=${encodeURIComponent(authToken)}`);
     ws.onmessage = (evt) => {
       let msg;
       try { msg = JSON.parse(evt.data); } catch { return; }
-      if (msg.type === 'call_declined' && msg.appointment_id === appointmentId && !remoteJoinedRef.current) {
-        setDeclined(true);
-        setTimeout(() => { onLeave && onLeave(); }, 2000);
-      }
+      if (msg.type === 'call_declined' && msg.appointment_id === appointmentId) onDeclined();
     };
-    return () => ws.close();
+
+    // Fallback: this socket is brand new the instant a call starts, and on
+    // a slow connection (or a backend that just cold-started) it can still
+    // be mid-handshake the moment the other side taps Decline, so the push
+    // above has nothing to deliver to. Poll the same signal as a safety
+    // net - worst case the "Ringing..." screen takes an extra couple of
+    // seconds to notice, instead of hanging forever.
+    const poll = setInterval(async () => {
+      if (stopped || remoteJoinedRef.current) return;
+      try {
+        const res = await fetch(`${API}/api/calls/${appointmentId}/status`);
+        const data = await res.json();
+        if (data.declined) onDeclined();
+      } catch { /* best-effort */ }
+    }, 2000);
+
+    return () => { stopped = true; ws.close(); clearInterval(poll); };
     // eslint-disable-next-line
   }, [appointmentId, authToken]);
 
@@ -208,12 +236,19 @@ export default function CallRoom({ roomUrl, token, consultationType, onLeave, ap
     <div ref={containerRef} style={{ position: 'fixed', inset: 0, background: '#111827', zIndex: 1000, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <audio ref={remoteAudioRef} autoPlay playsInline />
 
-      {error ? (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, padding: 24, textAlign: 'center' }}>
+      {/* A passing problem (network blip, camera glitch, etc.) shows as a
+          banner, never as a takeover - the call controls below, above all
+          hang-up, must always stay reachable so the person is never stuck
+          on a screen with no way to leave. */}
+      {!!error && (
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1002,
+          background: 'rgba(220,38,38,0.95)', color: '#fff', fontSize: 13, fontWeight: 500,
+          padding: '10px 16px', textAlign: 'center' }}>
           {error}
         </div>
-      ) : (
-        <>
+      )}
+
+      <>
           <div style={{ flex: 1, position: 'relative' }}>
             {/* Always mounted (even when hidden) so the video element exists
                 the instant a remote track arrives - a track that starts
@@ -287,8 +322,7 @@ export default function CallRoom({ roomUrl, token, consultationType, onLeave, ap
               </button>
             )}
           </div>
-        </>
-      )}
+      </>
 
       <style>{`
         @keyframes callroom-pulse {
