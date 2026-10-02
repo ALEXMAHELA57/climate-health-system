@@ -5,10 +5,19 @@ Doctor Portal (doctor.py, via get_current_doctor) call get_or_create_call()
 below to get a room + a personal join token for a confirmed, paid
 voice/video appointment. Neither router owns this logic so both stay
 in sync on room naming, expiry, and access rules.
+
+This file also owns call *signaling* (router below): a tiny per-user
+WebSocket channel used to ring the other party the instant someone starts
+a call, and to tell the caller if it was declined - so a call is a normal
+"ring, then accept/decline" phone call instead of both sides having to
+separately notice a Join Call button and click it at the same time.
 """
 import os
+import jwt
 import httpx
 from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from sqlalchemy.orm import Session
 from database import Appointment
 
@@ -92,3 +101,99 @@ async def get_or_create_call(appt: Appointment, db: Session, *, is_doctor: bool,
         "token": token["token"],
         "consultation_type": appt.consultation_type,
     }
+
+
+# ── Call signaling: ring / accept / decline ─────────────────────────────────
+# A lightweight, separate WebSocket (not the Daily.co call itself) that each
+# logged-in patient and doctor keeps open in the background the whole time
+# they're using the app, so they can be "rung" no matter what screen they're
+# on - the same way a phone call interrupts whatever else you're doing.
+
+router = APIRouter()
+
+
+def _identify(token: str) -> Tuple[Optional[str], Optional[int]]:
+    """Decode a JWT (patient or doctor) and return (role, id) or (None, None).
+    Imported lazily from auth to avoid a circular import at module load."""
+    from app.routers.auth import JWT_SECRET, JWT_ALGO
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+    except jwt.InvalidTokenError:
+        return None, None
+    if payload.get("type") == "doctor":
+        return "doctor", payload.get("doctor_id")
+    return "patient", payload.get("user_id")
+
+
+def _other_party(appt: Appointment, role: str) -> Tuple[Optional[str], Optional[int]]:
+    """Who should be rung/notified for the OTHER side of this appointment."""
+    if role == "doctor":
+        if appt.owner_user_id is None:
+            return None, None  # legacy phone-only booking - no account to ring
+        return "patient", appt.owner_user_id
+    return "doctor", appt.doctor_id
+
+
+class CallSignalManager:
+    def __init__(self):
+        self.conns: Dict[Tuple[str, int], List[WebSocket]] = {}
+
+    async def connect(self, role: str, uid: int, ws: WebSocket):
+        await ws.accept()
+        self.conns.setdefault((role, uid), []).append(ws)
+
+    def disconnect(self, role: str, uid: int, ws: WebSocket):
+        lst = self.conns.get((role, uid), [])
+        self.conns[(role, uid)] = [w for w in lst if w != ws]
+
+    async def send(self, role: str, uid: int, message: dict):
+        for ws in list(self.conns.get((role, uid), [])):
+            try:
+                await ws.send_json(message)
+            except Exception:
+                pass
+
+
+signal_manager = CallSignalManager()
+
+
+async def notify_incoming_call(appt: Appointment, from_role: str, caller_name: str):
+    """Ring the OTHER party that a call is starting for this appointment."""
+    target_role, target_id = _other_party(appt, from_role)
+    if not target_role:
+        return
+    await signal_manager.send(target_role, target_id, {
+        "type": "incoming_call",
+        "appointment_id": appt.appointment_id,
+        "consultation_type": appt.consultation_type,
+        "caller_name": caller_name,
+    })
+
+
+async def notify_call_declined(appt: Appointment, declining_role: str):
+    """Tell the caller their call was declined, if they're connected."""
+    target_role, target_id = _other_party(appt, declining_role)
+    if not target_role:
+        return
+    await signal_manager.send(target_role, target_id, {
+        "type": "call_declined",
+        "appointment_id": appt.appointment_id,
+    })
+
+
+@router.websocket("/ws")
+async def call_signal_ws(websocket: WebSocket, token: str = Query(...)):
+    role, uid = _identify(token)
+    if not role or not uid:
+        await websocket.close(code=4401)
+        return
+    await signal_manager.connect(role, uid, websocket)
+    try:
+        while True:
+            # Nothing is expected from the client - this is a one-way ring
+            # channel. receive() just lets us detect disconnects.
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        signal_manager.disconnect(role, uid, websocket)
+    except Exception:
+        signal_manager.disconnect(role, uid, websocket)

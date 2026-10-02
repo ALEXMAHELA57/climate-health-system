@@ -128,7 +128,7 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
     try {
       const res = await fetch(`${API}/api/consultation/appointments/${appointmentId}/call`, { method: 'POST', headers: authHeaders() });
       const data = await res.json();
-      if (data.success) setActiveCall({ roomUrl: data.room_url, token: data.token, consultationType: data.consultation_type });
+      if (data.success) setActiveCall({ roomUrl: data.room_url, token: data.token, consultationType: data.consultation_type, appointmentId });
       else setError(data.error || (sw ? 'Imeshindwa kuunganisha' : 'Could not start the call'));
     } catch { setError(sw ? 'Hitilafu ya muunganisho' : 'Connection error'); }
     setJoiningCallId(null);
@@ -255,6 +255,7 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
   if (activeCall) {
     return (
       <CallRoom roomUrl={activeCall.roomUrl} token={activeCall.token} consultationType={activeCall.consultationType}
+        appointmentId={activeCall.appointmentId} authToken={token}
         onLeave={() => setActiveCall(null)} />
     );
   }

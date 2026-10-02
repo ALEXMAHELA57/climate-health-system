@@ -314,9 +314,25 @@ async def join_call_as_patient(appointment_id: str, user: User = Depends(get_cur
         return {"success": False, "error": "This isn't your appointment"}
     try:
         call = await get_or_create_call(appt, db, is_doctor=False, identity_name=appt.patient_name or "Patient")
+        from app.routers.call import notify_incoming_call
+        await notify_incoming_call(appt, "patient", appt.patient_name or "Patient")
         return {"success": True, **call}
     except CallError as e:
         return {"success": False, "error": str(e)}
+
+@router.post("/appointments/{appointment_id}/call/decline")
+async def decline_call_as_patient(appointment_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Patient declines an incoming call from the doctor - tells the doctor
+    right away instead of leaving them staring at 'Ringing...' forever."""
+    from app.routers.call import notify_call_declined
+    appt = db.query(Appointment).filter(Appointment.appointment_id == appointment_id).first()
+    if not appt:
+        return {"success": False, "error": "Appointment not found"}
+    owns = (appt.owner_user_id == user.id) if appt.owner_user_id is not None else (user.phone and user.phone == appt.patient_phone)
+    if not owns:
+        return {"success": False, "error": "This isn't your appointment"}
+    await notify_call_declined(appt, "patient")
+    return {"success": True}
 
 @router.get("/appointments/mine")
 def get_my_appointments(user: User = Depends(get_current_user), db: Session = Depends(get_db)):

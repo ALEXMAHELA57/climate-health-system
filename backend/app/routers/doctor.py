@@ -125,9 +125,22 @@ async def join_call_as_doctor(appointment_id: str, doctor: Doctor = Depends(get_
         return {"success": False, "error": "Appointment not found"}
     try:
         call = await get_or_create_call(appt, db, is_doctor=True, identity_name=f"Dr. {doctor.name}")
+        from app.routers.call import notify_incoming_call
+        await notify_incoming_call(appt, "doctor", f"Dr. {doctor.name}")
         return {"success": True, **call}
     except CallError as e:
         return {"success": False, "error": str(e)}
+
+@router.post("/appointments/{appointment_id}/call/decline")
+async def decline_call_as_doctor(appointment_id: str, doctor: Doctor = Depends(get_current_doctor), db: Session = Depends(get_db)):
+    """Doctor declines an incoming call from the patient - tells the patient
+    right away instead of leaving them staring at 'Ringing...' forever."""
+    from app.routers.call import notify_call_declined
+    appt = db.query(Appointment).filter(Appointment.appointment_id == appointment_id, Appointment.doctor_id == doctor.id).first()
+    if not appt:
+        return {"success": False, "error": "Appointment not found"}
+    await notify_call_declined(appt, "doctor")
+    return {"success": True}
 
 # ── Change requests (price/availability) - proposed, pending admin approval ──
 

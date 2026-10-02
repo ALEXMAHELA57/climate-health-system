@@ -3,6 +3,7 @@ import { Stethoscope, Calendar, MessageCircle, Settings, LogOut } from 'lucide-r
 import { API } from './constants';
 import Chat from './Chat';
 import CallRoom from './CallRoom';
+import IncomingCallOverlay from './IncomingCallOverlay';
 import PasswordInput from './PasswordInput';
 
 function authHeaders(token) {
@@ -18,7 +19,7 @@ export default function DoctorPortal() {
 
   const [appointments, setAppointments] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
-  const [activeCall, setActiveCall] = useState(null); // { roomUrl, token, consultationType }
+  const [activeCall, setActiveCall] = useState(null); // { roomUrl, token, consultationType, appointmentId }
   const [joiningCallId, setJoiningCallId] = useState(null);
   const [callError, setCallError] = useState('');
   const [view, setView] = useState('appointments'); // appointments | settings
@@ -65,7 +66,7 @@ export default function DoctorPortal() {
     try {
       const res = await fetch(`${API}/api/doctor/appointments/${appointmentId}/call`, { method: 'POST', headers: authHeaders(token) });
       const data = await res.json();
-      if (data.success) setActiveCall({ roomUrl: data.room_url, token: data.token, consultationType: data.consultation_type });
+      if (data.success) setActiveCall({ roomUrl: data.room_url, token: data.token, consultationType: data.consultation_type, appointmentId });
       else setCallError(data.error || 'Could not start the call');
     } catch { setCallError('Connection error'); }
     setJoiningCallId(null);
@@ -192,22 +193,28 @@ export default function DoctorPortal() {
   if (activeCall) {
     return (
       <CallRoom roomUrl={activeCall.roomUrl} token={activeCall.token} consultationType={activeCall.consultationType}
+        appointmentId={activeCall.appointmentId} authToken={token}
         onLeave={() => setActiveCall(null)} />
     );
   }
 
   if (activeChat) {
     return (
-      <div style={{ maxWidth: 480, margin: '0 auto', padding: 16 }}>
-        <button onClick={() => setActiveChat(null)} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 12 }}>‹ Back to Appointments</button>
-        <Chat lang="en" appointmentId={activeChat} token={token} senderType="doctor" />
-      </div>
+      <>
+        <div style={{ maxWidth: 480, margin: '0 auto', padding: 16 }}>
+          <button onClick={() => setActiveChat(null)} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 12 }}>‹ Back to Appointments</button>
+          <Chat lang="en" appointmentId={activeChat} token={token} senderType="doctor" />
+        </div>
+        <IncomingCallOverlay role="doctor" authToken={token}
+          onAccept={(call) => setActiveCall(call)} />
+      </>
     );
   }
 
   const statusColor = { pending: '#d97706', confirmed: '#2563eb', completed: '#166534', cancelled: '#991b1b' };
 
   return (
+    <>
     <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100vh', background: '#f9fafb' }}>
       <div style={{ background: '#2563eb', color: '#fff', padding: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
@@ -345,5 +352,7 @@ export default function DoctorPortal() {
         </div>
       )}
     </div>
+    <IncomingCallOverlay role="doctor" authToken={token} onAccept={(call) => setActiveCall(call)} />
+    </>
   );
 }

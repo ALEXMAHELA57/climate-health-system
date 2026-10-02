@@ -8,6 +8,7 @@ import Onboarding from './Onboarding';
 import Auth from './Auth';
 import OfflineEmergency from './OfflineEmergency';
 import EmergencyContacts from './EmergencyContacts';
+import IncomingCallOverlay from './IncomingCallOverlay';
 
 const Home     = lazy(() => import('./Home'));
 const Weather  = lazy(() => import('./Weather'));
@@ -26,6 +27,7 @@ const VendorPortal = lazy(() => import('./VendorPortal'));
 const LabPortal = lazy(() => import('./LabPortal'));
 const HealthShop = lazy(() => import('./HealthShop'));
 const Consultation = lazy(() => import('./Consultation'));
+const CallRoom = lazy(() => import('./CallRoom'));
 const MedicineSchedule = lazy(() => import('./MedicineSchedule'));
 const AdminDashboard = lazy(() => import('./AdminDashboard'));
 
@@ -98,6 +100,7 @@ function AppShell({ startAtEmailLogin }) {
   const [selectedHealthDomainId, setSelectedHealthDomainId] = useState(null);
   const [careView, setCareView] = useState('expert');
   const [afyaTopic, setAfyaTopic] = useState('');
+  const [globalActiveCall, setGlobalActiveCall] = useState(null); // { roomUrl, token, consultationType, appointmentId }
 
   const t = T[lang] || T.en;
 
@@ -156,6 +159,16 @@ function AppShell({ startAtEmailLogin }) {
     return <Onboarding lang={lang} onFinish={()=>setShowOnboarding(false)} />;
   }
 
+  if (globalActiveCall) {
+    return (
+      <Suspense fallback={<Loader />}>
+        <CallRoom roomUrl={globalActiveCall.roomUrl} token={globalActiveCall.token} consultationType={globalActiveCall.consultationType}
+          appointmentId={globalActiveCall.appointmentId} authToken={localStorage.getItem('afya_token')}
+          onLeave={() => setGlobalActiveCall(null)} />
+      </Suspense>
+    );
+  }
+
   const onlineRequiredPages = ['climate', 'weather', 'symptoms', 'map', 'clinics', 'report', 'profile', 'consultation', 'medicine', 'health', 'care', 'family', 'myhealth', 'lab', 'shop'];
   const showOfflineFallback = !isOnline && onlineRequiredPages.includes(page);
 
@@ -168,6 +181,8 @@ function AppShell({ startAtEmailLogin }) {
 
   return (
     <div style={{ maxWidth:480, margin:'0 auto', minHeight:'100vh', display:'flex', flexDirection:'column', background: theme.bg }}>
+      <IncomingCallOverlay role="patient" authToken={localStorage.getItem('afya_token')}
+        onAccept={(call) => setGlobalActiveCall(call)} />
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }

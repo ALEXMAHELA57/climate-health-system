@@ -1,5 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, User, Maximize, Minimize } from 'lucide-react';
+import { API } from './constants';
+
+function wsUrl() {
+  return API.replace('https://', 'wss://').replace('http://', 'ws://');
+}
 
 // Full-screen video/voice call - built directly on Daily.co's low-level
 // "call object" API (no Daily Prebuilt iframe), so the UI is just ours:
@@ -11,7 +16,7 @@ import { Mic, MicOff, Video, VideoOff, PhoneOff, User, Maximize, Minimize } from
 // For a 'voice' consultation, camera is never requested or shown at all -
 // voice and video are billed at different prices, so paying for voice
 // must not get you a video call.
-export default function CallRoom({ roomUrl, token, consultationType, onLeave }) {
+export default function CallRoom({ roomUrl, token, consultationType, onLeave, appointmentId, authToken }) {
   const containerRef = useRef(null);
   const callRef = useRef(null);
   const localVideoRef = useRef(null);
@@ -31,6 +36,9 @@ export default function CallRoom({ roomUrl, token, consultationType, onLeave }) 
   const [voiceOnlyNotice, setVoiceOnlyNotice] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [declined, setDeclined] = useState(false);
+  const remoteJoinedRef = useRef(false);
+  remoteJoinedRef.current = remoteJoined;
 
   useEffect(() => {
     if (window.DailyIframe) { setScriptReady(true); return; }
@@ -118,6 +126,24 @@ export default function CallRoom({ roomUrl, token, consultationType, onLeave }) 
     // eslint-disable-next-line
   }, [scriptReady, roomUrl, token]);
 
+  // While we're the one calling (nobody's joined yet), listen for the other
+  // side declining, so "Ringing..." doesn't just hang forever if they tap
+  // Decline on their Incoming Call screen.
+  useEffect(() => {
+    if (!appointmentId || !authToken) return;
+    const ws = new WebSocket(`${wsUrl()}/api/calls/ws?token=${encodeURIComponent(authToken)}`);
+    ws.onmessage = (evt) => {
+      let msg;
+      try { msg = JSON.parse(evt.data); } catch { return; }
+      if (msg.type === 'call_declined' && msg.appointment_id === appointmentId && !remoteJoinedRef.current) {
+        setDeclined(true);
+        setTimeout(() => { onLeave && onLeave(); }, 2000);
+      }
+    };
+    return () => ws.close();
+    // eslint-disable-next-line
+  }, [appointmentId, authToken]);
+
   // Call duration timer, starts once the other person actually joins.
   useEffect(() => {
     if (remoteJoined && !timerRef.current) {
@@ -165,7 +191,7 @@ export default function CallRoom({ roomUrl, token, consultationType, onLeave }) 
     }
   }
 
-  const statusLabel = !joined ? 'Connecting...' : remoteJoined ? formatDuration(seconds) : 'Ringing...';
+  const statusLabel = declined ? 'Call declined' : !joined ? 'Connecting...' : remoteJoined ? formatDuration(seconds) : 'Ringing...';
   const showRemoteVideo = !isVoice && remoteJoined && remoteHasVideo;
   const showLocalPreview = !isVoice && camOn;
 
