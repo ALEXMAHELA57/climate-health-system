@@ -63,6 +63,13 @@ async def get_or_create_call(appt: Appointment, db: Session, *, is_doctor: bool,
                 "start_video_off": appt.consultation_type == "voice",
                 "start_audio_off": False,
                 "max_participants": 2,
+                # Skip Daily's device-check/"prejoin" screen (camera/mic
+                # pickers, etc.) - patients and doctors should land straight
+                # in the call, like a normal phone/WhatsApp call, not a video
+                # conferencing app's setup screen.
+                "enable_prejoin_ui": False,
+                "enable_network_ui": False,
+                "enable_people_ui": False,
             },
         })
         appt.call_room_url = room["url"]
