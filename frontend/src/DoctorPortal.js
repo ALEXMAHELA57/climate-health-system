@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Stethoscope, Calendar, MessageCircle, Settings, LogOut } from 'lucide-react';
 import { API } from './constants';
 import Chat from './Chat';
+import CallRoom from './CallRoom';
 import PasswordInput from './PasswordInput';
 
 function authHeaders(token) {
@@ -17,6 +18,9 @@ export default function DoctorPortal() {
 
   const [appointments, setAppointments] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
+  const [activeCall, setActiveCall] = useState(null); // { roomUrl, token, consultationType }
+  const [joiningCallId, setJoiningCallId] = useState(null);
+  const [callError, setCallError] = useState('');
   const [view, setView] = useState('appointments'); // appointments | settings
   const [changeRequests, setChangeRequests] = useState([]);
   const [proposedPrices, setProposedPrices] = useState('');
@@ -54,6 +58,17 @@ export default function DoctorPortal() {
   async function updateStatus(appointmentId, status) {
     await fetch(`${API}/api/doctor/appointments/${appointmentId}/status`, { method: 'PATCH', headers: authHeaders(token), body: JSON.stringify({ status }) }).catch(() => {});
     loadAppointments();
+  }
+
+  async function joinCall(appointmentId) {
+    setCallError(''); setJoiningCallId(appointmentId);
+    try {
+      const res = await fetch(`${API}/api/doctor/appointments/${appointmentId}/call`, { method: 'POST', headers: authHeaders(token) });
+      const data = await res.json();
+      if (data.success) setActiveCall({ roomUrl: data.room_url, token: data.token, consultationType: data.consultation_type });
+      else setCallError(data.error || 'Could not start the call');
+    } catch { setCallError('Connection error'); }
+    setJoiningCallId(null);
   }
 
   async function loadChangeRequests() {
@@ -174,6 +189,13 @@ export default function DoctorPortal() {
     );
   }
 
+  if (activeCall) {
+    return (
+      <CallRoom roomUrl={activeCall.roomUrl} token={activeCall.token} consultationType={activeCall.consultationType}
+        onLeave={() => setActiveCall(null)} />
+    );
+  }
+
   if (activeChat) {
     return (
       <div style={{ maxWidth: 480, margin: '0 auto', padding: 16 }}>
@@ -207,6 +229,7 @@ export default function DoctorPortal() {
       {view === 'appointments' && (
         <div style={{ padding: '0 16px' }}>
           {appointments.length === 0 && <p style={{ textAlign: 'center', color: '#9ca3af', fontSize: 13, padding: 20 }}>No appointments yet</p>}
+          {!!callError && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: 10, marginBottom: 10, fontSize: 12, color: '#991b1b' }}>{callError}</div>}
           {appointments.map(a => (
             <div key={a.appointment_id} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 14, marginBottom: 10 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -228,6 +251,12 @@ export default function DoctorPortal() {
                   <button onClick={() => updateStatus(a.appointment_id, 'completed')} style={{ flex: 1, padding: 8, background: '#f0fdf4', color: '#166534', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Mark Completed</button>
                 )}
               </div>
+              {a.status === 'confirmed' && a.payment_status === 'paid' && (a.consultation_type === 'voice' || a.consultation_type === 'video') && (
+                <button onClick={() => joinCall(a.appointment_id)} disabled={joiningCallId === a.appointment_id}
+                  style={{ width: '100%', marginTop: 8, padding: 8, background: joiningCallId === a.appointment_id ? '#86efac' : '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: joiningCallId === a.appointment_id ? 'default' : 'pointer' }}>
+                  {joiningCallId === a.appointment_id ? 'Connecting...' : `Join ${a.consultation_type === 'video' ? 'Video' : 'Voice'} Call`}
+                </button>
+              )}
             </div>
           ))}
         </div>

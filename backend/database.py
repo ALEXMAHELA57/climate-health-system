@@ -581,6 +581,7 @@ class Appointment(Base):
     status              = Column(String(20), default="pending")  # pending | confirmed | completed | cancelled
     payment_status      = Column(String(20), default="unpaid")   # unpaid | paid | failed
     azampay_ref         = Column(String(100), nullable=True)
+    call_room_url       = Column(Text, nullable=True)  # Daily.co room, created on first join (voice/video only)
     language             = Column(String(5), default="en")
     created_at          = Column(DateTime, default=datetime.utcnow)
     updated_at          = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -651,6 +652,7 @@ _COLUMNS_ADDED_TO_EXISTING_TABLES = [
     ("users", "paid_services_count", "INTEGER DEFAULT 0"),
     ("users", "bonus_available", "BOOLEAN DEFAULT FALSE"),
     ("users", "google_id", "VARCHAR(100)"),
+    ("appointments", "call_room_url", "TEXT"),
 ]
 
 def _run_lightweight_migrations():

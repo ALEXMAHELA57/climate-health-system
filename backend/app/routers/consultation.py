@@ -250,9 +250,12 @@ async def consult_now(data: ConsultNowIn, user: User = Depends(get_current_user)
     db.commit()
 
     return {
-        "success": True, "appointment_id": appt_id,
+        "success": True, "appointment_id": appt_id, "consultation_type": data.consultation_type,
         "open_chat_now": data.consultation_type == "chat",
-        "message": "Confirmed! The doctor has been notified." if data.consultation_type != "chat" else "Connected - you can start chatting now.",
+        "message": (
+            "Connected - you can start chatting now." if data.consultation_type == "chat"
+            else "Confirmed! Join the call whenever you're ready - the doctor has been notified."
+        ),
     }
 
 @router.post("/appointments/{appointment_id}/pay")
@@ -284,6 +287,23 @@ async def pay_for_appointment(appointment_id: str, data: dict, user: User = Depe
     appt.azampay_ref = payment.get("transaction_id")
     db.commit()
     return {"success": True, "message": "Payment successful"}
+
+@router.post("/appointments/{appointment_id}/call")
+async def join_call_as_patient(appointment_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Returns a Daily.co room + join token for a confirmed, paid
+    voice/video appointment, creating the room on the first join."""
+    from app.routers.call import get_or_create_call, CallError
+    appt = db.query(Appointment).filter(Appointment.appointment_id == appointment_id).first()
+    if not appt:
+        return {"success": False, "error": "Appointment not found"}
+    owns = (appt.owner_user_id == user.id) if appt.owner_user_id is not None else (user.phone and user.phone == appt.patient_phone)
+    if not owns:
+        return {"success": False, "error": "This isn't your appointment"}
+    try:
+        call = await get_or_create_call(appt, db, is_doctor=False, identity_name=appt.patient_name or "Patient")
+        return {"success": True, **call}
+    except CallError as e:
+        return {"success": False, "error": str(e)}
 
 @router.get("/appointments/mine")
 def get_my_appointments(user: User = Depends(get_current_user), db: Session = Depends(get_db)):

@@ -3,6 +3,7 @@ import { Stethoscope, Brain, UserRound, Users, Baby, CalendarHeart, Smile, Heart
 import { API, validateName, validatePhone } from './constants';
 import { useTheme } from './ThemeContext';
 import Chat from './Chat';
+import CallRoom from './CallRoom';
 
 const SPECIALTY_ICON = {
   general: Stethoscope,
@@ -73,6 +74,8 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
 
   const [myAppointments, setMyAppointments] = useState(null);
   const [activeChat, setActiveChat] = useState(null);
+  const [activeCall, setActiveCall] = useState(null); // { roomUrl, token, consultationType }
+  const [joiningCallId, setJoiningCallId] = useState(null);
   const [negotiations, setNegotiations] = useState([]);
   const [ratingAppointment, setRatingAppointment] = useState(null);
   const [ratingStars, setRatingStars] = useState(0);
@@ -118,6 +121,17 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
       else setError(data.error || (sw ? 'Malipo yameshindwa' : 'Payment failed'));
     } catch { setError(sw ? 'Hitilafu ya muunganisho' : 'Connection error'); }
     setPayingId(null);
+  }
+
+  async function joinCall(appointmentId) {
+    setError(''); setJoiningCallId(appointmentId);
+    try {
+      const res = await fetch(`${API}/api/consultation/appointments/${appointmentId}/call`, { method: 'POST', headers: authHeaders() });
+      const data = await res.json();
+      if (data.success) setActiveCall({ roomUrl: data.room_url, token: data.token, consultationType: data.consultation_type });
+      else setError(data.error || (sw ? 'Imeshindwa kuunganisha' : 'Could not start the call'));
+    } catch { setError(sw ? 'Hitilafu ya muunganisho' : 'Connection error'); }
+    setJoiningCallId(null);
   }
 
   async function submitRating(appointmentId) {
@@ -237,6 +251,13 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
     completed: { color: '#166534', bg: '#f0fdf4', label: sw ? 'Imekamilika' : 'Completed' },
     cancelled: { color: '#991b1b', bg: '#fef2f2', label: sw ? 'Imeghairiwa' : 'Cancelled' },
   };
+
+  if (activeCall) {
+    return (
+      <CallRoom roomUrl={activeCall.roomUrl} token={activeCall.token} consultationType={activeCall.consultationType}
+        onLeave={() => setActiveCall(null)} />
+    );
+  }
 
   if (activeChat) {
     const token = localStorage.getItem('afya_token');
@@ -499,9 +520,16 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
           <CheckCircle2 size={40} color="#16a34a" style={{ margin: '0 auto 10px' }} />
           <div style={{ fontSize: 16, fontWeight: 700, color: theme.text, marginBottom: 6 }}>{sw ? 'Imekamilika!' : 'All set!'}</div>
           <div style={{ fontSize: 13, color: theme.textMuted, marginBottom: 16 }}>{consultResult.message}</div>
+          {!consultResult.open_chat_now && (consultResult.consultation_type === 'voice' || consultResult.consultation_type === 'video') && (
+            <button onClick={() => joinCall(consultResult.appointment_id)} disabled={joiningCallId === consultResult.appointment_id}
+              style={{ width: '100%', maxWidth: 280, margin: '0 auto 10px', padding: 11, background: joiningCallId === consultResult.appointment_id ? '#86efac' : '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: joiningCallId === consultResult.appointment_id ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              {consultResult.consultation_type === 'video' ? <Video size={15} /> : <Phone size={15} />}
+              {joiningCallId === consultResult.appointment_id ? (sw ? 'Inaunganisha...' : 'Connecting...') : (sw ? 'Ingia kwenye Simu Sasa' : 'Join Call Now')}
+            </button>
+          )}
           {!consultResult.open_chat_now && (
             <button onClick={() => { setConsultResult(null); setView('my'); loadMyAppointments(); }}
-              style={{ padding: '9px 20px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              style={{ padding: '9px 20px', background: consultResult.consultation_type === 'chat' ? '#2563eb' : theme.card, color: consultResult.consultation_type === 'chat' ? '#fff' : theme.textMuted, border: consultResult.consultation_type === 'chat' ? 'none' : `1px solid ${theme.border}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
               {sw ? 'Ona Miadi Yangu' : 'View My Appointments'}
             </button>
           )}
@@ -640,10 +668,23 @@ export default function Consultation({ lang, initialSpecialty, hideTabs, externa
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: theme.textMuted, marginTop: 8 }}>
                   <Calendar size={12} /> {a.requested_date} <Clock size={12} style={{ marginLeft: 6 }} /> {a.requested_time}
                 </div>
-                {a.status !== 'cancelled' && (
+                {a.status !== 'cancelled' && a.consultation_type === 'chat' && (
                   <button onClick={() => setActiveChat(a.appointment_id)}
                     style={{ width: '100%', marginTop: 10, padding: 8, background: '#eff6ff', color: '#1d4ed8', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
                     <MessageCircle size={13} /> {sw ? 'Ongea na Daktari' : 'Chat with Doctor'}
+                  </button>
+                )}
+                {a.status === 'confirmed' && a.payment_status === 'paid' && (a.consultation_type === 'voice' || a.consultation_type === 'video') && (
+                  <button onClick={() => joinCall(a.appointment_id)} disabled={joiningCallId === a.appointment_id}
+                    style={{ width: '100%', marginTop: 10, padding: 8, background: joiningCallId === a.appointment_id ? '#86efac' : '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: joiningCallId === a.appointment_id ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                    {a.consultation_type === 'video' ? <Video size={13} /> : <Phone size={13} />}
+                    {joiningCallId === a.appointment_id ? (sw ? 'Inaunganisha...' : 'Connecting...') : (sw ? 'Ingia kwenye Simu' : 'Join Call')}
+                  </button>
+                )}
+                {a.status !== 'cancelled' && a.consultation_type !== 'chat' && (
+                  <button onClick={() => setActiveChat(a.appointment_id)}
+                    style={{ width: '100%', marginTop: 6, padding: 8, background: 'none', border: `1px solid ${theme.border}`, borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', color: theme.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                    <MessageCircle size={13} /> {sw ? 'Ujumbe wa Maandishi' : 'Message the Doctor'}
                   </button>
                 )}
                 {(a.status === 'pending' || a.status === 'confirmed') && (

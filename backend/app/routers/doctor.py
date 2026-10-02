@@ -102,6 +102,7 @@ def list_appointments(doctor: Doctor = Depends(get_current_doctor), db: Session 
         "appointment_id": a.appointment_id, "patient_name": a.patient_name, "patient_phone": a.patient_phone,
         "specialty": a.specialty, "reason": a.reason, "requested_date": a.requested_date,
         "requested_time": a.requested_time, "consultation_type": a.consultation_type, "status": a.status,
+        "payment_status": a.payment_status,
     } for a in appts]}
 
 @router.patch("/appointments/{appointment_id}/status")
@@ -113,6 +114,20 @@ def update_appointment_status(appointment_id: str, data: AppointmentStatusIn, do
     appt.updated_at = datetime.utcnow()
     db.commit()
     return {"success": True}
+
+@router.post("/appointments/{appointment_id}/call")
+async def join_call_as_doctor(appointment_id: str, doctor: Doctor = Depends(get_current_doctor), db: Session = Depends(get_db)):
+    """Returns a Daily.co room + join token for a confirmed, paid
+    voice/video appointment, creating the room on the first join."""
+    from app.routers.call import get_or_create_call, CallError
+    appt = db.query(Appointment).filter(Appointment.appointment_id == appointment_id, Appointment.doctor_id == doctor.id).first()
+    if not appt:
+        return {"success": False, "error": "Appointment not found"}
+    try:
+        call = await get_or_create_call(appt, db, is_doctor=True, identity_name=f"Dr. {doctor.name}")
+        return {"success": True, **call}
+    except CallError as e:
+        return {"success": False, "error": str(e)}
 
 # ── Change requests (price/availability) - proposed, pending admin approval ──
 
