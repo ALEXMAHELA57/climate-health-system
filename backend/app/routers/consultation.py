@@ -229,13 +229,19 @@ async def consult_now(data: ConsultNowIn, user: User = Depends(get_current_user)
         from app.routers.wallet import spend_from_wallet
         if not spend_from_wallet(user, price, f"Consult Now - {doctor.name} ({data.consultation_type})", db):
             return {"success": False, "error": f"Insufficient wallet balance - you have TZS {(user.wallet_balance or 0):,.0f}, need TZS {price:,.0f}"}
-    else:
+    elif azampay.is_configured():
         payment = await azampay.checkout_mno(price, data.patient_phone, data.payment_provider, gen_id("PAY"), data.patient_name)
         if not payment.get("success"):
             return {"success": False, "error": payment.get("error", "Payment could not be started")}
         azampay_ref = payment.get("transaction_id")
         from app.routers.wallet import record_paid_service
         record_paid_service(user, db)
+    else:
+        # TEMPORARY: AzamPay credentials aren't set up yet, so there's no way
+        # to actually collect mobile money right now. Mark paid directly so
+        # the rest of the flow (incl. voice/video calls) can be tested.
+        # Remove this branch once AZAMPAY_* env vars are configured for real.
+        azampay_ref = f"UNPAID-NOGATEWAY-{gen_id('PAY')}"
 
     now = datetime.utcnow() + timedelta(hours=3)
     appt_id = gen_id("APT")
@@ -279,12 +285,19 @@ async def pay_for_appointment(appointment_id: str, data: dict, user: User = Depe
         return {"success": False, "error": "Could not determine the price for this appointment"}
 
     provider = data.get("payment_provider", "Mpesa")
-    payment = await azampay.checkout_mno(price, appt.patient_phone, provider, appointment_id, appt.patient_name)
-    if not payment.get("success"):
-        return {"success": False, "error": payment.get("error", "Payment could not be started")}
+    if azampay.is_configured():
+        payment = await azampay.checkout_mno(price, appt.patient_phone, provider, appointment_id, appt.patient_name)
+        if not payment.get("success"):
+            return {"success": False, "error": payment.get("error", "Payment could not be started")}
+        appt.azampay_ref = payment.get("transaction_id")
+    else:
+        # TEMPORARY: AzamPay credentials aren't set up yet, so there's no way
+        # to actually collect mobile money right now. Mark paid directly so
+        # the rest of the flow (incl. voice/video calls) can be tested.
+        # Remove this branch once AZAMPAY_* env vars are configured for real.
+        appt.azampay_ref = f"UNPAID-NOGATEWAY-{appointment_id}"
 
     appt.payment_status = "paid"
-    appt.azampay_ref = payment.get("transaction_id")
     db.commit()
     return {"success": True, "message": "Payment successful"}
 
