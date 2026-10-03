@@ -144,6 +144,8 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
   // into googleBtnRef whenever the 'auth' step is showing.
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID) return;
+    let resizeTimer = null;
+
     function renderButton() {
       if (!window.google || !googleBtnRef.current) return;
       window.google.accounts.id.initialize({
@@ -152,24 +154,45 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
         // ("Continue as <name>" with avatar + email baked in) and keep the
         // plain, consistently-styled "Continue with Google" button instead,
         // regardless of whether the visitor's already signed into Google
-        // in that browser.
+        // in that browser. (Some browser/version combinations still show
+        // the chooser regardless - that's Google's call, not something we
+        // can force off from here.)
         use_fedcm_for_button: false,
         itp_support: false,
       });
       googleBtnRef.current.innerHTML = '';
+      // Google's button takes a fixed PIXEL width, not a percentage - a
+      // hardcoded number here is wider than the card on a narrow phone and
+      // spills out past its rounded edge. Measure the actual space we have
+      // instead, capped at a sensible max for desktop.
+      const available = Math.floor(googleBtnRef.current.getBoundingClientRect().width) || 320;
       window.google.accounts.id.renderButton(googleBtnRef.current, {
-        theme: isDark ? 'filled_black' : 'outline', size: 'large', width: 360, text: 'continue_with', shape: 'pill',
+        theme: isDark ? 'filled_black' : 'outline', size: 'large',
+        width: Math.min(360, Math.max(200, available)), text: 'continue_with', shape: 'pill',
       });
     }
-    if (window.google?.accounts?.id) { renderButton(); return; }
-    const existing = document.getElementById('google-identity-script');
-    if (existing) { existing.addEventListener('load', renderButton); return; }
-    const script = document.createElement('script');
-    script.id = 'google-identity-script';
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true; script.defer = true;
-    script.onload = renderButton;
-    document.body.appendChild(script);
+
+    function onResize() {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(renderButton, 150);
+    }
+
+    if (window.google?.accounts?.id) { renderButton(); }
+    else {
+      const existing = document.getElementById('google-identity-script');
+      if (existing) { existing.addEventListener('load', renderButton); }
+      else {
+        const script = document.createElement('script');
+        script.id = 'google-identity-script';
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true; script.defer = true;
+        script.onload = renderButton;
+        document.body.appendChild(script);
+      }
+    }
+
+    window.addEventListener('resize', onResize);
+    return () => { window.removeEventListener('resize', onResize); clearTimeout(resizeTimer); };
     // eslint-disable-next-line
   }, [step, isDark]);
 
