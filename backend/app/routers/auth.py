@@ -93,6 +93,30 @@ async def send_verification_email(email: str, token: str, lang: str = "en"):
         )
     print(f"[auth] Resend response status={res.status_code} body={res.text[:300]}")
 
+async def send_reset_email(email: str, token: str, lang: str = "en"):
+    if not RESEND_API_KEY:
+        print("[auth] RESEND_API_KEY not set - skipping email send (dev mode)")
+        return
+    import httpx
+    reset_url = f"{FRONTEND_URL}/reset-password?token={token}"
+    subject = "Reset your AfyaHewa password" if lang == "en" else "Weka upya nenosiri lako la AfyaHewa"
+    body = (
+        f"We received a request to reset your AfyaHewa password. Click the link below "
+        f"to choose a new one - it expires in 1 hour:\n{reset_url}\n\n"
+        f"If you didn't request this, you can safely ignore this email."
+        if lang == "en" else
+        f"Tumepokea ombi la kuweka upya nenosiri lako la AfyaHewa. Bofya kiungo hapa chini "
+        f"kuchagua jipya - kinaisha muda baada ya saa 1:\n{reset_url}\n\n"
+        f"Kama hukuomba hili, puuza tu barua hii."
+    )
+    async with httpx.AsyncClient(timeout=15) as client:
+        res = await client.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+            json={"from": "AfyaHewa <noreply@afyahewa.com>", "to": [email], "subject": subject, "text": body},
+        )
+    print(f"[auth] Resend (reset) response status={res.status_code} body={res.text[:300]}")
+
 # ── Request models ───────────────────────────────────────────────────────────
 
 class PhoneStart(BaseModel):
@@ -122,6 +146,14 @@ class EmailLogin(BaseModel):
 class GoogleAuthIn(BaseModel):
     credential: str  # the Google ID token (JWT) from Google Identity Services
     language: Optional[str] = "en"
+
+class ForgotPasswordIn(BaseModel):
+    email: EmailStr
+    language: Optional[str] = "en"
+
+class ResetPasswordIn(BaseModel):
+    token: str
+    password: str
 
 # ── Phone + OTP flow ───────────────────────────────────────────────────────
 
@@ -249,6 +281,43 @@ def email_login(data: EmailLogin, db: Session = Depends(get_db)):
     if not user.name or not user.date_of_birth:
         return {"success": True, "needs_profile": True}
     return {"success": True, "token": create_jwt(user.id), "user": user_public(user)}
+
+@router.post("/password/forgot")
+async def forgot_password(data: ForgotPasswordIn, db: Session = Depends(get_db)):
+    """Always responds success, whether or not this email has an account -
+    otherwise the response itself would let someone probe which addresses
+    are registered. If it does exist, a reset link is emailed; a Google-only
+    account gets one too, so this also doubles as 'set a password for my
+    Google account' if someone wants to add email/password login later."""
+    user = db.query(User).filter(User.email == data.email).first()
+    if user:
+        token = gen_token()
+        db.add(EmailVerificationToken(
+            email=data.email, token=token, purpose="reset_password",
+            expires_at=datetime.utcnow() + timedelta(hours=1),
+        ))
+        db.commit()
+        await send_reset_email(data.email, token, data.language or "en")
+    return {"success": True}
+
+@router.post("/password/reset")
+def reset_password(data: ResetPasswordIn, db: Session = Depends(get_db)):
+    record = db.query(EmailVerificationToken).filter(
+        EmailVerificationToken.token == data.token,
+        EmailVerificationToken.used == False,
+        EmailVerificationToken.purpose == "reset_password",
+    ).first()
+    if not record or record.expires_at < datetime.utcnow():
+        return {"success": False, "error": "This reset link is invalid or has expired - please request a new one"}
+    if len(data.password) < 8:
+        return {"success": False, "error": "Password must be at least 8 characters"}
+    user = db.query(User).filter(User.email == record.email).first()
+    if not user:
+        return {"success": False, "error": "Account not found"}
+    user.password_hash = pwd_context.hash(data.password)
+    record.used = True
+    db.commit()
+    return {"success": True}
 
 # ── Google Sign-In ───────────────────────────────────────────────────────────
 
