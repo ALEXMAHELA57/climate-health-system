@@ -14,6 +14,8 @@ const BACK_STEP = {
   'email-check-inbox': 'auth',
   profile: 'auth',
   'minor-blocked': 'auth',
+  forgot: 'auth',
+  'forgot-sent': 'auth',
 };
 
 // ── Brand mark: a heart carrying a little world + a heartbeat pulse ─────────
@@ -79,8 +81,8 @@ function BackgroundArt({ dark }) {
 // the design, without duplicating positioning code per field.
 function IconField({ icon: Icon, children }) {
   return (
-    <div style={{ position: 'relative', marginBottom: 14 }}>
-      <Icon size={17} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', zIndex: 1 }} />
+    <div style={{ position: 'relative', marginBottom: 12 }}>
+      <Icon size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', zIndex: 1 }} />
       {children}
     </div>
   );
@@ -102,7 +104,7 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
   const [loading, setLoading] = useState(false);
   const [pendingUserId, setPendingUserId] = useState(null);
   const [rememberMe, setRememberMe] = useState(true);
-  const [forgotNotice, setForgotNotice] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
   const googleBtnRef = useRef(null);
 
   const t = (en, swText) => (sw ? swText : en);
@@ -198,6 +200,20 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
     setLoading(false);
   }
 
+  async function submitForgotPassword() {
+    const emailErr = validateEmail(forgotEmail, { sw });
+    if (emailErr) { setError(emailErr); return; }
+    setLoading(true); setError('');
+    try {
+      await api('/password/forgot', { email: forgotEmail, language: lang });
+      // Always shows the same "check your inbox" screen whether or not an
+      // account exists for that address - the backend never reveals that
+      // either, so this can't be used to probe who has an account.
+      setStep('forgot-sent');
+    } catch { setError(t('Connection error', 'Hitilafu ya muunganisho')); }
+    setLoading(false);
+  }
+
   async function submitProfile() {
     const nameErr = validateName(name, { sw });
     if (nameErr) { setError(nameErr); return; }
@@ -219,22 +235,22 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
     : 'linear-gradient(180deg, #eef4ff 0%, #f7faff 55%, #eef4ff 100%)';
 
   const fieldStyle = {
-    width: '100%', padding: '13px 14px 13px 42px', borderRadius: 12,
+    width: '100%', padding: '12px 14px 12px 42px', borderRadius: 12,
     border: `1.5px solid ${theme.border}`, background: theme.card, color: theme.text,
-    fontSize: 15, boxSizing: 'border-box', outline: 'none',
+    fontSize: 14, boxSizing: 'border-box', outline: 'none',
   };
   const primaryBtnStyle = {
-    width: '100%', padding: 15, background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: '#fff',
-    border: 'none', borderRadius: 14, fontSize: 16, fontWeight: 700, cursor: 'pointer',
+    width: '100%', padding: 13, background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: '#fff',
+    border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
     boxShadow: '0 8px 20px -6px rgba(37,99,235,0.55)',
   };
 
   return (
-    <div style={{ position: 'relative', minHeight: '100vh', background: pageBg, overflow: 'hidden' }}>
+    <div style={{ position: 'relative', minHeight: '100vh', background: pageBg, overflowX: 'hidden' }}>
       <BackgroundArt dark={isDark} />
 
-      <div style={{ position: 'relative', zIndex: 1, maxWidth: 480, margin: '0 auto', padding: '24px 24px 48px', display: 'flex', flexDirection: 'column', minHeight: '100vh', boxSizing: 'border-box' }}>
+      <div style={{ position: 'relative', zIndex: 1, maxWidth: 440, margin: '0 auto', padding: '20px 20px 32px', display: 'flex', flexDirection: 'column', minHeight: '100vh', boxSizing: 'border-box' }}>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
           <div style={{ display: 'flex', background: theme.card, borderRadius: 99, padding: 3, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
@@ -243,17 +259,17 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
           </div>
         </div>
 
-        <div style={{ textAlign: 'center', marginTop: 8, marginBottom: 22 }}>
-          <Logo />
-          <div style={{ fontSize: 32, fontWeight: 800, marginTop: 10, letterSpacing: -0.5 }}>
+        <div style={{ textAlign: 'center', marginTop: 4, marginBottom: 16 }}>
+          <Logo size={72} />
+          <div style={{ fontSize: 26, fontWeight: 800, marginTop: 6, letterSpacing: -0.5 }}>
             <span style={{ color: isDark ? '#dbeafe' : '#1e3a8a' }}>Afya</span><span style={{ color: '#2563eb' }}>Hewa</span>
           </div>
-          <div style={{ fontSize: 14, color: theme.textMuted, marginTop: 2 }}>
+          <div style={{ fontSize: 13, color: theme.textMuted, marginTop: 2 }}>
             {t('Climate Health System · Tanzania', 'Mfumo wa Afya ya Tabianchi · Tanzania')}
           </div>
         </div>
 
-        <div style={{ background: cardBg, borderRadius: 22, padding: '28px 24px', boxShadow: isDark ? '0 20px 40px -20px rgba(0,0,0,0.6)' : '0 20px 40px -20px rgba(30,64,175,0.25)', flex: step === 'auth' ? 'none' : undefined }}>
+        <div style={{ background: cardBg, borderRadius: 20, padding: '22px 20px', boxShadow: isDark ? '0 20px 40px -20px rgba(0,0,0,0.6)' : '0 20px 40px -20px rgba(30,64,175,0.25)', flex: step === 'auth' ? 'none' : undefined }}>
 
           {step !== 'auth' && (
             <button onClick={() => { setStep(BACK_STEP[step] || 'auth'); setError(''); }} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -263,10 +279,10 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
 
           {step === 'auth' && (
             <>
-              <div style={{ fontSize: 24, fontWeight: 800, color: theme.text, marginBottom: 4 }}>
+              <div style={{ fontSize: 21, fontWeight: 800, color: theme.text, marginBottom: 3 }}>
                 {authMode === 'login' ? t('Welcome Back', 'Karibu tena') : t('Create your account', 'Fungua akaunti yako')}
               </div>
-              <div style={{ fontSize: 14, color: theme.textMuted, marginBottom: 22 }}>
+              <div style={{ fontSize: 13, color: theme.textMuted, marginBottom: 16 }}>
                 {authMode === 'login' ? t('Log in to access your account', 'Ingia ili kufikia akaunti yako') : t("Let's get you set up", 'Hebu tukuandae')}
               </div>
 
@@ -281,28 +297,22 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
               </IconField>
 
               {authMode === 'login' && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, marginTop: -2 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, marginTop: -2 }}>
                   <button onClick={() => setRememberMe(r => !r)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                     <span style={{ width: 18, height: 18, borderRadius: 5, border: `1.5px solid ${rememberMe ? '#2563eb' : theme.border}`, background: rememberMe ? '#2563eb' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {rememberMe && <Check size={13} color="#fff" strokeWidth={3} />}
                     </span>
                     <span style={{ fontSize: 13, color: theme.text }}>{t('Remember me', 'Nikumbuke')}</span>
                   </button>
-                  <button onClick={() => setForgotNotice(true)} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+                  <button onClick={() => { setForgotEmail(email); setError(''); setStep('forgot'); }} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
                     {t('Forgot password?', 'Umesahau nenosiri?')}
                   </button>
                 </div>
               )}
 
-              {forgotNotice && authMode === 'login' && (
-                <p style={{ fontSize: 12, color: theme.textMuted, marginTop: -10, marginBottom: 14, background: isDark ? 'rgba(255,255,255,0.05)' : '#f3f4f6', padding: '8px 10px', borderRadius: 8 }}>
-                  {t('Password reset isn’t available yet — please contact support for help getting back into your account.', 'Kuweka upya nenosiri bado hakipatikani — tafadhali wasiliana na huduma kwa usaidizi wa kuingia kwenye akaunti yako.')}
-                </p>
-              )}
-
               {!!error && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{error}</p>}
 
-              <button onClick={authMode === 'login' ? submitEmailLogin : submitEmailRegister} disabled={loading} style={{ ...primaryBtnStyle, marginBottom: 18, opacity: loading ? 0.75 : 1 }}>
+              <button onClick={authMode === 'login' ? submitEmailLogin : submitEmailRegister} disabled={loading} style={{ ...primaryBtnStyle, marginBottom: 14, opacity: loading ? 0.75 : 1 }}>
                 {loading
                   ? (authMode === 'login' ? t('Signing in...', 'Inaingia...') : t('Creating...', 'Inaunda...'))
                   : (authMode === 'login' ? t('Log In', 'Ingia') : t('Create Account', 'Unda Akaunti'))}
@@ -311,12 +321,12 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
 
               {!!GOOGLE_CLIENT_ID && (
                 <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 12px' }}>
                     <div style={{ flex: 1, height: 1, background: theme.border }} />
                     <span style={{ fontSize: 12, color: theme.textFaint }}>{t('or', 'au')}</span>
                     <div style={{ flex: 1, height: 1, background: theme.border }} />
                   </div>
-                  <div ref={googleBtnRef} style={{ display: 'flex', justifyContent: 'center', marginBottom: 4 }} />
+                  <div ref={googleBtnRef} style={{ display: 'flex', justifyContent: 'center', marginBottom: 2 }} />
                 </>
               )}
             </>
@@ -327,6 +337,38 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
               <Mail size={40} color="#2563eb" style={{ margin: '0 auto 12px' }} />
               <p style={{ fontSize: 14, color: theme.text, marginBottom: 8 }}>{t('Check your inbox', 'Angalia barua pepe yako')}</p>
               <p style={{ fontSize: 13, color: theme.textMuted }}>{t('We sent a verification link to your email. After verifying, come back and log in.', 'Tumetuma kiungo cha uthibitisho kwenye barua pepe yako. Baada ya kuthibitisha, rudi uingie.')}</p>
+            </div>
+          )}
+
+          {step === 'forgot' && (
+            <>
+              <div style={{ fontSize: 22, fontWeight: 800, color: theme.text, marginBottom: 4 }}>
+                {t('Reset your password', 'Weka upya nenosiri lako')}
+              </div>
+              <div style={{ fontSize: 14, color: theme.textMuted, marginBottom: 20 }}>
+                {t("Enter your account's email and we'll send you a link to choose a new password.", 'Weka barua pepe ya akaunti yako na tutakutumia kiungo cha kuchagua nenosiri jipya.')}
+              </div>
+              <IconField icon={Mail}>
+                <input placeholder={t('Email address', 'Barua pepe')} value={forgotEmail}
+                  onChange={e => setForgotEmail(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && submitForgotPassword()}
+                  style={fieldStyle} />
+              </IconField>
+              {!!error && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{error}</p>}
+              <button onClick={submitForgotPassword} disabled={loading} style={{ ...primaryBtnStyle, opacity: loading ? 0.75 : 1 }}>
+                {loading ? t('Sending...', 'Inatuma...') : t('Send reset link', 'Tuma kiungo')}
+                {!loading && <ArrowRight size={18} />}
+              </button>
+            </>
+          )}
+
+          {step === 'forgot-sent' && (
+            <div style={{ textAlign: 'center', padding: '12px 0' }}>
+              <Mail size={40} color="#2563eb" style={{ margin: '0 auto 12px' }} />
+              <p style={{ fontSize: 14, color: theme.text, marginBottom: 8 }}>{t('Check your inbox', 'Angalia barua pepe yako')}</p>
+              <p style={{ fontSize: 13, color: theme.textMuted }}>
+                {t('If an account exists for that email, a password reset link is on its way. It expires in 1 hour.', 'Kama akaunti ipo kwa barua pepe hiyo, kiungo cha kuweka upya nenosiri kinakuja. Kinaisha muda baada ya saa 1.')}
+              </p>
             </div>
           )}
 
@@ -373,9 +415,9 @@ export default function Auth({ lang, onLangChange, onAuthenticated, startAtEmail
         </div>
 
         {step === 'auth' && (
-          <div style={{ textAlign: 'center', fontSize: 13, color: theme.textMuted, marginTop: 22 }}>
+          <div style={{ textAlign: 'center', fontSize: 13, color: theme.textMuted, marginTop: 16 }}>
             {authMode === 'login' ? t("Don't have an account? ", 'Huna akaunti? ') : t('Already have an account? ', 'Una akaunti tayari? ')}
-            <button onClick={() => { setAuthMode(authMode === 'login' ? 'create' : 'login'); setError(''); setForgotNotice(false); }} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+            <button onClick={() => { setAuthMode(authMode === 'login' ? 'create' : 'login'); setError(''); }} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
               {authMode === 'login' ? t('Create Account', 'Jisajili') : t('Log in', 'Ingia')}
             </button>
           </div>
